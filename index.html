@@ -847,7 +847,12 @@
             while (game.player.exp >= game.player.maxExp) levelUp();
             updateUI();
             if (!game.enemy.isBoss) {
-                setTimeout(() => { spawnEnemy(); log(`遇到了新的敌人：${game.enemy.name} Lv.${game.enemy.level}`, 'log-loot'); }, 800);
+                if (game.autoBattle) {
+                    spawnEnemy();
+                    log(`遇到了新的敌人：${game.enemy.name} Lv.${game.enemy.level}`, 'log-loot');
+                } else {
+                    setTimeout(() => { spawnEnemy(); log(`遇到了新的敌人：${game.enemy.name} Lv.${game.enemy.level}`, 'log-loot'); }, 800);
+                }
             }
         }
 
@@ -912,7 +917,8 @@
             if (!game.autoBattle) return;
             const now = Date.now();
             const stats = getPlayerStats();
-            const maxBatch = document.hidden ? 50 : 5; // 后台最多补偿 50 轮，前台最多 5 轮
+            // 后台时定时器会被节流到约1000ms，增大批量上限确保不丢失攻击
+            const maxBatch = document.hidden ? 500 : 5;
 
             // 批量执行玩家攻击
             const playerElapsed = now - game.lastPlayerAttack;
@@ -922,7 +928,8 @@
                 if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
                 battleRound();
             }
-            if (playerAttacks > 0) game.lastPlayerAttack = now;
+            // 用 += 代替 =，避免丢失未执行的攻击时间
+            if (playerAttacks > 0) game.lastPlayerAttack += playerAttacks * stats.aspd;
 
             // 批量执行敌人攻击
             const enemyElapsed = now - game.lastEnemyAttack;
@@ -932,7 +939,7 @@
                 if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
                 enemyAttack();
             }
-            if (enemyAttacks > 0) game.lastEnemyAttack = now;
+            if (enemyAttacks > 0) game.lastEnemyAttack += enemyAttacks * 700;
         }
 
         function toggleAutoBattle() {
@@ -1252,13 +1259,17 @@
         }
 
         function updateEnemyUI() {
-            if (!game.enemy) return;
+            if (!game.enemy) {
+                document.title = '勇者挂机传说';
+                return;
+            }
             document.getElementById('enemyEmoji').textContent = game.enemy.emoji;
             const nameText = game.enemy.isBoss ? `【BOSS】${game.enemy.name} Lv.${game.enemy.level}` : `${game.enemy.name} Lv.${game.enemy.level}`;
             document.getElementById('enemyName').textContent = nameText;
             document.getElementById('enemyName').style.color = game.enemy.isBoss ? '#ff4757' : '#fff';
             document.getElementById('enemyHpBar').style.width = (game.enemy.hp / game.enemy.maxHp * 100) + '%';
             document.getElementById('enemyHpText').textContent = `${Math.floor(game.enemy.hp)}/${game.enemy.maxHp}`;
+            document.title = `勇者挂机传说 - ${game.enemy.emoji} ${nameText}`;
         }
 
         function log(message, className = '') {
@@ -1287,9 +1298,10 @@
             setTimeout(() => notif.remove(), 3000);
         }
 
-        // 页面可见性变化处理：切回前台时刷新 UI
+        // 页面可见性变化处理：切回前台时补偿战斗并刷新 UI
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
+                if (game.autoBattle) autoBattleLoop();
                 updateUI();
                 renderTreasures();
                 renderUpgrades();

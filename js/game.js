@@ -1,13 +1,14 @@
 const SAVE_KEY = 'idleRpgGame_save_v6';
 const MAX_ATK_SPEED = 10;
-const AREA_DROP_RATES = [0.01, 0.03, 0.05, 0.08, 0.12, 0.15, 0.20, 0.25];
-const BOSS_AREAS = [5, 6, 7];
+const AREA_DROP_RATES = [0.01, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15, 0.17, 0.19, 0.21, 0.23, 0.25, 0.27, 0.30];
+const BOSS_AREAS = [3, 6, 9, 14];
 const BOSS_CONFIG = {
-    5: { name: '龙王', emoji: '🐉' },
-    6: { name: '天空领主', emoji: '☁️' },
-    7: { name: '深渊魔王', emoji: '👿' }
+    3: { name: '遗迹守卫', emoji: '🗿' },
+    6: { name: '沼泽之主', emoji: '🐊' },
+    9: { name: '天空领主', emoji: '☁️' },
+    14: { name: '混沌魔神', emoji: '👹' }
 };
-const CLUE_REQUIRED = { 5: 10, 6: 15, 7: 35 };
+const CLUE_REQUIRED = { 3: 8, 6: 12, 9: 20, 14: 40 };
 const CLUE_DROP_RATE = 0.15;
 const ELITE_SPAWN_RATE = 0.15;
 
@@ -109,7 +110,7 @@ const EQUIPMENT_POOL = [
     { id: 'eq_n_dragon', name: '龙纹项链', emoji: '📿', slot: 'necklace', rarity: 'legendary', vamp: 0.08, expBonus: 0.25, sellPrice: 450 }
 ];
 
-const EQUIPMENT_DROP_RATES = [0.05, 0.08, 0.12, 0.15, 0.20, 0.25, 0.30, 0.35];
+const EQUIPMENT_DROP_RATES = [0.05, 0.08, 0.12, 0.15, 0.18, 0.21, 0.24, 0.27, 0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42];
 
 // ========== 商店商品 ==========
 const SHOP_ITEMS = [
@@ -195,7 +196,7 @@ const ENEMY_ELEMENTS = {
     '兽人': { weak: 'nature', resist: 'fire' }
 };
 
-const SKILL_BOOK_DROP_RATES = [0, 0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12];
+const SKILL_BOOK_DROP_RATES = [0, 0, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.15];
 
 function createDefaultSave() {
     return {
@@ -215,9 +216,9 @@ function createDefaultSave() {
             equipmentBag: []
         },
         currentArea: 0,
-        bossDefeated: [false, false, false, false, false, false, false, false],
-        bossFled: [false, false, false, false, false, false, false, false],
-        clues: { 5: 0, 6: 0, 7: 0 },
+        bossDefeated: Array(15).fill(false),
+        bossFled: Array(15).fill(false),
+        clues: { 3: 0, 6: 0, 9: 0, 14: 0 },
         fightingBoss: false
     };
 }
@@ -232,26 +233,38 @@ let game = {
     lastBattleEndTime: null,
     currentArea: 0,
     inCity: false,
-    bossDefeated: [false, false, false, false, false, false, false, false],
-    bossFled: [false, false, false, false, false, false, false, false],
-    clues: { 5: 0, 6: 0, 7: 0 },
+    bossDefeated: Array(15).fill(false),
+    bossFled: Array(15).fill(false),
+    clues: { 3: 0, 6: 0, 9: 0, 14: 0 },
     fightingBoss: false,
     areas: [
-        { name: '新手村', emoji: '🌲', level: 1, multiplier: 1 },
-        { name: '暗黑森林', emoji: '🌲', level: 5, multiplier: 2 },
-        { name: '熔岩洞穴', emoji: '🌋', level: 10, multiplier: 3 },
-        { name: '冰雪山脉', emoji: '❄️', level: 15, multiplier: 4 },
-        { name: '恶魔城堡', emoji: '🏰', level: 20, multiplier: 5 },
-        { name: '龙之巢穴', emoji: '🐉', level: 30, multiplier: 7 },
-        { name: '天空之城', emoji: '☁️', level: 40, multiplier: 10 },
-        { name: '地狱深渊', emoji: '🔥', level: 50, multiplier: 15 }
+        { name: '新手村', emoji: '🌲', level: 1, multiplier: 1.0 },
+        { name: '幽暗密林', emoji: '🌿', level: 3, multiplier: 1.3 },
+        { name: '废弃矿坑', emoji: '⛏️', level: 6, multiplier: 1.7 },
+        { name: '古代遗迹', emoji: '🏛️', level: 10, multiplier: 2.2 },
+        { name: '熔岩洞穴', emoji: '🌋', level: 14, multiplier: 2.8 },
+        { name: '冰封雪原', emoji: '❄️', level: 18, multiplier: 3.5 },
+        { name: '毒雾沼泽', emoji: '🐊', level: 22, multiplier: 4.3 },
+        { name: '暗影城堡', emoji: '🏰', level: 26, multiplier: 5.2 },
+        { name: '龙之巢穴', emoji: '🐉', level: 30, multiplier: 6.3 },
+        { name: '天空之城', emoji: '☁️', level: 35, multiplier: 7.5 },
+        { name: '虚空裂隙', emoji: '💠', level: 40, multiplier: 8.8 },
+        { name: '深渊入口', emoji: '🌀', level: 45, multiplier: 10.2 },
+        { name: '恶魔王座', emoji: '👿', level: 50, multiplier: 11.8 },
+        { name: '神陨之地', emoji: '💀', level: 55, multiplier: 13.5 },
+        { name: '混沌核心', emoji: '🔥', level: 60, multiplier: 15.5 }
     ],
     enemies: [
-        { name: '小恶魔', emoji: '👹' }, { name: '史莱姆', emoji: '🟢' },
-        { name: '骷髅兵', emoji: '💀' }, { name: '蝙蝠', emoji: '🦇' },
-        { name: '野狼', emoji: '🐺' }, { name: '哥布林', emoji: '👺' },
-        { name: '僵尸', emoji: '🧟' }, { name: '蜘蛛', emoji: '🕷️' },
-        { name: '幽灵', emoji: '👻' }, { name: '兽人', emoji: '👾' }
+        { name: '小恶魔', emoji: '👹', type: 'aggressive', desc: '攻击力较高' },
+        { name: '史莱姆', emoji: '🟢', type: 'tank', desc: '生命值较高' },
+        { name: '骷髅兵', emoji: '💀', type: 'fragile', desc: '攻高血低' },
+        { name: '蝙蝠', emoji: '🦇', type: 'vampiric', desc: '攻击附带吸血' },
+        { name: '野狼', emoji: '🐺', type: 'pack', desc: '攻击速度较快' },
+        { name: '哥布林', emoji: '👺', type: 'mage', desc: '拥有魔法抗性' },
+        { name: '僵尸', emoji: '🧟', type: 'undead', desc: '死亡可复活一次' },
+        { name: '蜘蛛', emoji: '🕷️', type: 'poison', desc: '攻击附带中毒' },
+        { name: '幽灵', emoji: '👻', type: 'ethereal', desc: '拥有闪避能力' },
+        { name: '兽人', emoji: '👾', type: 'berserker', desc: '低血时狂暴' }
     ]
 };
 
@@ -409,6 +422,39 @@ function migrateOldSave() {
     if (game.player.aspdLevel > 0 && game.player.aspd !== 1000) {
         game.player.aspd = 1000;
     }
+    // 区域扩展兼容：旧存档8区域 → 新存档15区域
+    if (game.bossDefeated && game.bossDefeated.length === 8) {
+        const oldDefeated = game.bossDefeated;
+        const oldFled = game.bossFled;
+        game.bossDefeated = Array(15).fill(false);
+        game.bossFled = Array(15).fill(false);
+        // 旧区域0-2保持不变，旧区域3-4映射到新区域3-4，旧区域5(龙)映射到新区域8，旧区域6(天空)映射到新区域9，旧区域7(地狱)映射到新区域12
+        for (let i = 0; i < 8; i++) {
+            const newIdx = i <= 4 ? i : (i === 5 ? 8 : (i === 6 ? 9 : 12));
+            game.bossDefeated[newIdx] = oldDefeated[i];
+            game.bossFled[newIdx] = oldFled[i];
+        }
+    }
+    if (game.clues && game.clues['5'] !== undefined) {
+        const oldClues = game.clues;
+        game.clues = { 3: 0, 6: 0, 9: 0, 14: 0 };
+        // 旧线索映射到新线索
+        if (oldClues['5'] > 0) game.clues[8] = oldClues['5'];
+        if (oldClues['6'] > 0) game.clues[9] = oldClues['6'];
+        if (oldClues['7'] > 0) game.clues[12] = oldClues['7'];
+    }
+    if (!game.clues || Object.keys(game.clues).length === 0) {
+        game.clues = { 3: 0, 6: 0, 9: 0, 14: 0 };
+    }
+    // 确保 bossDefeated/bossFled 长度为15
+    if (game.bossDefeated && game.bossDefeated.length < 15) {
+        while (game.bossDefeated.length < 15) game.bossDefeated.push(false);
+    }
+    if (game.bossFled && game.bossFled.length < 15) {
+        while (game.bossFled.length < 15) game.bossFled.push(false);
+    }
+    // 当前区域超出范围时重置
+    if (game.currentArea >= 15) game.currentArea = 14;
 }
 
 // 定期检查buff过期
@@ -419,19 +465,26 @@ setInterval(() => {
     }
 }, 5000);
 
-// 战斗外魔力缓慢恢复：不战斗且战斗结束3分钟后才开始恢复
+// 技能冷却进度条持续刷新（无论是否战斗）
+setInterval(() => {
+    if (game.player && game.player.skills && Object.keys(game.player.skills).length > 0) {
+        updateSkillButtons();
+    }
+}, 300);
+
+// 战斗外魔力恢复：战斗结束30秒后开始，每秒恢复，恢复量与精神力相关
 setInterval(() => {
     if (!game.player) return;
     if (game.enemy) return; // 战斗中不恢复
-    if (!game.lastBattleEndTime) return; // 从未战斗过不恢复（或正在战斗中）
+    if (!game.lastBattleEndTime) return;
     const elapsed = Date.now() - game.lastBattleEndTime;
-    if (elapsed < 3 * 60 * 1000) return; // 战斗结束3分钟内不恢复
+    if (elapsed < 30 * 1000) return; // 战斗结束30秒内不恢复
     if (game.player.mp < game.player.maxMp) {
-        const regen = 1 + Math.floor(game.player.spi * 0.2);
+        const regen = Math.max(1, Math.floor(game.player.spi * 0.5));
         game.player.mp = Math.min(game.player.maxMp, game.player.mp + regen);
         updateUI();
     }
-}, 3000);
+}, 1000);
 
 function utf8ToBase64(str) {
     try {
@@ -668,6 +721,21 @@ function addClue() {
     }
 }
 
+function enterEndlessMode() {
+    game.currentArea = 15;
+    game.fightingBoss = false;
+    stopAutoBattle();
+    spawnEnemy();
+    log('♾️ 进入无尽模式！敌人将无限变强！', 'log-boss');
+    showNotification('♾️ 进入无尽模式！');
+    updateUI();
+    showBattleView();
+}
+
+function getEndlessMultiplier(layer) {
+    return 15.5 * Math.pow(1.15, layer);
+}
+
 function challengeBoss() {
     if (!hasEnoughClues(game.currentArea)) {
         showNotification('线索不足！继续刷怪收集线索吧！');
@@ -702,13 +770,30 @@ function spawnBoss(index) {
     const bossCfg = BOSS_CONFIG[index];
     const mult = area.multiplier;
     const baseLevel = area.level + 5;
+    const areaIndex = index;
+    let hpMult = 2.5, atkMult = 1.2, defMult = 1.5;
+    let bossSkills = [];
+    if (areaIndex === 3) { // 遗迹守卫
+        hpMult = 2.5; atkMult = 1.2; defMult = 1.5;
+        bossSkills = [{ type: 'petrify', interval: 10000, duration: 2000, lastCast: 0 }];
+    } else if (areaIndex === 6) { // 沼泽之主
+        hpMult = 2.5; atkMult = 1.0; defMult = 2.0;
+        bossSkills = [{ type: 'poison_aura', dps: 0.02, interval: 1000, lastCast: 0 }];
+    } else if (areaIndex === 9) { // 天空领主
+        hpMult = 3.0; atkMult = 1.5; defMult = 1.8;
+        bossSkills = [{ type: 'thunder_strike', damage: 0.10, interval: 8000, lastCast: 0 }, { type: 'stun_chance', chance: 0.20, duration: 1000 }];
+    } else if (areaIndex === 14) { // 混沌魔神
+        hpMult = 4.0; atkMult = 2.0; defMult = 2.5;
+        bossSkills = [{ type: 'void_drain', drain: 0.15, interval: 12000, lastCast: 0 }, { type: 'chaos_purge', interval: 15000, lastCast: 0 }, { type: 'damage_reduce', rate: 0.30 }];
+    }
     game.enemy = {
         name: bossCfg.name, emoji: bossCfg.emoji, level: baseLevel, isBoss: true,
-        maxHp: Math.floor(50 * baseLevel * mult * 2.5), hp: 0,
-        atk: Math.floor(8 * baseLevel * mult * 1.0),
-        def: Math.floor(3 * baseLevel * mult * 1.5),
-        exp: Math.floor(25 * baseLevel * mult * 5),
-        gold: Math.floor(12 * baseLevel * mult * 5)
+        maxHp: Math.floor(60 * baseLevel * mult * hpMult), hp: 0,
+        atk: Math.floor(10 * baseLevel * mult * atkMult),
+        def: Math.floor(4 * baseLevel * mult * defMult),
+        exp: Math.floor(30 * baseLevel * mult * 5),
+        gold: Math.floor(15 * baseLevel * mult * 5),
+        bossSkills: bossSkills
     };
     game.enemy.hp = game.enemy.maxHp;
     updateEnemyUI();
@@ -716,19 +801,64 @@ function spawnBoss(index) {
 
 function spawnEnemy() {
     game.lastBattleEndTime = null;
-    const area = game.areas[game.currentArea];
-    const baseLevel = Math.max(1, area.level + Math.floor(Math.random() * 3) - 1);
+    // 清除玩家临时debuff
+    if (game.player) {
+        game.player.armorPenDebuff = false;
+        game.player.stunnedUntil = 0;
+    }
+    const areaIndex = game.currentArea;
+    let area = game.areas[areaIndex];
+    let baseLevel, mult;
+    let endlessLayer = 0;
+    if (areaIndex >= 15) {
+        // 无尽模式
+        endlessLayer = areaIndex - 14;
+        baseLevel = Math.max(1, 60 + endlessLayer * 5 + Math.floor(Math.random() * 3) - 1);
+        mult = getEndlessMultiplier(endlessLayer);
+    } else {
+        baseLevel = Math.max(1, area.level + Math.floor(Math.random() * 3) - 1);
+        mult = area.multiplier;
+    }
     const template = game.enemies[Math.floor(Math.random() * game.enemies.length)];
-    const mult = area.multiplier;
-    const isElite = isBossArea(game.currentArea) && Math.random() < ELITE_SPAWN_RATE;
+    const eliteRate = isBossArea(game.currentArea) ? 0.30 : 0.15;
+    const isElite = Math.random() < eliteRate;
+    const scale = 1 + Math.min(areaIndex, 14) * 0.05;
+    let maxHp = Math.floor(60 * baseLevel * mult * 0.5 * scale);
+    let atk = Math.floor(10 * baseLevel * mult * 0.28 * (1 + Math.min(areaIndex, 14) * 0.03));
+    let def = Math.floor(4 * baseLevel * mult * 0.22 * (1 + Math.min(areaIndex, 14) * 0.02));
+    let exp = Math.floor(30 * baseLevel * mult * 1.0);
+    let gold = Math.floor(15 * baseLevel * mult * 1.0);
+    // 怪物类型加成
+    if (template.type === 'aggressive') atk = Math.floor(atk * 1.15);
+    if (template.type === 'tank') maxHp = Math.floor(maxHp * 1.30);
+    if (template.type === 'fragile') { atk = Math.floor(atk * 1.30); maxHp = Math.floor(maxHp * 0.70); }
+    if (isElite) {
+        maxHp = Math.floor(60 * baseLevel * mult * 1.1);
+        atk = Math.floor(10 * baseLevel * mult * 0.55);
+        def = Math.floor(4 * baseLevel * mult * 0.45);
+        exp = Math.floor(30 * baseLevel * mult * 2.5);
+        gold = Math.floor(15 * baseLevel * mult * 2.5);
+    }
     game.enemy = {
         name: template.name, emoji: template.emoji, level: baseLevel, isBoss: false, isElite: isElite,
-        maxHp: Math.floor(50 * baseLevel * mult * (isElite ? 1.0 : 0.45)), hp: 0,
-        atk: Math.floor(8 * baseLevel * mult * (isElite ? 0.5 : 0.25)),
-        def: Math.floor(3 * baseLevel * mult * (isElite ? 0.4 : 0.2)),
-        exp: Math.floor(25 * baseLevel * mult * (isElite ? 2.5 : 1)),
-        gold: Math.floor(12 * baseLevel * mult * (isElite ? 2.5 : 1))
+        maxHp: maxHp, hp: 0,
+        atk: atk,
+        def: def,
+        exp: exp,
+        gold: gold,
+        enemyType: template.type,
+        aspd: template.type === 'pack' ? 750 : 900,
+        endlessLayer: endlessLayer
     };
+    // 区域被动技能
+    if (areaIndex >= 4) game.enemy.burn = true;
+    if (areaIndex >= 5) game.enemy.frost = true;
+    if (areaIndex >= 7) game.enemy.lifeSteal = 0.15;
+    if (areaIndex >= 8) game.enemy.thorns = 0.10;
+    if (areaIndex >= 10) game.enemy.armorPen = 0.20;
+    if (areaIndex >= 11) game.enemy.curse = true;
+    if (areaIndex >= 12) game.enemy.berserk = true;
+    if (areaIndex >= 13) game.enemy.revive = true;
     if (isElite) {
         const basicSkills = SKILLS.filter(s => s.isBasic);
         const skillCount = 1 + Math.floor(Math.random() * 2);
@@ -775,10 +905,10 @@ function getPlayerStats() {
         baseInterval = Math.max(100, Math.floor(1000 / attackSpeed));
         speedMultiplier = 1.0;
     } else {
-        // 41-100级：攻速已达上限，伤害倍率线性增长，100级时达到10倍
+        // 41-100级：攻速已达上限，伤害倍率线性增长，100级时达到3倍
         baseInterval = 100;
         const dmgLevel = Math.min(60, aspdLevel - 40);
-        speedMultiplier = Math.min(10, 1 + 0.15 * dmgLevel);
+        speedMultiplier = Math.min(3, 1 + 0.0333 * dmgLevel);
     }
     const rawAspd = Math.max(1, baseInterval - eq.aspd);
     const realAspd = Math.max(100, rawAspd);
@@ -803,7 +933,8 @@ function getPlayerStats() {
         }
     }
     const baseAtk = p.atk + b.atk + eq.atk;
-    const baseDef = p.def + b.def + buffDef + eq.def;
+    let baseDef = p.def + b.def + buffDef + eq.def;
+    if (game.player.armorPenDebuff) baseDef = Math.floor(baseDef * 0.8);
     return {
         atk: Math.floor(baseAtk * buffAtkMult), def: Math.floor(baseDef * buffDefMult), maxHp: p.maxHp + b.maxHp + eq.maxHp,
         aspd: realAspd, speedMultiplier,
@@ -829,7 +960,7 @@ function attack(attacker, defender, isPlayer) {
     if (isPlayer && stats.armorPenPercent > 0) {
         effectiveDef = Math.max(0, effectiveDef * (1 - stats.armorPenPercent));
     }
-    const baseDmg = Math.max(1, stats.atk - effectiveDef * 0.5);
+    const baseDmg = Math.max(1, (stats.atk * stats.atk) / (stats.atk + effectiveDef));
     const isCrit = isPlayer && Math.random() < (stats.crit || 0);
     const critMultiplier = isCrit ? (stats.critDmg || 2) : 1;
     const speedMultiplier = isPlayer ? (stats.speedMultiplier || 1.0) : 1.0;
@@ -918,8 +1049,77 @@ function enemyCastSkill() {
 function enemyAttack(skipUI = false) {
     if (!game.enemy || game.enemy.hp <= 0) return;
     if (game.player.hp <= 0) { playerDeath(); return; }
+    const now = Date.now();
+    // BOSS技能
+    if (game.enemy.isBoss && game.enemy.bossSkills) {
+        for (const skill of game.enemy.bossSkills) {
+            if (skill.interval && now - (skill.lastCast || 0) >= skill.interval) {
+                skill.lastCast = now;
+                if (skill.type === 'petrify') {
+                    game.player.stunnedUntil = now + skill.duration;
+                    log(`🗿 ${game.enemy.name} 使用了石化凝视！你被眩晕了！`, 'log-damage');
+                } else if (skill.type === 'thunder_strike') {
+                    const thunderDmg = Math.floor(game.player.maxHp * skill.damage);
+                    game.player.hp = Math.max(0, game.player.hp - thunderDmg);
+                    log(`⚡ ${game.enemy.name} 召唤了雷霆审判！你受到了 ${formatNumber(thunderDmg)} 点闪电伤害！`, 'log-damage');
+                } else if (skill.type === 'void_drain') {
+                    const drain = Math.floor(game.player.hp * skill.drain);
+                    game.player.hp = Math.max(0, game.player.hp - drain);
+                    game.enemy.hp = Math.min(game.enemy.maxHp, game.enemy.hp + drain);
+                    log(`🌑 ${game.enemy.name} 使用了虚空吞噬！你失去了 ${formatNumber(drain)} 点生命！`, 'log-damage');
+                } else if (skill.type === 'poison_aura') {
+                    const poisonDmg = Math.floor(game.player.maxHp * skill.dps);
+                    game.player.hp = Math.max(0, game.player.hp - poisonDmg);
+                    log(`☠️ 毒雾弥漫！你受到了 ${formatNumber(poisonDmg)} 点毒伤！`, 'log-damage');
+                } else if (skill.type === 'chaos_purge') {
+                    game.player.buffs = {};
+                    log(`🌀 ${game.enemy.name} 展开了混沌领域！你的所有增益效果被清除了！`, 'log-damage');
+                }
+            }
+        }
+    }
+    // 眩晕检查
+    if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
+        log(`😵 你被眩晕了，无法行动！`, 'log-damage');
+        if (!skipUI) updateUI();
+        return;
+    }
     if (game.enemy.isElite && Math.random() < 0.4 && enemyCastSkill()) return;
+    // 怪物类型：闪避
+    if (game.enemy.enemyType === 'ethereal' && Math.random() < 0.15) {
+        log(`👻 ${game.enemy.name} 闪避了你的攻击！`, 'log-damage');
+        if (!skipUI) updateUI();
+        return;
+    }
+    // 怪物类型：低血狂暴
+    if (game.enemy.enemyType === 'berserker' && game.enemy.hp / game.enemy.maxHp < 0.3 && !game.enemy.berserkActive) {
+        game.enemy.berserkActive = true;
+        game.enemy.atk = Math.floor(game.enemy.atk * 1.5);
+        log(`😡 ${game.enemy.name} 进入了狂暴状态！攻击力大幅提升！`, 'log-damage');
+    }
     const enemyDmg = attack(game.enemy, game.player, false);
+    // 怪物被动：吸血
+    if (game.enemy.lifeSteal) {
+        const heal = Math.floor(enemyDmg * game.enemy.lifeSteal);
+        game.enemy.hp = Math.min(game.enemy.maxHp, game.enemy.hp + heal);
+    }
+    // 怪物被动：荆棘（反弹给玩家）
+    if (game.enemy.thorns) {
+        const reflect = Math.floor(enemyDmg * game.enemy.thorns);
+        game.player.hp = Math.max(0, game.player.hp - reflect);
+        if (reflect > 0) log(`🌵 荆棘反弹了 ${formatNumber(reflect)} 点伤害！`, 'log-damage');
+    }
+    // 怪物被动：燃烧
+    if (game.enemy.burn) {
+        const burnDmg = Math.floor(game.player.maxHp * 0.03);
+        game.player.hp = Math.max(0, game.player.hp - burnDmg);
+        log(`🔥 燃烧造成了 ${formatNumber(burnDmg)} 点伤害！`, 'log-damage');
+    }
+    // 怪物被动：破甲
+    if (game.enemy.armorPen && !game.player.armorPenDebuff) {
+        game.player.armorPenDebuff = true;
+        log(`💥 ${game.enemy.name} 的攻击破开了你的防御！`, 'log-damage');
+    }
     const enemyName = game.enemy.isBoss ? `【BOSS】${game.enemy.name}` : game.enemy.isElite ? `【精英】${game.enemy.name}` : game.enemy.name;
     log(`${enemyName}对你造成了 ${formatNumber(enemyDmg)} 点伤害`, 'log-damage');
     if (game.player.hp <= 0) playerDeath();
@@ -927,6 +1127,14 @@ function enemyAttack(skipUI = false) {
 }
 
 function enemyDefeated() {
+    // 怪物被动：复活
+    if (game.enemy.revive && !game.enemy.hasRevived) {
+        game.enemy.hasRevived = true;
+        game.enemy.hp = Math.floor(game.enemy.maxHp * 0.30);
+        log(`💀 ${game.enemy.name} 从死亡中复活了！恢复了30%的生命值！`, 'log-damage');
+        updateEnemyUI();
+        return;
+    }
     const stats = getPlayerStats();
     const exp = Math.floor(game.enemy.exp * (1 + stats.expBonus));
     const baseGold = game.enemy.gold;
@@ -1108,6 +1316,12 @@ function enemyDefeated() {
         }
     }
 
+    // 无尽模式：击败敌人后进入下一层
+    if (game.currentArea >= 15 && !game.enemy.isBoss) {
+        game.currentArea++;
+        const layer = game.currentArea - 14;
+        log(`♾️ 无尽模式第 ${layer} 层！敌人变得更加强大了！`, 'log-boss');
+    }
     while (game.player.exp >= game.player.maxExp) levelUp();
     updateUI();
     if (!game.enemy.isBoss) {
@@ -1126,10 +1340,10 @@ function levelUp() {
     game.player.exp -= game.player.maxExp;
     game.player.level++;
     game.player.maxExp = Math.floor(game.player.maxExp * 1.15);
-    game.player.maxHp += 35;
+    game.player.maxHp += 30;
     game.player.hp = game.player.maxHp;
-    game.player.atk += 5;
-    game.player.def += 3;
+    game.player.atk += 4;
+    game.player.def += 2;
     game.player.spi += 1;
     game.player.maxMp = 50 + game.player.spi * 3 + game.player.level * 2;
     game.player.mp = game.player.maxMp;
@@ -1209,19 +1423,27 @@ function autoBattleLoop() {
     }
     if (playerAttacks > 0) game.lastPlayerAttack += playerAttacks * stats.aspd;
 
+    // 玩家眩晕时跳过攻击
+    if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
+        game.lastPlayerAttack = now;
+    }
+    const enemyInterval = game.enemy ? (game.enemy.aspd || 900) : 900;
     const enemyElapsed = now - game.lastEnemyAttack;
-    const enemyAttacks = Math.min(Math.floor(enemyElapsed / 900), maxBatch);
+    const enemyAttacks = Math.min(Math.floor(enemyElapsed / enemyInterval), maxBatch);
     for (let i = 0; i < enemyAttacks; i++) {
         if (!game.enemy) spawnEnemy();
         if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
         enemyAttack(true);
     }
-    if (enemyAttacks > 0) game.lastEnemyAttack += enemyAttacks * 900;
+    if (enemyAttacks > 0) game.lastEnemyAttack += enemyAttacks * enemyInterval;
 
     // 批量攻击结束后统一更新一次UI
     if (playerAttacks > 0 || enemyAttacks > 0) {
         updateUI();
     }
+
+    // 持续更新技能冷却进度条
+    updateSkillButtons();
 
     // 链式调度下一次执行，确保固定间隔
     if (game.autoBattle) {
@@ -1342,7 +1564,7 @@ function buyUpgrade(upgradeId) {
     if (!upgrade) return;
     const levelKey = upgradeId + 'Level';
     const level = game.player[levelKey] || 0;
-    const cost = Math.floor(upgrade.cost * Math.pow(1.25, level));
+    const cost = Math.floor(upgrade.cost * Math.pow(1.18, level));
     if (game.player.gold >= cost) {
         game.player.gold -= cost;
         game.player[levelKey] = level + 1;
@@ -1375,14 +1597,27 @@ function buyUpgrade(upgradeId) {
     } else { log('金币不足！', 'log-damage'); }
 }
 
+function getMaxAllowedArea() {
+    for (const bossArea of BOSS_AREAS) {
+        if (!isBossDefeated(bossArea)) {
+            return bossArea;
+        }
+    }
+    return 14;
+}
+
 function changeArea(index) {
     const area = game.areas[index];
     if (game.player.level >= area.level) {
-        if (index > game.currentArea && index > 0 && isBossArea(index - 1) && !isBossDefeated(index - 1)) {
-            const bossCfg = BOSS_CONFIG[index - 1];
-            showNotification(`⚠️ 必须先击败 ${bossCfg.emoji} ${bossCfg.name} 才能进入下一关！`);
-            log(`进入${area.name}需要先击败${bossCfg.name}！`, 'log-death');
-            return;
+        const maxAllowed = getMaxAllowedArea();
+        if (index > maxAllowed) {
+            const nextBoss = BOSS_AREAS.find(a => a >= maxAllowed && !isBossDefeated(a));
+            if (nextBoss !== undefined) {
+                const bossCfg = BOSS_CONFIG[nextBoss];
+                showNotification(`⚠️ 必须先击败 ${bossCfg.emoji} ${bossCfg.name} 才能进入下一关！`);
+                log(`进入${area.name}需要先击败${bossCfg.name}！`, 'log-death');
+                return;
+            }
         }
         game.currentArea = index;
         game.fightingBoss = false;
@@ -1430,12 +1665,32 @@ function renderAreas() {
             }
         }
 
+        const maxAllowed = getMaxAllowedArea();
+        const isLocked = index > maxAllowed;
         btn.innerHTML = `${area.emoji} ${area.name}${badge}${isActive ? '' : dropText}`;
-        btn.title = `需要等级 ${area.level}`;
-        btn.disabled = game.player.level < area.level;
+        if (isLocked) {
+            const nextBoss = BOSS_AREAS.find(a => a >= maxAllowed && !isBossDefeated(a));
+            if (nextBoss !== undefined) {
+                const bossCfg = BOSS_CONFIG[nextBoss];
+                btn.title = `需先击败 ${bossCfg.emoji} ${bossCfg.name}`;
+            }
+        } else {
+            btn.title = `需要等级 ${area.level}`;
+        }
+        btn.disabled = game.player.level < area.level || isLocked;
         btn.onclick = () => changeArea(index);
         container.appendChild(btn);
     });
+    // 无尽模式入口
+    if (isBossDefeated(14)) {
+        const endlessBtn = document.createElement('button');
+        const isEndlessActive = !game.inCity && game.currentArea >= 15;
+        endlessBtn.className = 'area-btn' + (isEndlessActive ? ' active' : '');
+        endlessBtn.innerHTML = '♾️ 无尽模式';
+        endlessBtn.title = '挑战无限强大的敌人';
+        endlessBtn.onclick = () => enterEndlessMode();
+        container.appendChild(endlessBtn);
+    }
 }
 
 function updateClueUI() {
@@ -1469,7 +1724,7 @@ function renderUpgrades() {
     upgrades.forEach(upgrade => {
         const levelKey = upgrade.id + 'Level';
         const level = game.player[levelKey] || 0;
-        const cost = Math.floor(upgrade.cost * Math.pow(1.25, level));
+        const cost = Math.floor(upgrade.cost * Math.pow(1.18, level));
         const canAfford = game.player.gold >= cost;
         let nextDesc = upgrade.desc;
         const aspdLevel = game.player.aspdLevel || 0;
@@ -1529,6 +1784,8 @@ function renderBag() {
     else if (currentBagTab === 'item') renderBagItems(container);
 }
 
+const RARITY_ORDER = { legendary: 4, epic: 3, rare: 2, common: 1 };
+
 function renderBagTreasures(container) {
     const treasures = game.player.treasures || {};
     let entries = Object.entries(treasures).filter(([_, d]) => d && d.count > 0);
@@ -1545,6 +1802,12 @@ function renderBagTreasures(container) {
     if (TREASURE_FILTERS.has('upgradeable')) {
         entries = entries.filter(([_, d]) => d.count > 1);
     }
+
+    entries.sort((a, b) => {
+        const ta = TREASURE_POOL.find(x => x.id === a[0]);
+        const tb = TREASURE_POOL.find(x => x.id === b[0]);
+        return (RARITY_ORDER[tb?.rarity] || 0) - (RARITY_ORDER[ta?.rarity] || 0);
+    });
 
     const treasureFilterBtns = [
         { key: 'all', label: '📦 全部' },
@@ -1634,6 +1897,7 @@ function renderBagEquipments(container) {
         { key: 'belt', name: '腰带', emoji: '🎗️' },
         { key: 'bracelet', name: '手镯', emoji: '💎' },
         { key: 'jade', name: '玉佩', emoji: '🏵️' },
+        { key: 'necklace', name: '项链', emoji: '📿' },
     ];
 
     //let html = '<div style="font-size:0.85em;color:#aaa;margin-bottom:8px;">点击穿戴或出售</div>';
@@ -1646,8 +1910,15 @@ function renderBagEquipments(container) {
     html += '</div>';
     html += '<div class="equipment-bag">';
 
+    const bagWithIndex = bag.map((item, idx) => ({ item, idx }));
+    bagWithIndex.sort((a, b) => {
+        const ea = EQUIPMENT_POOL.find(e => e.id === a.item.id);
+        const eb = EQUIPMENT_POOL.find(e => e.id === b.item.id);
+        return (RARITY_ORDER[eb?.rarity] || 0) - (RARITY_ORDER[ea?.rarity] || 0);
+    });
+
     let hasItem = false;
-    bag.forEach((item, index) => {
+    bagWithIndex.forEach(({ item, idx: index }) => {
         const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
         if (!eqDef) return;
         if (currentEquipmentFilter !== 'all' && eqDef.slot !== currentEquipmentFilter) return;
@@ -1680,6 +1951,7 @@ function renderBagEquipments(container) {
 function setEquipmentFilter(filter) {
     currentEquipmentFilter = filter;
     renderBag();
+    renderBlacksmithContent();
 }
 
 function setItemFilter(filter) {
@@ -1741,6 +2013,12 @@ function renderBagItems(container) {
         container.innerHTML = html;
         return;
     }
+
+    allEntries.sort((a, b) => {
+        const ra = RARITY_ORDER[a.def?.rarity] || 0;
+        const rb = RARITY_ORDER[b.def?.rarity] || 0;
+        return rb - ra;
+    });
 
     html += '<div class="treasure-grid">';
     allEntries.forEach(entry => {
@@ -2052,6 +2330,9 @@ function updateEnemyUI() {
     if (game.enemy.isBoss) nameText = `【BOSS】${game.enemy.name} Lv.${game.enemy.level}`;
     else if (game.enemy.isElite) nameText = `【精英】${game.enemy.name} Lv.${game.enemy.level}`;
     else nameText = `${game.enemy.name} Lv.${game.enemy.level}`;
+    if (game.currentArea >= 15) {
+        nameText += ` [无尽${game.enemy.endlessLayer || (game.currentArea - 14)}层]`;
+    }
     document.getElementById('enemyName').textContent = nameText;
     document.getElementById('enemyName').style.color = game.enemy.isBoss ? '#ff4757' : game.enemy.isElite ? '#a55eea' : '#fff';
     document.getElementById('enemyHpBar').style.width = (game.enemy.hp / game.enemy.maxHp * 100) + '%';
@@ -2459,7 +2740,7 @@ function switchAppraiserFilter(filter) {
 
 function renderAppraiserContent() {
     const container = document.getElementById('appraiserContent');
-    let html = '';
+    let html = '<div style="display:flex;flex-direction:column;height:100%;">';
 
     // 筛选按钮
     const filters = [
@@ -2467,13 +2748,14 @@ function renderAppraiserContent() {
         { key: 'equipment', name: '装备', emoji: '🛡️' },
         { key: 'skillBook', name: '技能书', emoji: '📕' }
     ];
-    html += '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
+    html += '<div style="flex-shrink:0;display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
     filters.forEach(f => {
         const isActive = currentAppraiserFilter === f.key;
         const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
         html += `<button class="btn btn-secondary" onclick="switchAppraiserFilter('${f.key}')" style="padding:4px 10px;font-size:0.8em;${activeStyle}">${f.emoji} ${f.name}</button>`;
     });
     html += '</div>';
+    html += '<div class="npc-scroll-content" style="flex:1;min-height:0;overflow-y:auto;">';
 
     // 未鉴定装备
     const showEquip = currentAppraiserFilter === 'all' || currentAppraiserFilter === 'equipment';
@@ -2482,6 +2764,11 @@ function renderAppraiserContent() {
     const unappraisedEquips = [];
     (game.player.equipmentBag || []).forEach((item, idx) => {
         if (item.appraised === false) unappraisedEquips.push({ item, idx });
+    });
+    unappraisedEquips.sort((a, b) => {
+        const ea = EQUIPMENT_POOL.find(e => e.id === a.item.id);
+        const eb = EQUIPMENT_POOL.find(e => e.id === b.item.id);
+        return (RARITY_ORDER[eb?.rarity] || 0) - (RARITY_ORDER[ea?.rarity] || 0);
     });
     if (showEquip && unappraisedEquips.length > 0) {
         html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">🛡️ 未鉴定装备</div>';
@@ -2492,9 +2779,9 @@ function renderAppraiserContent() {
             const cost = Math.floor(eqDef.sellPrice * 0.5);
             const canAfford = game.player.gold >= cost;
             html += `
-                <div class="skill-list-item">
+                <div class="skill-list-item" style="border-color:${rc.color};">
                     <div class="skill-list-info">
-                        <div class="skill-list-name">${eqDef.emoji} ${eqDef.name}</div>
+                        <div class="skill-list-name" style="color:${rc.color};">${eqDef.emoji} ${eqDef.name}</div>
                         <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能穿戴</div>
                         <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(eqDef.sellPrice)}金币</div>
                     </div>
@@ -2509,7 +2796,12 @@ function renderAppraiserContent() {
 
     // 未鉴定技能书
     const books = game.player.skillBooks || {};
-    const unappraisedBooks = Object.entries(books).filter(([_, d]) => d && d.count > 0 && !d.appraised);
+    let unappraisedBooks = Object.entries(books).filter(([_, d]) => d && d.count > 0 && !d.appraised);
+    unappraisedBooks.sort((a, b) => {
+        const ba = SKILL_BOOKS.find(x => x.id === a[0]);
+        const bb = SKILL_BOOKS.find(x => x.id === b[0]);
+        return (RARITY_ORDER[bb?.rarity] || 0) - (RARITY_ORDER[ba?.rarity] || 0);
+    });
     if (showBooks && unappraisedBooks.length > 0) {
         if (html) html += '<div style="margin-top:20px;"></div>';
         html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">📕 未鉴定技能书</div>';
@@ -2520,9 +2812,9 @@ function renderAppraiserContent() {
             const canAfford = game.player.gold >= cost;
             const rc = RARITY_CONFIG[book.rarity];
             html += `
-                <div class="skill-list-item">
+                <div class="skill-list-item" style="border-color:${rc.color};">
                     <div class="skill-list-info">
-                        <div class="skill-list-name">${book.emoji} ${book.name} ×${data.count}</div>
+                        <div class="skill-list-name" style="color:${rc.color};">${book.emoji} ${book.name} ×${data.count}</div>
                         <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能学习</div>
                         <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(book.sellPrice)}金币</div>
                     </div>
@@ -2538,7 +2830,11 @@ function renderAppraiserContent() {
     let emptyMsg = '你暂时没有需要鉴定的物品';
     if (currentAppraiserFilter === 'equipment') emptyMsg = '暂无未鉴定装备';
     else if (currentAppraiserFilter === 'skillBook') emptyMsg = '暂无未鉴定技能书';
-    container.innerHTML = html || '<div style="text-align:center;color:#666;padding:30px">' + emptyMsg + '</div>';
+    if (!html.includes('skill-list-item')) {
+        html += '<div style="text-align:center;color:#666;padding:30px">' + emptyMsg + '</div>';
+    }
+    html += '</div></div>';
+    container.innerHTML = html;
 }
 
 // ========== 铁匠系统 ==========
@@ -2639,9 +2935,12 @@ function renderBlacksmithRefine(container) {
         { key: 'belt', name: '腰带', emoji: '🎗️' },
         { key: 'bracelet', name: '手镯', emoji: '💎' },
         { key: 'jade', name: '玉佩', emoji: '🏵️' },
+        { key: 'necklace', name: '项链', emoji: '📿' },
     ];
 
-    let html = '<div style="text-align:center;color:#aaa;margin-bottom:15px;font-size:0.9em;">选择装备进行锻造强化，成功提升属性，失败装备消失</div>';
+    let html = '<div style="display:flex;flex-direction:column;height:100%;">';
+    html += '<div style="flex-shrink:0;">';
+    html += '<div style="text-align:center;color:#aaa;margin-bottom:15px;font-size:0.9em;">选择装备进行锻造强化，成功提升属性，失败装备消失</div>';
     html += `<div style="text-align:center;color:#f1c40f;margin-bottom:12px;font-size:0.85em;">🔮 强化石 ×${stoneCount}（每个+5%成功率，最高100%）</div>`;
     html += '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">';
     filterSlots.forEach(slot => {
@@ -2650,10 +2949,19 @@ function renderBlacksmithRefine(container) {
         html += `<button class="btn btn-secondary" onclick="setEquipmentFilter('${slot.key}')" style="padding:2px 7px;font-size:0.7em;${activeStyle}">${slot.emoji} ${slot.name}</button>`;
     });
     html += '</div>';
+    html += '</div>';
+    html += '<div class="npc-scroll-content" style="flex:1;min-height:0;overflow-y:auto;">';
     html += '<div class="equipment-bag">';
 
+    const bagWithIndex = bag.map((item, idx) => ({ item, idx }));
+    bagWithIndex.sort((a, b) => {
+        const ea = EQUIPMENT_POOL.find(e => e.id === a.item.id);
+        const eb = EQUIPMENT_POOL.find(e => e.id === b.item.id);
+        return (RARITY_ORDER[eb?.rarity] || 0) - (RARITY_ORDER[ea?.rarity] || 0);
+    });
+
     let hasItem = false;
-    bag.forEach((item, index) => {
+    bagWithIndex.forEach(({ item, idx: index }) => {
         const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
         if (!eqDef) return;
         if (currentEquipmentFilter !== 'all' && eqDef.slot !== currentEquipmentFilter) return;
@@ -2686,6 +2994,7 @@ function renderBlacksmithRefine(container) {
     if (!hasItem) {
         html += '<div style="text-align:center;color:#666;padding:20px;">该分类下暂无装备</div>';
     }
+    html += '</div></div>';
     container.innerHTML = html;
 }
 

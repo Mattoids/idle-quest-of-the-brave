@@ -117,10 +117,11 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 #equipmentGrid { flex: 0 0 auto; }
 
 /* NPC 子视图固定高度布局 */
-#npcSelectView, #npcMentorView, #npcAppraiserView, #npcBlacksmithView, #npcShopView, #npcInnView { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#npcView { flex: 1; min-height: 0; overflow-y: auto; position: relative; }
+#npcSelectView, #npcMentorView, #npcAppraiserView, #npcBlacksmithView, #npcShopView, #npcInnView { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; overflow: hidden; }
 #npcContent, #appraiserContent, #blacksmithContent, #shopContent, #innContent { flex: 1; min-height: 0; overflow-y: auto; }
-#npcContent::-webkit-scrollbar, #appraiserContent::-webkit-scrollbar, #blacksmithContent::-webkit-scrollbar, #shopContent::-webkit-scrollbar, #innContent::-webkit-scrollbar { width: 6px; }
-#npcContent::-webkit-scrollbar-thumb, #appraiserContent::-webkit-scrollbar-thumb, #blacksmithContent::-webkit-scrollbar-thumb, #shopContent::-webkit-scrollbar-thumb, #innContent::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
+#npcContent::-webkit-scrollbar, #appraiserContent::-webkit-scrollbar, #blacksmithContent::-webkit-scrollbar, #shopContent::-webkit-scrollbar, #innContent::-webkit-scrollbar, .npc-scroll-content::-webkit-scrollbar { width: 6px; }
+#npcContent::-webkit-scrollbar-thumb, #appraiserContent::-webkit-scrollbar-thumb, #blacksmithContent::-webkit-scrollbar-thumb, #shopContent::-webkit-scrollbar-thumb, #innContent::-webkit-scrollbar-thumb, .npc-scroll-content::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
 
 /* 背包分页 */
 .bag-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }

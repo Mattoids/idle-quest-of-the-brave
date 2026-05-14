@@ -129,29 +129,29 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 .bag-tab:hover:not(.active) { background: rgba(255,255,255,0.1); color: #fff; }
 
 /* 装备系统 */
-.equipment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 100%; }
-.equipment-slot { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 3px; text-align: center; border: 1px solid rgba(255,255,255,0.08); transition: all 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; aspect-ratio: 1 / 1; min-height: 0; }
+.equipment-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; width: 100%; }
+.equipment-slot { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 3px; text-align: center; border: 1px solid rgba(255,255,255,0.08); transition: all 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; aspect-ratio: 1 / 1; min-height: 0; min-width: 0; overflow: hidden; }
 .equipment-slot:hover { border-color: rgba(233,69,96,0.3); background: rgba(255,255,255,0.05); }
 .equipment-slot.empty { color: #666; border-color: rgba(255,255,255,0.15); }
 .equipment-slot .slot-emoji { font-size: 1.2em; margin-bottom: 2px; }
-.equipment-slot .eq-name { font-size: 0.7em; font-weight: bold; margin-bottom: 1px; }
-.equipment-slot .eq-stat { font-size: 0.6em; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.equipment-slot .eq-name { font-size: 0.7em; font-weight: bold; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.equipment-slot .eq-stat { font-size: 0.6em; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .equipment-slot.common { border-color: rgba(200,200,200,0.3); }
 .equipment-slot.rare { border-color: rgba(79,172,254,0.4); }
 .equipment-slot.epic { border-color: rgba(165,94,234,0.4); }
 .equipment-slot.legendary { border-color: rgba(255,159,67,0.4); }
-.equipment-bag { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; overflow-y: auto; }
-.equipment-bag-item { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 5px; text-align: center; border: 1px solid transparent; transition: all 0.3s; aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.equipment-bag { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; overflow-y: auto; overflow-x: hidden; }
+.equipment-bag-item { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 5px; text-align: center; border: 1px solid transparent; transition: all 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
 .equipment-bag-item:hover { transform: translateY(-2px); }
 .equipment-bag-item.common { border-color: rgba(200,200,200,0.3); }
 .equipment-bag-item.rare { border-color: rgba(79,172,254,0.4); }
 .equipment-bag-item.epic { border-color: rgba(165,94,234,0.4); }
 .equipment-bag-item.legendary { border-color: rgba(255,159,67,0.4); }
-.eq-bag-emoji { font-size: 1.4em; margin-bottom: 2px; }
-.eq-bag-name { font-size: 0.65em; font-weight: bold; margin-bottom: 1px; }
-.eq-bag-stat { font-size: 0.55em; color: #888; margin-bottom: 3px; }
+.eq-bag-emoji { font-size: 1.2em; margin-bottom: 2px; }
+.eq-bag-name { font-size: 0.6em; font-weight: bold; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.eq-bag-stat { font-size: 0.5em; color: #888; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .eq-bag-actions { display: flex; gap: 3px; justify-content: center; }
-.eq-bag-actions .btn { padding: 2px 5px; font-size: 0.6em; }
+.eq-bag-actions .btn { padding: 2px 4px; font-size: 0.55em; }
 .empty-equipment { text-align: center; color: #666; padding: 20px; font-style: italic; font-size: 0.85em; }
 .equipment-info { text-align: center; margin-bottom: 10px; font-size: 0.85em; color: #aaa; }
 

@@ -259,6 +259,7 @@ const TREASURE_FILTERS = new Set();
 let currentBagTab = 'treasure';
 let currentEquipmentFilter = 'all';
 let currentItemFilter = 'all';
+let currentAppraiserFilter = 'all';
 
 function switchBagTab(tab) {
     currentBagTab = tab;
@@ -641,7 +642,7 @@ function sellTreasure(tid) {
     data.count--;
     if (data.count <= 0) delete game.player.treasures[tid];
     game.player.gold += t.sellPrice;
-    log(`💰 出售了 ${t.emoji} ${t.name}，获得 ${t.sellPrice} 金币`, 'log-loot');
+    log(`💰 出售了 ${t.emoji} ${t.name}，获得 ${formatNumber(t.sellPrice)} 金币`, 'log-loot');
     updateUI();
 }
 
@@ -769,15 +770,15 @@ function getPlayerStats() {
     const aspdLevel = p.aspdLevel || 0;
     let baseInterval, speedMultiplier;
     if (aspdLevel <= 40) {
-        // 前40级：只提升攻速，不增加伤害倍数，40级时达到10次/秒
+        // 1-40级：攻速增长，40级时达到10次/秒
         const attackSpeed = 1 + 0.005625 * aspdLevel * aspdLevel;
         baseInterval = Math.max(100, Math.floor(1000 / attackSpeed));
         speedMultiplier = 1.0;
     } else {
-        // 41-100级：攻速保持10次/秒，伤害倍数线性提升，100级时达到4倍
+        // 41-100级：攻速已达上限，伤害倍率线性增长，100级时达到10倍
         baseInterval = 100;
         const dmgLevel = Math.min(60, aspdLevel - 40);
-        speedMultiplier = Math.min(4, 1 + 0.05 * dmgLevel);
+        speedMultiplier = Math.min(10, 1 + 0.15 * dmgLevel);
     }
     const rawAspd = Math.max(1, baseInterval - eq.aspd);
     const realAspd = Math.max(100, rawAspd);
@@ -838,7 +839,7 @@ function attack(attacker, defender, isPlayer) {
         const heal = Math.floor(dmg * stats.vamp);
         if (heal > 0) {
             game.player.hp = Math.min(game.player.maxHp + getTreasureBonuses().maxHp, game.player.hp + heal);
-            log(`🩸 吸血恢复了 ${heal} 点生命`, 'log-heal');
+            log(`🩸 吸血恢复了 ${formatNumber(heal)} 点生命`, 'log-heal');
         }
     }
     showDamage(isPlayer ? 'enemyChar' : 'playerChar', dmg, isCrit);
@@ -855,7 +856,7 @@ function showDamage(targetId, damage, isCrit) {
     const target = document.getElementById(targetId);
     const el = document.createElement('div');
     el.className = 'damage-text';
-    el.textContent = (isCrit ? '暴击! ' : '') + '-' + damage;
+    el.textContent = (isCrit ? '暴击! ' : '') + '-' + formatNumber(damage);
     el.style.color = isCrit ? '#ff0000' : '#e94560';
     target.appendChild(el);
     setTimeout(() => el.remove(), 1000);
@@ -869,7 +870,7 @@ function battleRound(skipUI = false) {
     if (game.enemy.isBoss) enemyName = `【BOSS】${game.enemy.name}`;
     else if (game.enemy.isElite) enemyName = `【精英】${game.enemy.name}`;
     else enemyName = game.enemy.name;
-    log(`你对${enemyName}造成了 ${playerDmg} 点伤害`, 'log-damage');
+    log(`你对${enemyName}造成了 ${formatNumber(playerDmg)} 点伤害`, 'log-damage');
     if (game.enemy.hp <= 0) { enemyDefeated(); return; }
     if (!skipUI) updateUI();
 }
@@ -887,20 +888,20 @@ function enemyCastSkill() {
     if (skillDef.type === 'heal') {
         const healAmount = Math.floor(game.enemy.maxHp * 0.15 + skillDef.baseDmg);
         game.enemy.hp = Math.min(game.enemy.maxHp, game.enemy.hp + healAmount);
-        log(`💚 ${enemyName}释放了 ${skillDef.emoji}${skillDef.name}，恢复了 ${healAmount} 点生命！`, 'log-heal');
+        log(`💚 ${enemyName}释放了 ${skillDef.emoji}${skillDef.name}，恢复了 ${formatNumber(healAmount)} 点生命！`, 'log-heal');
         updateUI();
         return true;
     } else if (skillDef.type === 'buff') {
         const buffDef = Math.floor(game.enemy.def * 0.3 + skillDef.baseDmg);
         game.enemy.buffs = game.enemy.buffs || {};
         game.enemy.buffs.shield = { endTime: now + (skillDef.buffDuration || 10000), defBonus: buffDef };
-        log(`🛡️ ${enemyName}释放了 ${skillDef.emoji}${skillDef.name}，获得 ${buffDef} 点临时防御！`, 'log-skill');
+        log(`🛡️ ${enemyName}释放了 ${skillDef.emoji}${skillDef.name}，获得 ${formatNumber(buffDef)} 点临时防御！`, 'log-skill');
         updateUI();
         return true;
     } else {
         const dmg = Math.floor(game.enemy.atk * 1.2 + skillDef.baseDmg * 0.5);
         game.player.hp = Math.max(0, game.player.hp - dmg);
-        log(`💥 ${enemyName}释放了 ${skillDef.emoji}${skillDef.name}，对你造成 ${dmg} 点伤害！`, 'log-skill');
+        log(`💥 ${enemyName}释放了 ${skillDef.emoji}${skillDef.name}，对你造成 ${formatNumber(dmg)} 点伤害！`, 'log-skill');
         showDamage('playerChar', dmg, false);
         const attackerEl = document.getElementById('enemyChar');
         attackerEl.classList.add('attacking');
@@ -920,7 +921,7 @@ function enemyAttack(skipUI = false) {
     if (game.enemy.isElite && Math.random() < 0.4 && enemyCastSkill()) return;
     const enemyDmg = attack(game.enemy, game.player, false);
     const enemyName = game.enemy.isBoss ? `【BOSS】${game.enemy.name}` : game.enemy.isElite ? `【精英】${game.enemy.name}` : game.enemy.name;
-    log(`${enemyName}对你造成了 ${enemyDmg} 点伤害`, 'log-damage');
+    log(`${enemyName}对你造成了 ${formatNumber(enemyDmg)} 点伤害`, 'log-damage');
     if (game.player.hp <= 0) playerDeath();
     else if (!skipUI) updateUI();
 }
@@ -941,9 +942,9 @@ function enemyDefeated() {
 
     if (game.enemy.isBoss) {
         bossDefeatedByPlayer();
-        log(`🏆 击败了 ${enemyName}！获得 ${exp} 经验值和 ${gold} 金币！`, 'log-boss');
+        log(`🏆 击败了 ${enemyName}！获得 ${formatNumber(exp)} 经验值和 ${formatNumber(gold)} 金币！`, 'log-boss');
         showNotification(`🎉 击败BOSS ${game.enemy.emoji} ${game.enemy.name}！`);
-        dropLog(`🏆 击败BOSS：${game.enemy.emoji} ${game.enemy.name} — ${exp}经验 ${gold}金币`);
+        dropLog(`🏆 击败BOSS：${game.enemy.emoji} ${game.enemy.name} — ${formatNumber(exp)}经验 ${formatNumber(gold)}金币`);
 
         // BOSS宝物：60%概率，最低史诗
         if (Math.random() < 0.60) {
@@ -989,15 +990,15 @@ function enemyDefeated() {
                 game.player.items = game.player.items || {};
                 if (!game.player.items[stone.id]) game.player.items[stone.id] = { count: 0 };
                 game.player.items[stone.id].count += stoneCount;
-                log(`🔮 BOSS掉落了 ${stone.emoji} ${stone.name} ×${stoneCount}！`, 'log-epic');
-                dropLog(`🔮 BOSS掉落：${stone.emoji} ${stone.name} ×${stoneCount}`);
+                log(`🔮 BOSS掉落了 ${stone.emoji} ${stone.name} ×${formatNumber(stoneCount)}！`, 'log-epic');
+                dropLog(`🔮 BOSS掉落：${stone.emoji} ${stone.name} ×${formatNumber(stoneCount)}`);
                 showNotification(`🔮 BOSS掉落${stone.name} ×${stoneCount}！`);
             }
         }
     } else if (game.enemy.isElite) {
-        log(`🌟 击败了 ${enemyName}！获得 ${exp} 经验值和 ${gold} 金币！`, 'log-epic');
+        log(`🌟 击败了 ${enemyName}！获得 ${formatNumber(exp)} 经验值和 ${formatNumber(gold)} 金币！`, 'log-epic');
         showNotification(`🌟 击败精英 ${game.enemy.emoji} ${game.enemy.name}！`);
-        dropLog(`🌟 击败精英：${game.enemy.emoji} ${game.enemy.name} — ${exp}经验 ${gold}金币`);
+        dropLog(`🌟 击败精英：${game.enemy.emoji} ${game.enemy.name} — ${formatNumber(exp)}经验 ${formatNumber(gold)}金币`);
         addClue();
 
         // 精英宝物：1.5倍概率，最低稀有
@@ -1066,7 +1067,7 @@ function enemyDefeated() {
             }
         }
     } else {
-        log(`击败了 ${enemyName}！获得 ${exp} 经验值和 ${gold} 金币！`, 'log-exp');
+        log(`击败了 ${enemyName}！获得 ${formatNumber(exp)} 经验值和 ${formatNumber(gold)} 金币！`, 'log-exp');
         addClue();
 
         // 普通怪物装备：基础概率
@@ -1142,7 +1143,7 @@ function playerDeath() {
         bossEscaped();
         const goldLoss = Math.min(500, Math.floor(game.player.gold * 0.05 + 50));
         game.player.gold = Math.max(0, game.player.gold - goldLoss);
-        log(`💀 被BOSS击败了... 掉落了 ${goldLoss} 金币，BOSS逃走了！`, 'log-death');
+        log(`💀 被BOSS击败了... 掉落了 ${formatNumber(goldLoss)} 金币，BOSS逃走了！`, 'log-death');
         game.player.hp = game.player.maxHp;
         game.player.mp = game.player.maxMp;
         stopAutoBattle();
@@ -1154,7 +1155,7 @@ function playerDeath() {
 
     const goldLoss = Math.min(500, Math.floor(game.player.gold * 0.05 + 50));
     game.player.gold = Math.max(0, game.player.gold - goldLoss);
-    let msg = `💀 你倒下了... 掉落了 ${goldLoss} 金币`;
+    let msg = `💀 你倒下了... 掉落了 ${formatNumber(goldLoss)} 金币`;
     const lostTreasure = Math.random() < 0.3 ? loseRandomTreasure() : null;
     if (lostTreasure) {
         msg += `，宝物 ${lostTreasure.emoji} ${lostTreasure.name} 也掉落了`;
@@ -1268,14 +1269,14 @@ function autoRecover(stats) {
             if (bigPotion.count <= 0) delete items['hp_potion_l'];
             const healAmount = Math.floor(stats.maxHp * 1.0);
             game.player.hp = Math.min(stats.maxHp, game.player.hp + healAmount);
-            log(`🩹 自动使用了大生命药水，恢复 ${healAmount} 点生命值`, 'log-heal');
+            log(`🩹 自动使用了大生命药水，恢复 ${formatNumber(healAmount)} 点生命值`, 'log-heal');
             consumed = true;
         } else if (smallPotion && smallPotion.count > 0) {
             smallPotion.count--;
             if (smallPotion.count <= 0) delete items['hp_potion_s'];
             const healAmount = Math.floor(stats.maxHp * 0.3);
             game.player.hp = Math.min(stats.maxHp, game.player.hp + healAmount);
-            log(`🩹 自动使用了小生命药水，恢复 ${healAmount} 点生命值`, 'log-heal');
+            log(`🩹 自动使用了小生命药水，恢复 ${formatNumber(healAmount)} 点生命值`, 'log-heal');
             consumed = true;
         }
     }
@@ -1288,7 +1289,7 @@ function autoRecover(stats) {
             if (mpPotion.count <= 0) delete items['mp_potion'];
             const mpAmount = Math.floor(stats.maxMp * 0.5);
             game.player.mp = Math.min(stats.maxMp, game.player.mp + mpAmount);
-            log(`💧 自动使用了魔力药水，恢复 ${mpAmount} 点魔力值`, 'log-heal');
+            log(`💧 自动使用了魔力药水，恢复 ${formatNumber(mpAmount)} 点魔力值`, 'log-heal');
             consumed = true;
         }
     }
@@ -1331,7 +1332,7 @@ function heal() {
     if (game.player.gold >= cost) {
         game.player.gold -= cost;
         game.player.hp = stats.maxHp;
-        log(`花费 ${cost} 金币恢复了生命值`, 'log-heal');
+        log(`花费 ${formatNumber(cost)} 金币恢复了生命值`, 'log-heal');
         updateUI();
     } else { log('金币不足！', 'log-damage'); }
 }
@@ -1368,7 +1369,7 @@ function buyUpgrade(upgradeId) {
                 bonus += extra * 5;
             }
             game.player[upgrade.type] += bonus;
-            log(`购买了 ${upgrade.name} Lv.${level + 1}！+${bonus}！`, 'log-loot');
+            log(`购买了 ${upgrade.name} Lv.${level + 1}！+${formatNumber(bonus)}！`, 'log-loot');
         }
         updateUI(); renderUpgrades();
     } else { log('金币不足！', 'log-damage'); }
@@ -1477,27 +1478,20 @@ function renderUpgrades() {
             if (aspdCapped) {
                 nextDesc = '⚡ 已满级 (10次/秒 伤害×10)';
             } else if (aspdLevel < 40) {
-                // 前40级：只提升攻速
+                // 1-40级：攻速增长
                 const curSpeed = 1 + 0.005625 * aspdLevel * aspdLevel;
                 const nextSpeed = 1 + 0.005625 * (aspdLevel + 1) * (aspdLevel + 1);
-                const curInterval = Math.floor(1000 / curSpeed);
-                const nextInterval = Math.floor(1000 / nextSpeed);
-                nextDesc = `攻速 ${curSpeed.toFixed(2)}次/秒 → ${nextSpeed.toFixed(2)}次/秒 (间隔 ${curInterval}ms → ${nextInterval}ms)`;
+                const speedGain = (nextSpeed - curSpeed).toFixed(2);
+                nextDesc = `⚡ 攻速 +${speedGain}次/秒`;
             } else {
-                // 41-100级：攻速已达上限，只提升伤害倍率
-                const dmgLevel = aspdLevel - 40;
-                const nextDmgLevel = dmgLevel + 1;
-                const curDmg = (1 + 0.0025 * dmgLevel * dmgLevel).toFixed(1);
-                const nextDmg = (1 + 0.0025 * nextDmgLevel * nextDmgLevel).toFixed(1);
-                nextDesc = `伤害倍率 ×${curDmg} → ×${nextDmg} (攻速已达上限 10次/秒)`;
+                // 41-100级：攻速已达上限，伤害倍率线性增长
+                nextDesc = `⚡ 伤害倍率 +0.15`;
             }
         } else if (upgrade.type === 'crit') {
             if (game.player.crit < 1.0) {
-                const nextCrit = Math.min(1.0, game.player.crit + upgrade.value);
-                nextDesc = `暴击率 ${Math.round(game.player.crit*100)}% → ${Math.round(nextCrit*100)}%`;
+                nextDesc = `💥 暴击率 +${Math.round(upgrade.value*100)}%`;
             } else {
-                const nextDmg = (game.player.critDmg || 2) + (upgrade.dmgValue || 0.2);
-                nextDesc = `暴击伤害 ${Math.round((game.player.critDmg||2)*100)}% → ${Math.round(nextDmg*100)}%`;
+                nextDesc = `💥 暴击伤害 +${Math.round((upgrade.dmgValue || 0.2)*100)}%`;
             }
         } else if (upgrade.type === 'atk') {
             const total = upgrade.value + Math.floor(level / 10) * 2;
@@ -1522,7 +1516,7 @@ function renderUpgrades() {
         }
         item.querySelector('.upgrade-name').textContent = `${upgrade.name} Lv.${level}`;
         item.querySelector('.upgrade-desc').textContent = nextDesc;
-        item.querySelector('.upgrade-cost').textContent = aspdCapped ? '⚡ 已满级' : `💰 ${cost}`;
+        item.querySelector('.upgrade-cost').textContent = aspdCapped ? '⚡ 已满级' : `💰 ${formatNumber(cost)}`;
         item.querySelector('button').disabled = !canAfford || aspdCapped;
     });
 }
@@ -1583,15 +1577,15 @@ function renderBagTreasures(container) {
     const totalCount = entries.reduce((sum, [_, d]) => sum + d.count, 0);
     const b = getTreasureBonuses();
     const texts = [];
-    if (b.atk) texts.push(`攻击+${b.atk}`);
-    if (b.def) texts.push(`防御+${b.def}`);
-    if (b.maxHp) texts.push(`生命+${b.maxHp}`);
+    if (b.atk) texts.push(`攻击+${formatNumber(b.atk)}`);
+    if (b.def) texts.push(`防御+${formatNumber(b.def)}`);
+    if (b.maxHp) texts.push(`生命+${formatNumber(b.maxHp)}`);
     if (b.crit) texts.push(`暴击+${Math.round(b.crit*100)}%`);
     if (b.expBonus) texts.push(`经验+${Math.round(b.expBonus*100)}%`);
     if (b.goldBonus) texts.push(`金币+${Math.round(b.goldBonus*100)}%`);
-    if (b.armorPenFlat) texts.push(`破甲(固)+${b.armorPenFlat}`);
+    if (b.armorPenFlat) texts.push(`破甲(固)+${formatNumber(b.armorPenFlat)}`);
     if (b.armorPenPercent) texts.push(`破甲(%)+${Math.round(b.armorPenPercent*100)}%`);
-    html += `<div class="treasure-info">共 ${totalCount} 件宝物 | ${texts.join(' | ')}</div>`;
+    html += `<div class="treasure-info">共 ${formatNumber(totalCount)} 件宝物 | ${texts.join(' | ')}</div>`;
 
     html += '<div class="treasure-grid">';
     entries.forEach(([tid, data]) => {
@@ -1614,8 +1608,8 @@ function renderBagTreasures(container) {
                 <div class="treasure-level">Lv.${level} | ${formatValue(t.stat, currentValue)}</div>
                 <div class="treasure-stat">基础 ${formatValue(t.stat, t.value)}</div>
                 <div class="treasure-actions">
-                    <button class="btn btn-success" onclick="strengthenTreasure('${tid}')" ${!canStrengthen ? 'disabled' : ''} title="消耗1个+${strengthenCost}金币强化">🔨 强化</button>
-                    <button class="btn btn-warning" onclick="sellTreasure('${tid}')" ${isLocked ? 'disabled' : ''}>💰 ${t.sellPrice}</button>
+                    <button class="btn btn-success" onclick="strengthenTreasure('${tid}')" ${!canStrengthen ? 'disabled' : ''} title="消耗1个+${formatNumber(strengthenCost)}金币强化">🔨 强化</button>
+                    <button class="btn btn-warning" onclick="sellTreasure('${tid}')" ${isLocked ? 'disabled' : ''}>💰 ${formatNumber(t.sellPrice)}</button>
                 </div>
             </div>
         `;
@@ -1669,7 +1663,7 @@ function renderBagEquipments(container) {
                 <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef) : '需要鉴定后才能使用'}</div>
                 <div class="eq-bag-actions">
                     ${isAppraised
-                        ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button><button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${eqDef.sellPrice}</button>`
+                        ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button><button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>`
                         : `<span style="font-size:0.7em;color:#888;">❓ 未鉴定</span>`
                     }
                 </div>
@@ -1761,7 +1755,7 @@ function renderBagItems(container) {
                     <div class="treasure-stat">${itemDef.desc}</div>
                     <div class="treasure-actions">
                         <button class="btn btn-success" onclick="useItem('${itemDef.id}')">使用</button>
-                        <button class="btn btn-warning" onclick="sellItem('${itemDef.id}')">💰 ${Math.floor(itemDef.basePrice * 0.3)}</button>
+                        <button class="btn btn-warning" onclick="sellItem('${itemDef.id}')">💰 ${formatNumber(Math.floor(itemDef.basePrice * 0.3))}</button>
                     </div>
                 </div>
             `;
@@ -1778,7 +1772,7 @@ function renderBagItems(container) {
                     <div class="treasure-stat">${isAppraised ? '🔍 已鉴定' : '❓ 未鉴定'}</div>
                     <div class="treasure-actions">
                         ${isAppraised ? (game.player.skills[book.skillId]?.level > 0 ? '<span style="font-size:0.7em;color:#2ecc71">已学会</span>' : `<button class="btn btn-success" onclick="learnFromBook('${book.id}')">学习</button>`) : `<span style="font-size:0.7em;color:#888">❓ 未鉴定</span>`}
-                        <button class="btn btn-warning" onclick="sellSkillBook('${book.id}')">💰 ${book.sellPrice}</button>
+                        <button class="btn btn-warning" onclick="sellSkillBook('${book.id}')">💰 ${formatNumber(book.sellPrice)}</button>
                     </div>
                 </div>
             `;
@@ -1802,14 +1796,14 @@ function useItem(itemId) {
     switch (item.type) {
         case 'permanent_atk': {
             game.player.atk += item.value;
-            log(`💠 使用了${item.name}，永久攻击力+${item.value}！`, 'log-skill');
+            log(`💠 使用了${item.name}，永久攻击力+${formatNumber(item.value)}！`, 'log-skill');
             break;
         }
         case 'heal': {
             const stats = getPlayerStats();
             const healAmount = Math.floor(stats.maxHp * item.value);
             game.player.hp = Math.min(stats.maxHp, game.player.hp + healAmount);
-            log(`🩹 使用了${item.name}，恢复 ${healAmount} 点生命值`, 'log-heal');
+            log(`🩹 使用了${item.name}，恢复 ${formatNumber(healAmount)} 点生命值`, 'log-heal');
             showNotification(`🩹 ${item.name}生效！`);
             break;
         }
@@ -1817,7 +1811,7 @@ function useItem(itemId) {
             const stats = getPlayerStats();
             const mpAmount = Math.floor(stats.maxMp * item.value);
             game.player.mp = Math.min(stats.maxMp, game.player.mp + mpAmount);
-            log(`💧 使用了${item.name}，恢复 ${mpAmount} 点魔力值`, 'log-heal');
+            log(`💧 使用了${item.name}，恢复 ${formatNumber(mpAmount)} 点魔力值`, 'log-heal');
             showNotification(`💧 ${item.name}生效！`);
             break;
         }
@@ -1861,7 +1855,7 @@ function sellItem(itemId) {
     if (data.count <= 0) delete playerItems[itemId];
     const sellPrice = Math.floor(item.basePrice * 0.3);
     game.player.gold += sellPrice;
-    log(`💰 出售了 ${item.emoji} ${item.name}，获得 ${sellPrice} 金币`, 'log-loot');
+    log(`💰 出售了 ${item.emoji} ${item.name}，获得 ${formatNumber(sellPrice)} 金币`, 'log-loot');
     renderBag();
     updateUI();
 }
@@ -1892,23 +1886,47 @@ function cleanExpiredBuffs() {
     return expired;
 }
 
+// 数值单位规则：K(千) M(百万) B(十亿) T(万亿) Qa(10^15) Qi(10^18) Sx(10^21) Sp(10^24) Oc(10^27) No(10^30) Dc(10^33)
+const NUMBER_UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+
+function formatNumber(num) {
+    if (num === null || num === undefined || isNaN(num)) return '0';
+    const n = Number(num);
+    const abs = Math.abs(n);
+    if (abs < 1000) return Math.floor(n).toString();
+    let tier = Math.floor(Math.log10(abs) / 3);
+    if (tier >= NUMBER_UNITS.length) {
+        // 超出单位表使用科学计数法
+        return n.toExponential(2);
+    }
+    const scaled = n / Math.pow(1000, tier);
+    // 保留合适的精度：>=100 不保留小数，>=10 保留1位，<10 保留2位
+    let formatted;
+    const absScaled = Math.abs(scaled);
+    if (absScaled >= 100) formatted = scaled.toFixed(0);
+    else if (absScaled >= 10) formatted = scaled.toFixed(1);
+    else formatted = scaled.toFixed(2);
+    formatted = formatted.replace(/\.?0+$/, '');
+    return formatted + NUMBER_UNITS[tier];
+}
+
 function formatValue(stat, value) {
     const names = { atk: '攻击力', def: '防御力', maxHp: '生命', crit: '暴击率', expBonus: '经验加成', goldBonus: '金币加成', armorPenFlat: '破甲(固定)', armorPenPercent: '破甲(%)' };
     const name = names[stat] || stat;
     if (stat === 'crit' || stat === 'expBonus' || stat === 'goldBonus' || stat === 'armorPenPercent') return `${name}+${Math.round(value*100)}%`;
-    return `${name}+${Math.floor(value)}`;
+    return `${name}+${formatNumber(value)}`;
 }
 
 function formatEqStat(eqDef) {
     const texts = [];
-    if (eqDef.atk) texts.push(`攻击+${eqDef.atk}`);
-    if (eqDef.def) texts.push(`防御+${eqDef.def}`);
-    if (eqDef.maxHp) texts.push(`生命+${eqDef.maxHp}`);
-    if (eqDef.aspd) texts.push(`攻速+${eqDef.aspd}`);
+    if (eqDef.atk) texts.push(`攻击+${formatNumber(eqDef.atk)}`);
+    if (eqDef.def) texts.push(`防御+${formatNumber(eqDef.def)}`);
+    if (eqDef.maxHp) texts.push(`生命+${formatNumber(eqDef.maxHp)}`);
+    if (eqDef.aspd) texts.push(`攻速+${formatNumber(eqDef.aspd)}`);
     if (eqDef.crit) texts.push(`暴击+${Math.round(eqDef.crit*100)}%`);
     if (eqDef.vamp) texts.push(`吸血+${Math.round(eqDef.vamp*100)}%`);
     if (eqDef.expBonus) texts.push(`经验+${Math.round(eqDef.expBonus*100)}%`);
-    if (eqDef.spi) texts.push(`精神+${eqDef.spi}`);
+    if (eqDef.spi) texts.push(`精神+${formatNumber(eqDef.spi)}`);
     return texts.join(' ');
 }
 
@@ -1920,14 +1938,14 @@ function renderEquipments() {
     let html = '';
     const eqBonuses = getEquipmentBonuses();
     const bonusTexts = [];
-    if (eqBonuses.atk) bonusTexts.push(`攻击+${eqBonuses.atk.toFixed(0)}`);
-    if (eqBonuses.def) bonusTexts.push(`防御+${eqBonuses.def.toFixed(0)}`);
-    if (eqBonuses.maxHp) bonusTexts.push(`生命+${eqBonuses.maxHp.toFixed(0)}`);
-    if (eqBonuses.aspd) bonusTexts.push(`攻速+${eqBonuses.aspd.toFixed(0)}`);
+    if (eqBonuses.atk) bonusTexts.push(`攻击+${formatNumber(eqBonuses.atk)}`);
+    if (eqBonuses.def) bonusTexts.push(`防御+${formatNumber(eqBonuses.def)}`);
+    if (eqBonuses.maxHp) bonusTexts.push(`生命+${formatNumber(eqBonuses.maxHp)}`);
+    if (eqBonuses.aspd) bonusTexts.push(`攻速+${formatNumber(eqBonuses.aspd)}`);
     if (eqBonuses.crit) bonusTexts.push(`暴击+${Math.round(eqBonuses.crit*100)}%`);
     if (eqBonuses.vamp) bonusTexts.push(`吸血+${Math.round(eqBonuses.vamp*100)}%`);
     if (eqBonuses.expBonus) bonusTexts.push(`经验+${Math.round(eqBonuses.expBonus*100)}%`);
-    if (eqBonuses.spi) bonusTexts.push(`精神+${eqBonuses.spi.toFixed(0)}`);
+    if (eqBonuses.spi) bonusTexts.push(`精神+${formatNumber(eqBonuses.spi)}`);
     info.textContent = bonusTexts.length > 0 ? `装备加成: ${bonusTexts.join(' | ')}` : '暂无装备加成';
 
     for (const [slotKey, slotDef] of Object.entries(EQUIPMENT_SLOTS)) {
@@ -1963,15 +1981,15 @@ function updateUI() {
     const stats = getPlayerStats();
     document.getElementById('level').textContent = game.player.level;
     document.getElementById('hpBar').style.width = (game.player.hp / stats.maxHp * 100) + '%';
-    document.getElementById('hpText').textContent = `${Math.floor(game.player.hp)}/${Math.floor(stats.maxHp)}`;
+    document.getElementById('hpText').textContent = `${formatNumber(game.player.hp)}/${formatNumber(stats.maxHp)}`;
     document.getElementById('expBar').style.width = (game.player.exp / game.player.maxExp * 100) + '%';
-    document.getElementById('expText').textContent = `${game.player.exp}/${game.player.maxExp}`;
+    document.getElementById('expText').textContent = `${formatNumber(game.player.exp)}/${formatNumber(game.player.maxExp)}`;
     document.getElementById('mpBar').style.width = (game.player.mp / stats.maxMp * 100) + '%';
-    document.getElementById('mpText').textContent = `${Math.floor(game.player.mp)}/${Math.floor(stats.maxMp)}`;
-    document.getElementById('atk').textContent = `${game.player.atk} (+${stats.atk - game.player.atk})`;
-    document.getElementById('def').textContent = `${game.player.def} (+${stats.def - game.player.def})`;
-    document.getElementById('maxHp').textContent = `${game.player.maxHp} (+${stats.maxHp - game.player.maxHp})`;
-    document.getElementById('spi').textContent = game.player.spi;
+    document.getElementById('mpText').textContent = `${formatNumber(game.player.mp)}/${formatNumber(stats.maxMp)}`;
+    document.getElementById('atk').textContent = `${formatNumber(game.player.atk)} (+${formatNumber(stats.atk - game.player.atk)})`;
+    document.getElementById('def').textContent = `${formatNumber(game.player.def)} (+${formatNumber(stats.def - game.player.def)})`;
+    document.getElementById('maxHp').textContent = `${formatNumber(game.player.maxHp)} (+${formatNumber(stats.maxHp - game.player.maxHp)})`;
+    document.getElementById('spi').textContent = formatNumber(game.player.spi);
     const cappedAspd = Math.min(1000 / stats.aspd, MAX_ATK_SPEED);
     let aspdText = `${cappedAspd.toFixed(1)}/s`;
     if (stats.speedMultiplier > 1.0) aspdText += ` (×${stats.speedMultiplier.toFixed(1)} 伤害)`;
@@ -1980,14 +1998,14 @@ function updateUI() {
     document.getElementById('critDmg').textContent = `${Math.round(stats.critDmg*100)}%`;
     document.getElementById('vamp').textContent = `${Math.round(stats.vamp*100)}% (${Math.round(game.player.vamp*100)}% + ${Math.round((stats.vamp-game.player.vamp)*100)}%)`;
     document.getElementById('expBonus').textContent = `${Math.round(stats.expBonus*100)}%`;
-    document.getElementById('gold').textContent = game.player.gold;
-    document.getElementById('kills').textContent = game.player.kills;
-    document.getElementById('armorPenFlat').textContent = stats.armorPenFlat;
+    document.getElementById('gold').textContent = formatNumber(game.player.gold);
+    document.getElementById('kills').textContent = formatNumber(game.player.kills);
+    document.getElementById('armorPenFlat').textContent = formatNumber(stats.armorPenFlat);
     document.getElementById('armorPenPercent').textContent = `${Math.round(stats.armorPenPercent*100)}%`;
     document.getElementById('battleLevel').textContent = game.player.level;
 
     const power = Math.floor((stats.atk * 2 + stats.def * 1.5 + stats.maxHp * 0.5 + stats.crit * 100 + stats.critDmg * 20 + stats.armorPenFlat * 5 + stats.armorPenPercent * 300 + stats.spi * 5) * stats.speedMultiplier);
-    document.getElementById('power').textContent = power;
+    document.getElementById('power').textContent = formatNumber(power);
 
     // 更新buff显示
     const buffPanel = document.getElementById('buffPanel');
@@ -1999,7 +2017,9 @@ function updateUI() {
             const mins = Math.floor(remaining / 60);
             const secs = remaining % 60;
             const timeStr = mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
-            buffHtml += `<span style="display:inline-block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px;">${buff.emoji} ${buff.name} +${Math.round(buff.value * 100)}% (${timeStr})</span>`;
+            const isPercentBuff = buff.name !== '护盾';
+            const buffVal = isPercentBuff ? `+${Math.round(buff.value * 100)}%` : `+${formatNumber(buff.value)}`;
+            buffHtml += `<span style="display:inline-block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px;">${buff.emoji} ${buff.name} ${buffVal} (${timeStr})</span>`;
         });
         buffPanel.innerHTML = buffHtml;
         buffPanel.style.display = 'block';
@@ -2035,7 +2055,7 @@ function updateEnemyUI() {
     document.getElementById('enemyName').textContent = nameText;
     document.getElementById('enemyName').style.color = game.enemy.isBoss ? '#ff4757' : game.enemy.isElite ? '#a55eea' : '#fff';
     document.getElementById('enemyHpBar').style.width = (game.enemy.hp / game.enemy.maxHp * 100) + '%';
-    document.getElementById('enemyHpText').textContent = `${Math.floor(game.enemy.hp)}/${game.enemy.maxHp}`;
+    document.getElementById('enemyHpText').textContent = `${formatNumber(game.enemy.hp)}/${formatNumber(game.enemy.maxHp)}`;
     document.title = `勇者挂机传说 - ${game.enemy.emoji} ${nameText}`;
 }
 
@@ -2139,17 +2159,17 @@ function castSkill(skillId) {
     if (skill.type === 'heal') {
         const healAmount = Math.floor(finalDmg + (game.player.maxHp + getTreasureBonuses().maxHp) * 0.15);
         game.player.hp = Math.min(game.player.maxHp + getTreasureBonuses().maxHp, game.player.hp + healAmount);
-        log(`💚 ${skill.emoji} ${skill.name} 恢复了 ${healAmount} 点生命`, 'log-heal');
+        log(`💚 ${skill.emoji} ${skill.name} 恢复了 ${formatNumber(healAmount)} 点生命`, 'log-heal');
     } else if (skill.type === 'buff') {
         const stats = getPlayerStats();
         const buffDef = Math.floor(finalDmg + stats.def * 0.3);
         game.player.buffs = game.player.buffs || {};
         game.player.buffs.shield = { endTime: now + (skill.buffDuration || 10000), defBonus: buffDef };
-        log(`🛡️ ${skill.emoji} ${skill.name} 获得 ${buffDef} 点临时防御（10秒）`, 'log-skill');
+        log(`🛡️ ${skill.emoji} ${skill.name} 获得 ${formatNumber(buffDef)} 点临时防御（10秒）`, 'log-skill');
     } else {
         // damage / damage_lifesteal / dot
         game.enemy.hp = Math.max(0, game.enemy.hp - finalDmg);
-        let logMsg = `${skill.emoji} ${skill.name} 对${enemyName}造成 ${finalDmg} 点${elInfo.name}伤害`;
+        let logMsg = `${skill.emoji} ${skill.name} 对${enemyName}造成 ${formatNumber(finalDmg)} 点${elInfo.name}伤害`;
         if (elementMult > 1) logMsg += ' ⚡克制！';
         else if (elementMult < 1) logMsg += ' 🛡️被抵抗';
         const logClass = elementMult > 1 ? 'log-skill-weak' : elementMult < 1 ? 'log-skill-resist' : 'log-skill';
@@ -2166,7 +2186,7 @@ function castSkill(skillId) {
         if (skill.type === 'damage_lifesteal') {
             const heal = Math.floor(finalDmg * 0.3);
             game.player.hp = Math.min(game.player.maxHp + getTreasureBonuses().maxHp, game.player.hp + heal);
-            log(`🩸 暗影箭吸血恢复了 ${heal} 点生命`, 'log-heal');
+            log(`🩸 暗影箭吸血恢复了 ${formatNumber(heal)} 点生命`, 'log-heal');
         }
 
         if (game.enemy.hp <= 0) {
@@ -2285,7 +2305,7 @@ function sellEquipment(bagIndex) {
     if (!eqDef) return;
     bag.splice(bagIndex, 1);
     game.player.gold += eqDef.sellPrice;
-    log(`💰 出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${eqDef.sellPrice} 金币`, 'log-loot');
+    log(`💰 出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${formatNumber(eqDef.sellPrice)} 金币`, 'log-loot');
     updateUI();
 }
 
@@ -2356,14 +2376,14 @@ function renderInnContent() {
     html += '<div style="max-width:300px;margin:0 auto;text-align:left;">';
     html += '<div style="margin-bottom:15px;">';
     html += '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">';
-    html += '<span>生命值</span><span>' + Math.floor(game.player.hp) + '/' + Math.floor(stats.maxHp) + ' (' + hpPercent + '%)</span>';
+    html += '<span>生命值</span><span>' + formatNumber(game.player.hp) + '/' + formatNumber(stats.maxHp) + ' (' + hpPercent + '%)</span>';
     html += '</div>';
     html += '<div class="hp-bar"><div class="hp-fill" style="width:' + hpPercent + '%"></div></div>';
     html += '</div>';
 
     html += '<div style="margin-bottom:20px;">';
     html += '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">';
-    html += '<span>魔力值</span><span>' + Math.floor(game.player.mp) + '/' + Math.floor(stats.maxMp) + ' (' + mpPercent + '%)</span>';
+    html += '<span>魔力值</span><span>' + formatNumber(game.player.mp) + '/' + formatNumber(stats.maxMp) + ' (' + mpPercent + '%)</span>';
     html += '</div>';
     html += '<div class="mp-bar"><div class="mp-fill" style="width:' + mpPercent + '%"></div></div>';
     html += '</div>';
@@ -2432,16 +2452,38 @@ function renderNpcContent() {
     else if (currentNpcTab === 'train') renderTrainSpirit(container);
 }
 
+function switchAppraiserFilter(filter) {
+    currentAppraiserFilter = filter;
+    renderAppraiserContent();
+}
+
 function renderAppraiserContent() {
     const container = document.getElementById('appraiserContent');
     let html = '';
 
+    // 筛选按钮
+    const filters = [
+        { key: 'all', name: '全部', emoji: '📦' },
+        { key: 'equipment', name: '装备', emoji: '🛡️' },
+        { key: 'skillBook', name: '技能书', emoji: '📕' }
+    ];
+    html += '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
+    filters.forEach(f => {
+        const isActive = currentAppraiserFilter === f.key;
+        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
+        html += `<button class="btn btn-secondary" onclick="switchAppraiserFilter('${f.key}')" style="padding:4px 10px;font-size:0.8em;${activeStyle}">${f.emoji} ${f.name}</button>`;
+    });
+    html += '</div>';
+
     // 未鉴定装备
+    const showEquip = currentAppraiserFilter === 'all' || currentAppraiserFilter === 'equipment';
+    const showBooks = currentAppraiserFilter === 'all' || currentAppraiserFilter === 'skillBook';
+
     const unappraisedEquips = [];
     (game.player.equipmentBag || []).forEach((item, idx) => {
         if (item.appraised === false) unappraisedEquips.push({ item, idx });
     });
-    if (unappraisedEquips.length > 0) {
+    if (showEquip && unappraisedEquips.length > 0) {
         html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">🛡️ 未鉴定装备</div>';
         unappraisedEquips.forEach(({ item, idx }) => {
             const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
@@ -2454,10 +2496,10 @@ function renderAppraiserContent() {
                     <div class="skill-list-info">
                         <div class="skill-list-name">${eqDef.emoji} ${eqDef.name}</div>
                         <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能穿戴</div>
-                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${eqDef.sellPrice}金币</div>
+                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(eqDef.sellPrice)}金币</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="skill-list-cost">💰 ${cost}</span>
+                        <span class="skill-list-cost">💰 ${formatNumber(cost)}</span>
                         <button class="btn btn-primary" onclick="appraiseEquipment(${idx})" ${!canAfford ? 'disabled' : ''}>鉴定</button>
                     </div>
                 </div>
@@ -2468,7 +2510,7 @@ function renderAppraiserContent() {
     // 未鉴定技能书
     const books = game.player.skillBooks || {};
     const unappraisedBooks = Object.entries(books).filter(([_, d]) => d && d.count > 0 && !d.appraised);
-    if (unappraisedBooks.length > 0) {
+    if (showBooks && unappraisedBooks.length > 0) {
         if (html) html += '<div style="margin-top:20px;"></div>';
         html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">📕 未鉴定技能书</div>';
         unappraisedBooks.forEach(([bookId, data]) => {
@@ -2482,10 +2524,10 @@ function renderAppraiserContent() {
                     <div class="skill-list-info">
                         <div class="skill-list-name">${book.emoji} ${book.name} ×${data.count}</div>
                         <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能学习</div>
-                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${book.sellPrice}金币</div>
+                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(book.sellPrice)}金币</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="skill-list-cost">💰 ${cost}</span>
+                        <span class="skill-list-cost">💰 ${formatNumber(cost)}</span>
                         <button class="btn btn-primary" onclick="appraiseBook('${book.id}')" ${!canAfford ? 'disabled' : ''}>鉴定</button>
                     </div>
                 </div>
@@ -2493,7 +2535,10 @@ function renderAppraiserContent() {
         });
     }
 
-    container.innerHTML = html || '<div style="text-align:center;color:#666;padding:30px">你暂时没有需要鉴定的物品</div>';
+    let emptyMsg = '你暂时没有需要鉴定的物品';
+    if (currentAppraiserFilter === 'equipment') emptyMsg = '暂无未鉴定装备';
+    else if (currentAppraiserFilter === 'skillBook') emptyMsg = '暂无未鉴定技能书';
+    container.innerHTML = html || '<div style="text-align:center;color:#666;padding:30px">' + emptyMsg + '</div>';
 }
 
 // ========== 铁匠系统 ==========
@@ -2521,7 +2566,7 @@ function renderBlacksmithForge(container) {
 
     let html = '<div style="text-align:center;padding:10px 0;">';
     html += '<div style="color:#aaa;margin-bottom:15px;">铁匠可以为你打造装备，装备品质与等级相关</div>';
-    html += '<div style="font-size:1.1em;margin-bottom:10px;">当前打造费用: <span style="color:#f1c40f;font-weight:bold;">💰 ' + forgeCost + '</span></div>';
+    html += '<div style="font-size:1.1em;margin-bottom:10px;">当前打造费用: <span style="color:#f1c40f;font-weight:bold;">💰 ' + formatNumber(forgeCost) + '</span></div>';
     html += '<div style="color:#888;font-size:0.85em;margin-bottom:20px;">等级越高，打造出的装备越好</div>';
     html += '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';
     html += '<button class="btn btn-primary" onclick="forgeEquipment()" ' + (!canAfford ? 'disabled' : '') + '>🔨 随机打造</button>';
@@ -2626,7 +2671,7 @@ function renderBlacksmithRefine(container) {
                 <div class="eq-bag-name" style="color:${rc.color}">${eqDef.name}</div>
                 <div class="eq-bag-stat">${formatEqStat(eqDef)}</div>
                 <div style="font-size:0.65em;color:#f1c40f;margin-bottom:3px;">锻造+${refineLevel}</div>
-                <div style="font-size:0.65em;color:#aaa;margin-bottom:4px;">💰 ${refineCost} | 基础成功率 ${baseRate}%</div>
+                <div style="font-size:0.65em;color:#aaa;margin-bottom:4px;">💰 ${formatNumber(refineCost)} | 基础成功率 ${baseRate}%</div>
                 <div style="font-size:0.7em;margin-bottom:4px;">
                     <input type="number" id="stone-${index}" min="0" max="${maxStones}" value="0" style="width:45px;text-align:center;border-radius:4px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;padding:2px;" onchange="updateRefineRate(${index}, ${baseRate})">
                     <span style="color:#888;">🔮 | 成功率 <span id="rate-${index}" style="color:#2ecc71;font-weight:bold;">${baseRate}%</span></span>
@@ -2727,7 +2772,7 @@ function renderShopContent() {
                 <div style="font-size:2em;margin-bottom:5px;">${item.emoji}</div>
                 <div style="font-weight:bold;font-size:0.9em;margin-bottom:4px;">${item.name}</div>
                 <div style="font-size:0.75em;color:#aaa;margin-bottom:8px;">${item.desc}</div>
-                <div style="color:#f1c40f;font-weight:bold;font-size:0.9em;margin-bottom:8px;">💰 ${price}</div>
+                <div style="color:#f1c40f;font-weight:bold;font-size:0.9em;margin-bottom:8px;">💰 ${formatNumber(price)}</div>
                 <button class="btn btn-success" onclick="buyShopItem('${item.id}')" ${!canAfford ? 'disabled' : ''} style="padding:4px 12px;font-size:0.8em;">购买</button>
             </div>
         `;
@@ -2773,13 +2818,13 @@ function renderSkillList(container) {
             let actionHtml = '';
             if (!isLearned) {
                 const canAfford = game.player.gold >= skill.learnCost;
-                actionHtml = `<span class="skill-list-cost">💰 ${skill.learnCost}</span><button class="btn btn-primary" onclick="learnSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>学习</button>`;
+                actionHtml = `<span class="skill-list-cost">💰 ${formatNumber(skill.learnCost)}</span><button class="btn btn-primary" onclick="learnSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>学习</button>`;
             } else {
                 const isMax = learned.level >= skill.maxLevel;
                 const cost = Math.floor(skill.upgradeCost * Math.pow(1.3, learned.level - 1));
                 const canAfford = game.player.gold >= cost;
                 const nextDmg = calculateSkillDamage(skill, learned.level + 1);
-                actionHtml = isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${cost}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`;
+                actionHtml = isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${formatNumber(cost)}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`;
             }
 
             html += `
@@ -2787,7 +2832,7 @@ function renderSkillList(container) {
                     <div class="skill-list-info">
                         <div class="skill-list-name" style="color: ${elInfo.color}">${skill.emoji} ${skill.name} ${isLearned ? `Lv.${learned.level}` : '<span style="color:#666">[未学会]</span>'}</div>
                         <div class="skill-list-desc">${skill.desc}</div>
-                        <div class="skill-list-meta">${elInfo.emoji} ${elInfo.name}属性 | 💧消耗${skill.mpCost} | ⏱️冷却${skill.cooldown/1000}秒 | ${isLearned ? `当前伤害: ${calculateSkillDamage(skill, learned.level)}` : `基础伤害: ${skill.baseDmg}`}</div>
+                        <div class="skill-list-meta">${elInfo.emoji} ${elInfo.name}属性 | 💧消耗${skill.mpCost} | ⏱️冷却${skill.cooldown/1000}秒 | ${isLearned ? `当前伤害: ${formatNumber(calculateSkillDamage(skill, learned.level))}` : `基础伤害: ${formatNumber(skill.baseDmg)}`}</div>
                     </div>
                     <div style="display:flex;align-items:center;">
                         ${actionHtml}
@@ -2814,10 +2859,10 @@ function renderSkillList(container) {
                     <div class="skill-list-info">
                         <div class="skill-list-name" style="color: ${elInfo.color}">${skill.emoji} ${skill.name} Lv.${data.level}${isMax ? ' <span style="color:#f1c40f">[满级]</span>' : ''}</div>
                         <div class="skill-list-desc">${skill.desc}</div>
-                        <div class="skill-list-meta">当前伤害: ${calculateSkillDamage(skill, data.level)} | ${!isMax ? `升级后: ${calculateSkillDamage(skill, data.level + 1)}` : '已达最高等级'}</div>
+                        <div class="skill-list-meta">当前伤害: ${formatNumber(calculateSkillDamage(skill, data.level))} | ${!isMax ? `升级后: ${formatNumber(calculateSkillDamage(skill, data.level + 1))}` : '已达最高等级'}</div>
                     </div>
                     <div style="display:flex;align-items:center;">
-                        ${isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${cost}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`}
+                        ${isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${formatNumber(cost)}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`}
                     </div>
                 </div>
             `;
@@ -2855,11 +2900,11 @@ function renderAppraiseBooks(container) {
                             : `<span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能学习`
                         }
                     </div>
-                    <div class="skill-list-meta">${rc.label}品质 | 出售价: ${book.sellPrice}金币</div>
+                    <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(book.sellPrice)}金币</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
                     ${!isAppraised
-                        ? `<span class="skill-list-cost">💰 ${appraisalCost}</span><button class="btn btn-primary" onclick="appraiseBook('${book.id}')" ${!canAfford ? 'disabled' : ''}>鉴定</button>`
+                        ? `<span class="skill-list-cost">💰 ${formatNumber(appraisalCost)}</span><button class="btn btn-primary" onclick="appraiseBook('${book.id}')" ${!canAfford ? 'disabled' : ''}>鉴定</button>`
                         : (game.player.skills[book.skillId]?.level > 0
                             ? `<span style="color:#2ecc71">已学会</span><button class="btn btn-warning" onclick="sellSkillBook('${book.id}')">出售</button>`
                             : `<button class="btn btn-success" onclick="learnFromBook('${book.id}')">学习</button><button class="btn btn-warning" onclick="sellSkillBook('${book.id}')">出售</button>`)
@@ -2878,10 +2923,10 @@ function renderTrainSpirit(container) {
     container.innerHTML = `
         <div class="train-panel">
             <div class="train-desc">通过冥想修炼提升精神力，增加魔力上限和技能伤害</div>
-            <div class="train-stat">当前精神: <span style="color:#e94560;font-size:1.3em">${game.player.spi}</span> | 当前等级: <span style="color:#f1c40f">${level}</span></div>
-            <div class="train-stat">最大魔力: ${game.player.maxMp} | 每次修炼: 精神+2，魔力上限+6</div>
+            <div class="train-stat">当前精神: <span style="color:#e94560;font-size:1.3em">${formatNumber(game.player.spi)}</span> | 当前等级: <span style="color:#f1c40f">${level}</span></div>
+            <div class="train-stat">最大魔力: ${formatNumber(game.player.maxMp)} | 每次修炼: 精神+2，魔力上限+6</div>
             <button class="btn btn-primary" onclick="trainSpirit()" ${!canAfford ? 'disabled' : ''} style="font-size:1.1em;padding:10px 24px">
-                🧘 修炼精神 (💰 ${cost})
+                🧘 修炼精神 (💰 ${formatNumber(cost)})
             </button>
         </div>
     `;
@@ -2972,7 +3017,7 @@ function sellSkillBook(bookId) {
     data.count--;
     if (data.count <= 0) delete game.player.skillBooks[bookId];
     game.player.gold += book.sellPrice;
-    log(`💰 出售了 ${book.emoji} ${book.name}，获得 ${book.sellPrice} 金币`, 'log-loot');
+    log(`💰 出售了 ${book.emoji} ${book.name}，获得 ${formatNumber(book.sellPrice)} 金币`, 'log-loot');
     renderNpcContent();
     updateUI();
 }

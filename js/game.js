@@ -226,7 +226,10 @@ let game = {
     player: null, enemy: null,
     autoBattle: false, autoBattleTimer: null,
     autoStrengthen: false,
+    autoRecover: false,
+    _renderBagTimeout: null,
     lastPlayerAttack: 0, lastEnemyAttack: 0,
+    lastBattleEndTime: null,
     currentArea: 0,
     inCity: false,
     bossDefeated: [false, false, false, false, false, false, false, false],
@@ -255,6 +258,7 @@ let game = {
 const TREASURE_FILTERS = new Set();
 let currentBagTab = 'treasure';
 let currentEquipmentFilter = 'all';
+let currentItemFilter = 'all';
 
 function switchBagTab(tab) {
     currentBagTab = tab;
@@ -337,6 +341,11 @@ function toggleTreasureFilter(filter) {
     renderBag();
 }
 
+function clearTreasureFilters() {
+    TREASURE_FILTERS.clear();
+    renderBag();
+}
+
 const upgrades = [
     { id: 'atk', name: '💪 强化攻击', desc: '攻击力 +3', cost: 50, type: 'atk', value: 3 },
     { id: 'def', name: '🛡️ 强化防御', desc: '防御力 +5', cost: 50, type: 'def', value: 5 },
@@ -392,6 +401,8 @@ function migrateOldSave() {
     if (game.player.buffs === undefined) game.player.buffs = {};
     if (game.player.equipments === undefined) game.player.equipments = {};
     if (game.player.equipmentBag === undefined) game.player.equipmentBag = [];
+    // 旧存档装备默认已鉴定（兼容）
+    for (const eq of game.player.equipmentBag) { if (eq.appraised === undefined) eq.appraised = true; }
     if (game.player.items === undefined) game.player.items = {};
     // 旧存档攻速迁移：新版使用基于等级的曲线计算，固定基础值为1000
     if (game.player.aspdLevel > 0 && game.player.aspd !== 1000) {
@@ -406,6 +417,20 @@ setInterval(() => {
         renderBag();
     }
 }, 5000);
+
+// 战斗外魔力缓慢恢复：不战斗且战斗结束3分钟后才开始恢复
+setInterval(() => {
+    if (!game.player) return;
+    if (game.enemy) return; // 战斗中不恢复
+    if (!game.lastBattleEndTime) return; // 从未战斗过不恢复（或正在战斗中）
+    const elapsed = Date.now() - game.lastBattleEndTime;
+    if (elapsed < 3 * 60 * 1000) return; // 战斗结束3分钟内不恢复
+    if (game.player.mp < game.player.maxMp) {
+        const regen = 1 + Math.floor(game.player.spi * 0.2);
+        game.player.mp = Math.min(game.player.maxMp, game.player.mp + regen);
+        updateUI();
+    }
+}, 3000);
 
 function utf8ToBase64(str) {
     try {
@@ -544,7 +569,7 @@ function rollEquipmentDrop(minRarity) {
 
 function addEquipmentToBag(equipment) {
     game.player.equipmentBag = game.player.equipmentBag || [];
-    game.player.equipmentBag.push({ id: equipment.id, level: 1 });
+    game.player.equipmentBag.push({ id: equipment.id, level: 1, appraised: false });
 }
 
 function rollTreasureDrop(minRarity, customRate) {
@@ -689,6 +714,7 @@ function spawnBoss(index) {
 }
 
 function spawnEnemy() {
+    game.lastBattleEndTime = null;
     const area = game.areas[game.currentArea];
     const baseLevel = Math.max(1, area.level + Math.floor(Math.random() * 3) - 1);
     const template = game.enemies[Math.floor(Math.random() * game.enemies.length)];
@@ -815,10 +841,6 @@ function attack(attacker, defender, isPlayer) {
             log(`🩸 吸血恢复了 ${heal} 点生命`, 'log-heal');
         }
     }
-    // 攻击恢复1点MP
-    if (isPlayer && game.player.mp < game.player.maxMp) {
-        game.player.mp = Math.min(game.player.maxMp, game.player.mp + 1);
-    }
     showDamage(isPlayer ? 'enemyChar' : 'playerChar', dmg, isCrit);
     const attackerEl = document.getElementById(isPlayer ? 'playerChar' : 'enemyChar');
     attackerEl.classList.add('attacking');
@@ -839,7 +861,7 @@ function showDamage(targetId, damage, isCrit) {
     setTimeout(() => el.remove(), 1000);
 }
 
-function battleRound() {
+function battleRound(skipUI = false) {
     if (!game.enemy || game.enemy.hp <= 0) return;
     if (game.player.hp <= 0) { playerDeath(); return; }
     const playerDmg = attack(game.player, game.enemy, true);
@@ -849,7 +871,7 @@ function battleRound() {
     else enemyName = game.enemy.name;
     log(`你对${enemyName}造成了 ${playerDmg} 点伤害`, 'log-damage');
     if (game.enemy.hp <= 0) { enemyDefeated(); return; }
-    updateUI();
+    if (!skipUI) updateUI();
 }
 
 function enemyCastSkill() {
@@ -892,7 +914,7 @@ function enemyCastSkill() {
     }
 }
 
-function enemyAttack() {
+function enemyAttack(skipUI = false) {
     if (!game.enemy || game.enemy.hp <= 0) return;
     if (game.player.hp <= 0) { playerDeath(); return; }
     if (game.enemy.isElite && Math.random() < 0.4 && enemyCastSkill()) return;
@@ -900,7 +922,7 @@ function enemyAttack() {
     const enemyName = game.enemy.isBoss ? `【BOSS】${game.enemy.name}` : game.enemy.isElite ? `【精英】${game.enemy.name}` : game.enemy.name;
     log(`${enemyName}对你造成了 ${enemyDmg} 点伤害`, 'log-damage');
     if (game.player.hp <= 0) playerDeath();
-    else updateUI();
+    else if (!skipUI) updateUI();
 }
 
 function enemyDefeated() {
@@ -1096,6 +1118,7 @@ function enemyDefeated() {
             setTimeout(() => { spawnEnemy(); const encounterName = game.enemy.isElite ? `【精英】${game.enemy.name} Lv.${game.enemy.level}` : `${game.enemy.name} Lv.${game.enemy.level}`; log(`遇到了新的敌人：${encounterName}`, 'log-loot'); }, 800);
         }
     }
+    game.lastBattleEndTime = Date.now();
 }
 
 function levelUp() {
@@ -1144,11 +1167,12 @@ function playerDeath() {
     stopAutoBattle();
     spawnEnemy();
     updateUI();
+    game.lastBattleEndTime = Date.now();
 }
 
 function stopAutoBattle() {
     game.autoBattle = false;
-    if (game.autoBattleTimer) { clearInterval(game.autoBattleTimer); game.autoBattleTimer = null; }
+    if (game.autoBattleTimer) { clearTimeout(game.autoBattleTimer); game.autoBattleTimer = null; }
     document.getElementById('autoBattleBtn').textContent = '开始挂机';
 }
 
@@ -1165,6 +1189,11 @@ function autoBattleLoop() {
     const stats = getPlayerStats();
     const maxBatch = document.hidden ? 500 : 5;
 
+    // 自动恢复生命和魔力
+    if (game.autoRecover) {
+        autoRecover(stats);
+    }
+
     // 自动释放技能
     if (!document.hidden) {
         tryAutoCastSkill();
@@ -1175,7 +1204,7 @@ function autoBattleLoop() {
     for (let i = 0; i < playerAttacks; i++) {
         if (!game.enemy) spawnEnemy();
         if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
-        battleRound();
+        battleRound(true);
     }
     if (playerAttacks > 0) game.lastPlayerAttack += playerAttacks * stats.aspd;
 
@@ -1184,9 +1213,19 @@ function autoBattleLoop() {
     for (let i = 0; i < enemyAttacks; i++) {
         if (!game.enemy) spawnEnemy();
         if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
-        enemyAttack();
+        enemyAttack(true);
     }
     if (enemyAttacks > 0) game.lastEnemyAttack += enemyAttacks * 900;
+
+    // 批量攻击结束后统一更新一次UI
+    if (playerAttacks > 0 || enemyAttacks > 0) {
+        updateUI();
+    }
+
+    // 链式调度下一次执行，确保固定间隔
+    if (game.autoBattle) {
+        game.autoBattleTimer = setTimeout(autoBattleLoop, 300);
+    }
 }
 
 function toggleAutoBattle() {
@@ -1198,8 +1237,92 @@ function toggleAutoBattle() {
         game.lastEnemyAttack = Date.now();
         log('开始自动战斗！', 'log-loot');
         autoBattleLoop();
-        game.autoBattleTimer = setInterval(autoBattleLoop, 100);
     } else { stopAutoBattle(); log('停止自动战斗', 'log-loot'); }
+}
+
+function toggleAutoRecover() {
+    game.autoRecover = !game.autoRecover;
+    const btn = document.getElementById('autoRecoverBtn');
+    btn.textContent = game.autoRecover ? '🩹 自动恢复: 开' : '🩹 自动恢复: 关';
+    if (game.autoRecover) {
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-primary');
+        log('🩹 已开启自动恢复，战斗中会自动使用药水', 'log-heal');
+    } else {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
+        log('🩹 已关闭自动恢复', 'log-loot');
+    }
+}
+
+function autoRecover(stats) {
+    const items = game.player.items || {};
+    let consumed = false;
+
+    // 生命恢复：低于 30% 才使用，优先大药水
+    if (game.player.hp < stats.maxHp * 0.3) {
+        const bigPotion = items['hp_potion_l'];
+        const smallPotion = items['hp_potion_s'];
+        if (bigPotion && bigPotion.count > 0) {
+            bigPotion.count--;
+            if (bigPotion.count <= 0) delete items['hp_potion_l'];
+            const healAmount = Math.floor(stats.maxHp * 1.0);
+            game.player.hp = Math.min(stats.maxHp, game.player.hp + healAmount);
+            log(`🩹 自动使用了大生命药水，恢复 ${healAmount} 点生命值`, 'log-heal');
+            consumed = true;
+        } else if (smallPotion && smallPotion.count > 0) {
+            smallPotion.count--;
+            if (smallPotion.count <= 0) delete items['hp_potion_s'];
+            const healAmount = Math.floor(stats.maxHp * 0.3);
+            game.player.hp = Math.min(stats.maxHp, game.player.hp + healAmount);
+            log(`🩹 自动使用了小生命药水，恢复 ${healAmount} 点生命值`, 'log-heal');
+            consumed = true;
+        }
+    }
+
+    // 魔力恢复：低于 30% 才使用
+    if (game.player.mp < stats.maxMp * 0.3) {
+        const mpPotion = items['mp_potion'];
+        if (mpPotion && mpPotion.count > 0) {
+            mpPotion.count--;
+            if (mpPotion.count <= 0) delete items['mp_potion'];
+            const mpAmount = Math.floor(stats.maxMp * 0.5);
+            game.player.mp = Math.min(stats.maxMp, game.player.mp + mpAmount);
+            log(`💧 自动使用了魔力药水，恢复 ${mpAmount} 点魔力值`, 'log-heal');
+            consumed = true;
+        }
+    }
+
+    if (consumed) {
+        updateUI();
+        // 防抖刷新背包：取消旧的延迟，设置新的 1 秒后刷新
+        if (game._renderBagTimeout) clearTimeout(game._renderBagTimeout);
+        game._renderBagTimeout = setTimeout(() => {
+            game._renderBagTimeout = null;
+            renderBag();
+        }, 1000);
+    }
+
+    // 检查是否还有可用药水，没有则关闭自动恢复
+    if (game.autoRecover) {
+        const hasHpPotion = (items['hp_potion_l']?.count || 0) > 0 || (items['hp_potion_s']?.count || 0) > 0;
+        const hasMpPotion = (items['mp_potion']?.count || 0) > 0;
+        if (!hasHpPotion && !hasMpPotion) {
+            game.autoRecover = false;
+            const btn = document.getElementById('autoRecoverBtn');
+            if (btn) {
+                btn.textContent = '🩹 自动恢复: 关';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            }
+            log('🩹 药水已耗尽，自动恢复已关闭', 'log-damage');
+            if (game._renderBagTimeout) clearTimeout(game._renderBagTimeout);
+            game._renderBagTimeout = setTimeout(() => {
+                game._renderBagTimeout = null;
+                renderBag();
+            }, 1000);
+        }
+    }
 }
 
 function heal() {
@@ -1318,7 +1441,7 @@ function updateClueUI() {
     const cluePanel = document.getElementById('cluePanel');
     const bossPanel = document.getElementById('bossPanel');
 
-    if (!isBossArea(game.currentArea) || isBossDefeated(game.currentArea)) {
+    if (game.inCity || !isBossArea(game.currentArea) || isBossDefeated(game.currentArea)) {
         cluePanel.style.display = 'none';
         bossPanel.style.display = 'none';
         return;
@@ -1429,16 +1552,26 @@ function renderBagTreasures(container) {
         entries = entries.filter(([_, d]) => d.count > 1);
     }
 
-    let html = '<div style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="atk" onclick="toggleTreasureFilter(\'atk\')" style="padding: 2px 7px; font-size: 0.7em;">攻击</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="def" onclick="toggleTreasureFilter(\'def\')" style="padding: 2px 7px; font-size: 0.7em;">防御</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="maxHp" onclick="toggleTreasureFilter(\'maxHp\')" style="padding: 2px 7px; font-size: 0.7em;">生命</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="crit" onclick="toggleTreasureFilter(\'crit\')" style="padding: 2px 7px; font-size: 0.7em;">暴击</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="expBonus" onclick="toggleTreasureFilter(\'expBonus\')" style="padding: 2px 7px; font-size: 0.7em;">经验</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="goldBonus" onclick="toggleTreasureFilter(\'goldBonus\')" style="padding: 2px 7px; font-size: 0.7em;">金币</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="armorPenFlat" onclick="toggleTreasureFilter(\'armorPenFlat\')" style="padding: 2px 7px; font-size: 0.7em;">破甲(固)</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" data-filter="armorPenPercent" onclick="toggleTreasureFilter(\'armorPenPercent\')" style="padding: 2px 7px; font-size: 0.7em;">破甲(%)</button>';
-    html += '<button class="btn btn-secondary treasure-filter-btn" id="upgradeableFilterBtn" data-filter="upgradeable" onclick="toggleTreasureFilter(\'upgradeable\')" style="padding: 2px 7px; font-size: 0.7em;">🔨 可强化</button>';
+    const treasureFilterBtns = [
+        { key: 'all', label: '📦 全部' },
+        { key: 'atk', label: '攻击' },
+        { key: 'def', label: '防御' },
+        { key: 'maxHp', label: '生命' },
+        { key: 'crit', label: '暴击' },
+        { key: 'expBonus', label: '经验' },
+        { key: 'goldBonus', label: '金币' },
+        { key: 'armorPenFlat', label: '破甲(固)' },
+        { key: 'armorPenPercent', label: '破甲(%)' },
+        { key: 'upgradeable', label: '🔨 可强化' },
+    ];
+
+    let html = '<div class="bag-filter-bar" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">';
+    treasureFilterBtns.forEach(btn => {
+        const isActive = btn.key === 'all' ? TREASURE_FILTERS.size === 0 : TREASURE_FILTERS.has(btn.key);
+        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
+        const onclick = btn.key === 'all' ? 'clearTreasureFilters()' : `toggleTreasureFilter('${btn.key}')`;
+        html += `<button class="btn btn-secondary treasure-filter-btn" data-filter="${btn.key}" onclick="${onclick}" style="padding: 2px 7px; font-size: 0.7em;${activeStyle}">${btn.label}</button>`;
+    });
     html += '</div>';
 
     if (entries.length === 0) {
@@ -1509,8 +1642,8 @@ function renderBagEquipments(container) {
         { key: 'jade', name: '玉佩', emoji: '🏵️' },
     ];
 
-    let html = '<div style="font-size:0.85em;color:#aaa;margin-bottom:8px;">点击穿戴或出售</div>';
-    html += '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">';
+    //let html = '<div style="font-size:0.85em;color:#aaa;margin-bottom:8px;">点击穿戴或出售</div>';
+    let html = '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
     filterSlots.forEach(slot => {
         const isActive = currentEquipmentFilter === slot.key;
         const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
@@ -1528,14 +1661,17 @@ function renderBagEquipments(container) {
         const rc = RARITY_CONFIG[eqDef.rarity];
         const refine = item.refine || 0;
         const refineTag = refine > 0 ? `<span style="color:#ff9f43;font-size:0.7em;">+${refine}</span>` : '';
+        const isAppraised = item.appraised !== false;
         html += `
             <div class="equipment-bag-item ${eqDef.rarity}">
-                <div class="eq-bag-emoji">${eqDef.emoji}</div>
-                <div class="eq-bag-name" style="color:${rc.color}">${eqDef.name} ${refineTag}</div>
-                <div class="eq-bag-stat">${formatEqStat(eqDef)}</div>
+                <div class="eq-bag-emoji">${isAppraised ? eqDef.emoji : '❓'}</div>
+                <div class="eq-bag-name" style="color:${isAppraised ? rc.color : '#888'}">${isAppraised ? eqDef.name : '未鉴定装备'} ${refineTag}</div>
+                <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef) : '需要鉴定后才能使用'}</div>
                 <div class="eq-bag-actions">
-                    <button class="btn btn-success" onclick="equipItem(${index})">穿戴</button>
-                    <button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${eqDef.sellPrice}</button>
+                    ${isAppraised
+                        ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button><button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${eqDef.sellPrice}</button>`
+                        : `<span style="font-size:0.7em;color:#888;">❓ 未鉴定</span>`
+                    }
                 </div>
             </div>
         `;
@@ -1552,18 +1688,71 @@ function setEquipmentFilter(filter) {
     renderBag();
 }
 
+function setItemFilter(filter) {
+    currentItemFilter = filter;
+    renderBag();
+}
+
 function renderBagItems(container) {
-    let html = '';
+    const itemFilters = [
+        { key: 'all', name: '全部', emoji: '📦' },
+        { key: 'consumable', name: '消耗品', emoji: '🧪' },
+        { key: 'skillbook', name: '技能书', emoji: '📕' },
+        { key: 'appraised', name: '已鉴定', emoji: '🔍' },
+        { key: 'unappraised', name: '未鉴定', emoji: '❓' },
+    ];
+
+    let html = '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
+    itemFilters.forEach(f => {
+        const isActive = currentItemFilter === f.key;
+        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
+        html += `<button class="btn btn-secondary" onclick="setItemFilter('${f.key}')" style="padding:2px 7px;font-size:0.7em;${activeStyle}">${f.emoji} ${f.name}</button>`;
+    });
+    html += '</div>';
+
+    // 收集所有条目
+    let allEntries = [];
 
     // 道具（商店购买）
     const items = game.player.items || {};
     const itemEntries = Object.entries(items).filter(([_, d]) => d && d.count > 0);
-    if (itemEntries.length > 0) {
-        html += '<div style="font-size:0.85em;color:#aaa;margin-bottom:8px;">消耗品</div>';
-        html += '<div class="treasure-grid">';
+    const showConsumables = currentItemFilter === 'all' || currentItemFilter === 'consumable';
+    if (showConsumables) {
         itemEntries.forEach(([itemId, data]) => {
             const itemDef = SHOP_ITEMS.find(i => i.id === itemId);
             if (!itemDef) return;
+            allEntries.push({ type: 'item', id: itemId, data, def: itemDef });
+        });
+    }
+
+    // 技能书
+    const books = game.player.skillBooks || {};
+    let bookEntries = Object.entries(books).filter(([_, d]) => d && d.count > 0);
+    if (currentItemFilter === 'appraised') {
+        bookEntries = bookEntries.filter(([_, d]) => d.appraised);
+    } else if (currentItemFilter === 'unappraised') {
+        bookEntries = bookEntries.filter(([_, d]) => !d.appraised);
+    }
+    const showSkillbooks = currentItemFilter === 'all' || currentItemFilter === 'skillbook' || currentItemFilter === 'appraised' || currentItemFilter === 'unappraised';
+    if (showSkillbooks) {
+        bookEntries.forEach(([bookId, data]) => {
+            const book = SKILL_BOOKS.find(b => b.id === bookId);
+            if (!book) return;
+            allEntries.push({ type: 'book', id: bookId, data, def: book });
+        });
+    }
+
+    if (allEntries.length === 0) {
+        html += '<div style="text-align:center;color:#666;padding:30px;">暂无符合条件的道具</div>';
+        container.innerHTML = html;
+        return;
+    }
+
+    html += '<div class="treasure-grid">';
+    allEntries.forEach(entry => {
+        if (entry.type === 'item') {
+            const itemDef = entry.def;
+            const data = entry.data;
             html += `
                 <div class="treasure-item" style="border-color:rgba(46,204,113,0.3);">
                     <div class="treasure-emoji">${itemDef.emoji}</div>
@@ -1576,19 +1765,9 @@ function renderBagItems(container) {
                     </div>
                 </div>
             `;
-        });
-        html += '</div>';
-    }
-
-    // 技能书
-    const books = game.player.skillBooks || {};
-    const bookEntries = Object.entries(books).filter(([_, d]) => d && d.count > 0);
-    if (bookEntries.length > 0) {
-        html += '<div style="font-size:0.85em;color:#aaa;margin:15px 0 8px;">技能书</div>';
-        html += '<div class="treasure-grid">';
-        bookEntries.forEach(([bookId, data]) => {
-            const book = SKILL_BOOKS.find(b => b.id === bookId);
-            if (!book) return;
+        } else {
+            const book = entry.def;
+            const data = entry.data;
             const rc = RARITY_CONFIG[book.rarity];
             const isAppraised = data.appraised;
             html += `
@@ -1598,18 +1777,14 @@ function renderBagItems(container) {
                     <div class="treasure-name" style="color:${rc.color}">${book.name} ×${data.count}</div>
                     <div class="treasure-stat">${isAppraised ? '🔍 已鉴定' : '❓ 未鉴定'}</div>
                     <div class="treasure-actions">
-                        ${!isAppraised ? `<button class="btn btn-primary" onclick="appraiseBook('${book.id}')">鉴定</button>` : (game.player.skills[book.skillId]?.level > 0 ? '<span style="font-size:0.7em;color:#2ecc71">已学会</span>' : `<button class="btn btn-success" onclick="learnFromBook('${book.id}')">学习</button>`)}
+                        ${isAppraised ? (game.player.skills[book.skillId]?.level > 0 ? '<span style="font-size:0.7em;color:#2ecc71">已学会</span>' : `<button class="btn btn-success" onclick="learnFromBook('${book.id}')">学习</button>`) : `<span style="font-size:0.7em;color:#888">❓ 未鉴定</span>`}
                         <button class="btn btn-warning" onclick="sellSkillBook('${book.id}')">💰 ${book.sellPrice}</button>
                     </div>
                 </div>
             `;
-        });
-        html += '</div>';
-    }
-
-    if (html === '') {
-        html = '<div style="text-align:center;color:#666;padding:30px;">暂无道具</div>';
-    }
+        }
+    });
+    html += '</div>';
     container.innerHTML = html;
 }
 
@@ -1776,7 +1951,8 @@ function renderEquipments() {
         html += `
             <div class="equipment-slot empty">
                 <div class="slot-emoji" style="opacity:0.4">${slotDef.emoji}</div>
-                <div class="slot-name">${slotDef.name}</div>
+                <div class="eq-name">${slotDef.name}</div>
+                <div class="eq-stat" style="opacity:0;">&nbsp;</div>
             </div>
         `;
     }
@@ -2071,6 +2247,7 @@ function equipItem(bagIndex) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
+    if (item.appraised === false) { log('该装备尚未鉴定，无法穿戴！', 'log-damage'); return; }
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
     const slotKey = getSlotKeyForEquipment(eqDef);
@@ -2103,6 +2280,7 @@ function sellEquipment(bagIndex) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
+    if (item.appraised === false) { log('该装备尚未鉴定，无法出售！', 'log-damage'); return; }
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
     bag.splice(bagIndex, 1);
@@ -2118,19 +2296,21 @@ function showNpcView() {
     game.inCity = true;
     stopAutoBattle();
     document.getElementById('battleView').style.display = 'none';
-    document.getElementById('npcView').style.display = 'block';
-    document.getElementById('npcSelectView').style.display = 'block';
+    document.getElementById('npcView').style.display = '';
+    document.getElementById('npcSelectView').style.display = '';
     document.getElementById('npcMentorView').style.display = 'none';
     document.getElementById('npcAppraiserView').style.display = 'none';
     document.getElementById('npcBlacksmithView').style.display = 'none';
     document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcInnView').style.display = 'none';
     renderAreas();
+    updateClueUI();
     updateEnemyUI();
 }
 
 function showMentorView() {
     document.getElementById('npcSelectView').style.display = 'none';
-    document.getElementById('npcMentorView').style.display = 'block';
+    document.getElementById('npcMentorView').style.display = '';
     document.getElementById('npcAppraiserView').style.display = 'none';
     switchNpcTab('skills');
 }
@@ -2138,23 +2318,85 @@ function showMentorView() {
 function showAppraiserView() {
     document.getElementById('npcSelectView').style.display = 'none';
     document.getElementById('npcMentorView').style.display = 'none';
-    document.getElementById('npcAppraiserView').style.display = 'block';
+    document.getElementById('npcAppraiserView').style.display = '';
     renderAppraiserContent();
 }
 
 function showNpcSelect() {
-    document.getElementById('npcSelectView').style.display = 'block';
+    document.getElementById('npcSelectView').style.display = '';
     document.getElementById('npcMentorView').style.display = 'none';
     document.getElementById('npcAppraiserView').style.display = 'none';
     document.getElementById('npcBlacksmithView').style.display = 'none';
     document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcInnView').style.display = 'none';
+}
+
+function showInnView() {
+    document.getElementById('npcSelectView').style.display = 'none';
+    document.getElementById('npcMentorView').style.display = 'none';
+    document.getElementById('npcAppraiserView').style.display = 'none';
+    document.getElementById('npcBlacksmithView').style.display = 'none';
+    document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcInnView').style.display = '';
+    renderInnContent();
+}
+
+function renderInnContent() {
+    const container = document.getElementById('innContent');
+    const stats = getPlayerStats();
+    const hpPercent = Math.round((game.player.hp / stats.maxHp) * 100);
+    const mpPercent = Math.round((game.player.mp / stats.maxMp) * 100);
+    const isFull = game.player.hp >= stats.maxHp && game.player.mp >= stats.maxMp;
+
+    let html = '<div style="text-align:center;padding:20px 0;">';
+    html += '<div style="font-size:4em;margin-bottom:15px;">🏨</div>';
+    html += '<div style="font-size:1.2em;font-weight:bold;color:#3498db;margin-bottom:10px;">欢迎光临勇者客栈</div>';
+    html += '<div style="color:#aaa;margin-bottom:20px;font-size:0.9em;">在这里好好休息，恢复所有战斗状态</div>';
+
+    html += '<div style="max-width:300px;margin:0 auto;text-align:left;">';
+    html += '<div style="margin-bottom:15px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">';
+    html += '<span>生命值</span><span>' + Math.floor(game.player.hp) + '/' + Math.floor(stats.maxHp) + ' (' + hpPercent + '%)</span>';
+    html += '</div>';
+    html += '<div class="hp-bar"><div class="hp-fill" style="width:' + hpPercent + '%"></div></div>';
+    html += '</div>';
+
+    html += '<div style="margin-bottom:20px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">';
+    html += '<span>魔力值</span><span>' + Math.floor(game.player.mp) + '/' + Math.floor(stats.maxMp) + ' (' + mpPercent + '%)</span>';
+    html += '</div>';
+    html += '<div class="mp-bar"><div class="mp-fill" style="width:' + mpPercent + '%"></div></div>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div style="margin-top:25px;">';
+    if (isFull) {
+        html += '<div style="color:#2ecc71;font-weight:bold;margin-bottom:10px;">✅ 状态已满，无需休息</div>';
+        html += '<button class="btn btn-secondary" disabled>💤 休息</button>';
+    } else {
+        html += '<button class="btn btn-primary" onclick="restAtInn()" style="font-size:1.1em;padding:10px 30px;">💤 休息恢复</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+}
+
+function restAtInn() {
+    const stats = getPlayerStats();
+    game.player.hp = stats.maxHp;
+    game.player.mp = stats.maxMp;
+    log('🏨 在客栈好好休息了一番，状态完全恢复！', 'log-heal');
+    showNotification('🏨 休息完毕，状态全满！');
+    renderInnContent();
+    updateUI();
 }
 
 function showBlacksmithView() {
     document.getElementById('npcSelectView').style.display = 'none';
     document.getElementById('npcMentorView').style.display = 'none';
     document.getElementById('npcAppraiserView').style.display = 'none';
-    document.getElementById('npcBlacksmithView').style.display = 'block';
+    document.getElementById('npcBlacksmithView').style.display = '';
     document.getElementById('npcShopView').style.display = 'none';
     switchBlacksmithTab('forge');
 }
@@ -2164,7 +2406,7 @@ function showShopView() {
     document.getElementById('npcMentorView').style.display = 'none';
     document.getElementById('npcAppraiserView').style.display = 'none';
     document.getElementById('npcBlacksmithView').style.display = 'none';
-    document.getElementById('npcShopView').style.display = 'block';
+    document.getElementById('npcShopView').style.display = '';
     renderShopContent();
 }
 
@@ -2192,7 +2434,66 @@ function renderNpcContent() {
 
 function renderAppraiserContent() {
     const container = document.getElementById('appraiserContent');
-    renderAppraiseBooks(container);
+    let html = '';
+
+    // 未鉴定装备
+    const unappraisedEquips = [];
+    (game.player.equipmentBag || []).forEach((item, idx) => {
+        if (item.appraised === false) unappraisedEquips.push({ item, idx });
+    });
+    if (unappraisedEquips.length > 0) {
+        html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">🛡️ 未鉴定装备</div>';
+        unappraisedEquips.forEach(({ item, idx }) => {
+            const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
+            if (!eqDef) return;
+            const rc = RARITY_CONFIG[eqDef.rarity];
+            const cost = Math.floor(eqDef.sellPrice * 0.5);
+            const canAfford = game.player.gold >= cost;
+            html += `
+                <div class="skill-list-item">
+                    <div class="skill-list-info">
+                        <div class="skill-list-name">${eqDef.emoji} ${eqDef.name}</div>
+                        <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能穿戴</div>
+                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${eqDef.sellPrice}金币</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="skill-list-cost">💰 ${cost}</span>
+                        <button class="btn btn-primary" onclick="appraiseEquipment(${idx})" ${!canAfford ? 'disabled' : ''}>鉴定</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // 未鉴定技能书
+    const books = game.player.skillBooks || {};
+    const unappraisedBooks = Object.entries(books).filter(([_, d]) => d && d.count > 0 && !d.appraised);
+    if (unappraisedBooks.length > 0) {
+        if (html) html += '<div style="margin-top:20px;"></div>';
+        html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">📕 未鉴定技能书</div>';
+        unappraisedBooks.forEach(([bookId, data]) => {
+            const book = SKILL_BOOKS.find(b => b.id === bookId);
+            if (!book) return;
+            const cost = Math.floor(book.sellPrice * 0.8);
+            const canAfford = game.player.gold >= cost;
+            const rc = RARITY_CONFIG[book.rarity];
+            html += `
+                <div class="skill-list-item">
+                    <div class="skill-list-info">
+                        <div class="skill-list-name">${book.emoji} ${book.name} ×${data.count}</div>
+                        <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能学习</div>
+                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${book.sellPrice}金币</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="skill-list-cost">💰 ${cost}</span>
+                        <button class="btn btn-primary" onclick="appraiseBook('${book.id}')" ${!canAfford ? 'disabled' : ''}>鉴定</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    container.innerHTML = html || '<div style="text-align:center;color:#666;padding:30px">你暂时没有需要鉴定的物品</div>';
 }
 
 // ========== 铁匠系统 ==========
@@ -2265,7 +2566,7 @@ function forgeEquipment() {
     const eqDef = pool[Math.floor(Math.random() * pool.length)];
     if (!eqDef) { log('打造失败，请重试', 'log-damage'); return; }
 
-    const forgedItem = { id: eqDef.id };
+    const forgedItem = { id: eqDef.id, appraised: false };
     game.player.equipmentBag = game.player.equipmentBag || [];
     game.player.equipmentBag.push(forgedItem);
 
@@ -2614,6 +2915,24 @@ function upgradeSkill(skillId) {
     updateUI();
 }
 
+function appraiseEquipment(bagIndex) {
+    const bag = game.player.equipmentBag || [];
+    if (bagIndex < 0 || bagIndex >= bag.length) return;
+    const item = bag[bagIndex];
+    if (item.appraised !== false) return;
+    const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
+    if (!eqDef) return;
+    const cost = Math.floor(eqDef.sellPrice * 0.5);
+    if (game.player.gold < cost) { log('金币不足，无法鉴定！', 'log-damage'); return; }
+    game.player.gold -= cost;
+    item.appraised = true;
+    log(`🔍 鉴定成功！${eqDef.emoji} ${eqDef.name} 已可以穿戴`, 'log-skill');
+    showNotification(`🔍 鉴定成功: ${eqDef.name}！`);
+    renderAppraiserContent();
+    renderBag();
+    updateUI();
+}
+
 function appraiseBook(bookId) {
     const book = SKILL_BOOKS.find(b => b.id === bookId);
     const data = game.player.skillBooks?.[bookId];
@@ -2626,7 +2945,7 @@ function appraiseBook(bookId) {
     const skill = SKILLS.find(s => s.id === book.skillId);
     log(`🔍 鉴定成功！${book.emoji} ${book.name} 内含技能: ${skill.emoji} ${skill.name}`, 'log-skill');
     showNotification(`🔍 鉴定成功: ${skill.name}！`);
-    renderNpcContent();
+    renderAppraiserContent();
     updateUI();
 }
 
@@ -2679,7 +2998,7 @@ setInterval(() => {
         const regen = Math.max(1, Math.floor(game.player.maxMp * 0.05));
         game.player.mp = Math.min(game.player.maxMp, game.player.mp + regen);
         // 只在NPC界面打开时更新UI，避免频繁刷新
-        if (document.getElementById('npcView').style.display === 'block') {
+        if (document.getElementById('npcView').style.display !== 'none') {
             updateUI();
         }
     }

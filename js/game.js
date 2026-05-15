@@ -2424,6 +2424,7 @@ function renderBagEquipments(container) {
         { key: 'rare', label: '稀有', color: '#4facfe' },
         { key: 'epic', label: '史诗', color: '#a55eea' },
         { key: 'legendary', label: '传说', color: '#f1c40f' },
+        { key: 'divine', label: '神器', color: '#ff0044' },
     ];
 
     _bagBtn(toolbar, 'autoSellEquip', `💰 自动出售: ${as.equipment ? '开' : '关'}`, () => toggleAutoSell('equipment'), as.equipment, 'linear-gradient(45deg,#2ecc71,#27ae60)');
@@ -2555,6 +2556,7 @@ function renderBagItems(container) {
         { key: 'rare', label: '稀有' },
         { key: 'epic', label: '史诗' },
         { key: 'legendary', label: '传说' },
+        { key: 'divine', label: '禁咒' },
     ];
 
     const pane = _ensureBagPane(container, 'item');

@@ -817,7 +817,8 @@ function getEquipmentBonuses() {
         const level = data.level || 1;
         const refine = data.refine || 0;
         const refineMult = 1 + refine * 0.1;
-        const levelMult = (1 + (level - 1) * 0.1) * refineMult;
+        const attrMult = data.attrMult || 1;
+        const levelMult = (1 + (level - 1) * 0.1) * refineMult * attrMult;
         if (eqDef.atk) bonuses.atk += eqDef.atk * levelMult;
         if (eqDef.def) bonuses.def += eqDef.def * levelMult;
         if (eqDef.maxHp) bonuses.maxHp += eqDef.maxHp * levelMult;
@@ -2501,7 +2502,7 @@ function renderBagEquipments(container) {
             <div class="eq-bag-emoji">${isAppraised ? eqDef.emoji : '❓'}</div>
             <div class="eq-bag-name" style="color:${isAppraised ? rc.color : '#888'}">${!isAppraised ? '❓' : ''}${eqDef.name} ${refineTag}</div>
             ${setTag}
-            <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef) : '需要鉴定后才能使用'}</div>
+            <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef, item) : '需要鉴定后才能使用'}</div>
             <div class="eq-bag-actions">
                 ${isAppraised ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button>` : ''}
                 <button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>
@@ -2984,17 +2985,19 @@ function formatValue(stat, value) {
     return `${name}+${formatNumber(value)}`;
 }
 
-function formatEqStat(eqDef) {
+function formatEqStat(eqDef, item) {
+    const m = (item && item.attrMult) ? item.attrMult : 1;
+    const scale = (v) => v * m;
     const texts = [];
-    if (eqDef.atk) texts.push(`攻击+${formatNumber(eqDef.atk)}`);
-    if (eqDef.def) texts.push(`防御+${formatNumber(eqDef.def)}`);
-    if (eqDef.maxHp) texts.push(`生命+${formatNumber(eqDef.maxHp)}`);
-    if (eqDef.aspd) texts.push(`攻速+${formatNumber(eqDef.aspd)}`);
-    if (eqDef.crit) texts.push(`暴击+${Math.round(eqDef.crit*100)}%`);
-    if (eqDef.critDmg) texts.push(`爆伤+${Math.round(eqDef.critDmg*100)}%`);
-    if (eqDef.vamp) texts.push(`吸血+${Math.round(eqDef.vamp*100)}%`);
-    if (eqDef.expBonus) texts.push(`经验+${Math.round(eqDef.expBonus*100)}%`);
-    if (eqDef.spi) texts.push(`精神+${formatNumber(eqDef.spi)}`);
+    if (eqDef.atk) texts.push(`攻击+${formatNumber(scale(eqDef.atk))}`);
+    if (eqDef.def) texts.push(`防御+${formatNumber(scale(eqDef.def))}`);
+    if (eqDef.maxHp) texts.push(`生命+${formatNumber(scale(eqDef.maxHp))}`);
+    if (eqDef.aspd) texts.push(`攻速+${formatNumber(scale(eqDef.aspd))}`);
+    if (eqDef.crit) texts.push(`暴击+${Math.round(scale(eqDef.crit)*100)}%`);
+    if (eqDef.critDmg) texts.push(`爆伤+${Math.round(scale(eqDef.critDmg)*100)}%`);
+    if (eqDef.vamp) texts.push(`吸血+${Math.round(scale(eqDef.vamp)*100)}%`);
+    if (eqDef.expBonus) texts.push(`经验+${Math.round(scale(eqDef.expBonus)*100)}%`);
+    if (eqDef.spi) texts.push(`精神+${formatNumber(scale(eqDef.spi))}`);
     return texts.join(' ');
 }
 
@@ -3041,7 +3044,7 @@ function renderEquipments() {
                 slot.innerHTML = `
                     <div class="slot-emoji">${eqDef.emoji}</div>
                     <div class="eq-name" style="color:${rc.color}">${eqDef.name} ${refineTag}</div>
-                    <div class="eq-stat">${formatEqStat(eqDef)}</div>
+                    <div class="eq-stat">${formatEqStat(eqDef, data)}</div>
                     ${setTag}
                 `;
                 continue;
@@ -3846,7 +3849,10 @@ function renderBlacksmithForge(container) {
     let html = '<div style="text-align:center;padding:10px 0;">';
     html += '<div style="color:#aaa;margin-bottom:15px;">铁匠可以为你打造装备，装备品质与等级相关</div>';
     html += '<div style="font-size:1.1em;margin-bottom:10px;">当前打造费用: <span style="color:#f1c40f;font-weight:bold;">💰 ' + formatNumber(forgeCost) + '</span></div>';
-    html += '<div style="color:#888;font-size:0.85em;margin-bottom:20px;">等级越高，打造出的装备越好</div>';
+    html += '<div style="color:#888;font-size:0.85em;margin-bottom:8px;">等级越高，打造出的装备越好</div>';
+    html += '<div style="color:#2ecc71;font-size:0.8em;margin-bottom:4px;">✓ 打造装备无需鉴定，直接可用</div>';
+    html += '<div style="color:#3498db;font-size:0.8em;margin-bottom:4px;">⚡ 基础属性在 50%-120% 之间随机浮动</div>';
+    html += '<div style="color:#ff0044;font-size:0.8em;margin-bottom:20px;">🌟 万分之一概率打造神器（属性固定，与无尽模式掉落一致）</div>';
     html += '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';
     html += '<button class="btn btn-primary" onclick="forgeEquipment()" ' + (!canAfford ? 'disabled' : '') + '>🔨 随机打造</button>';
     html += '</div>';
@@ -3858,7 +3864,7 @@ function renderBlacksmithForge(container) {
     if (playerLevel >= 15) possibleRarities.push('epic');
     if (playerLevel >= 30) possibleRarities.push('legendary');
     html += '<div style="text-align:center;margin-top:15px;color:#aaa;font-size:0.85em;">';
-    html += '可能获得: ' + possibleRarities.map(r => RARITY_CONFIG[r].label).join(' / ') + '</div>';
+    html += '可能获得: ' + possibleRarities.map(r => RARITY_CONFIG[r].label).join(' / ') + ' / <span style="color:#ff0044;">神器(0.01%)</span></div>';
 
     container.innerHTML = html;
 }
@@ -3871,32 +3877,45 @@ function forgeEquipment() {
 
     game.player.gold -= forgeCost;
 
-    // 根据等级决定品质
-    const rarityWeights = [];
-    rarityWeights.push({ rarity: 'common', weight: Math.max(10, 100 - playerLevel * 3) });
-    if (playerLevel >= 5) rarityWeights.push({ rarity: 'rare', weight: Math.min(50, playerLevel * 2) });
-    if (playerLevel >= 15) rarityWeights.push({ rarity: 'epic', weight: Math.min(30, (playerLevel - 10) * 1.5) });
-    if (playerLevel >= 30) rarityWeights.push({ rarity: 'legendary', weight: Math.min(15, (playerLevel - 25)) });
+    // 万分之一概率打造神器
+    let selectedRarity;
+    if (Math.random() < 0.0001) {
+        selectedRarity = 'divine';
+    } else {
+        // 根据等级决定品质
+        const rarityWeights = [];
+        rarityWeights.push({ rarity: 'common', weight: Math.max(10, 100 - playerLevel * 3) });
+        if (playerLevel >= 5) rarityWeights.push({ rarity: 'rare', weight: Math.min(50, playerLevel * 2) });
+        if (playerLevel >= 15) rarityWeights.push({ rarity: 'epic', weight: Math.min(30, (playerLevel - 10) * 1.5) });
+        if (playerLevel >= 30) rarityWeights.push({ rarity: 'legendary', weight: Math.min(15, (playerLevel - 25)) });
 
-    const totalWeight = rarityWeights.reduce((a, b) => a + b.weight, 0);
-    let roll = Math.random() * totalWeight;
-    let selectedRarity = 'common';
-    for (const rw of rarityWeights) {
-        roll -= rw.weight;
-        if (roll <= 0) { selectedRarity = rw.rarity; break; }
+        const totalWeight = rarityWeights.reduce((a, b) => a + b.weight, 0);
+        let roll = Math.random() * totalWeight;
+        selectedRarity = 'common';
+        for (const rw of rarityWeights) {
+            roll -= rw.weight;
+            if (roll <= 0) { selectedRarity = rw.rarity; break; }
+        }
     }
 
     const pool = EQUIPMENT_POOL.filter(e => e.rarity === selectedRarity);
     const eqDef = pool[Math.floor(Math.random() * pool.length)];
     if (!eqDef) { log('打造失败，请重试', 'log-damage'); return; }
 
-    const forgedItem = { id: eqDef.id, appraised: false };
+    // 铁匠打造装备不需要鉴定，非神器属性浮动50%-120%
+    const attrMult = selectedRarity === 'divine' ? 1 : 0.5 + Math.random() * 0.7;
+    const forgedItem = { id: eqDef.id, level: 1, appraised: true, attrMult: parseFloat(attrMult.toFixed(2)) };
     game.player.equipmentBag = game.player.equipmentBag || [];
     game.player.equipmentBag.push(forgedItem);
 
     const rc = RARITY_CONFIG[eqDef.rarity];
-    log(`⚒️ 铁匠打造了 [${rc.label}] ${eqDef.emoji} ${eqDef.name}！`, 'log-epic');
-    showNotification(`⚒️ 打造了${rc.label}装备：${eqDef.name}！`);
+    if (selectedRarity === 'divine') {
+        log(`⚒️ 铁匠打造了 [${rc.label}] ${eqDef.emoji} ${eqDef.name}！属性完美！`, 'log-legendary');
+        showNotification(`⚒️ 奇迹！打造了${rc.label}装备：${eqDef.name}！`);
+    } else {
+        log(`⚒️ 铁匠打造了 [${rc.label}] ${eqDef.emoji} ${eqDef.name}！`, 'log-epic');
+        showNotification(`⚒️ 打造了${rc.label}装备：${eqDef.name}！`);
+    }
     renderBlacksmithContent();
     updateUI();
 }
@@ -3976,7 +3995,7 @@ function renderBlacksmithRefine(container) {
             <div class="equipment-bag-item ${eqDef.rarity}">
                 <div class="eq-bag-emoji">${eqDef.emoji}</div>
                 <div class="eq-bag-name" style="color:${rc.color}">${eqDef.name}</div>
-                <div class="eq-bag-stat">${formatEqStat(eqDef)}</div>
+                <div class="eq-bag-stat">${formatEqStat(eqDef, item)}</div>
                 <div style="font-size:0.65em;color:#f1c40f;margin-bottom:3px;">锻造+${refineLevel}</div>
                 <div style="font-size:0.65em;color:#aaa;margin-bottom:4px;">💰 ${formatNumber(refineCost)} | 基础成功率 ${baseRate}%</div>
                 <div style="font-size:0.7em;margin-bottom:4px;">

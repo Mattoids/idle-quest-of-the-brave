@@ -83,6 +83,8 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 .treasure-item.rare { border-color: rgba(79,172,254,0.5); } .treasure-item.rare:hover { box-shadow: 0 0 15px rgba(79,172,254,0.3); }
 .treasure-item.epic { border-color: rgba(165,94,234,0.5); } .treasure-item.epic:hover { box-shadow: 0 0 15px rgba(165,94,234,0.3); }
 .treasure-item.legendary { border-color: rgba(255,159,67,0.5); } .treasure-item.legendary:hover { box-shadow: 0 0 15px rgba(255,159,67,0.3); }
+.treasure-item.divine { border-color: rgba(255,0,68,0.6); } .treasure-item.divine:hover { box-shadow: 0 0 20px rgba(255,0,68,0.4); animation: divinePulse 2s infinite; }
+@keyframes divinePulse { 0%,100%{box-shadow: 0 0 10px rgba(255,0,68,0.3)} 50%{box-shadow: 0 0 25px rgba(255,0,68,0.6)} }
 .treasure-emoji { font-size: 2em; margin-bottom: 5px; }
 .treasure-name { font-size: 0.8em; font-weight: bold; margin-bottom: 3px; }
 .treasure-stat { font-size: 0.7em; color: #aaa; margin-bottom: 3px; }
@@ -97,6 +99,7 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 .rarity-label.rare { background: rgba(79,172,254,0.15); color: #4facfe; }
 .rarity-label.epic { background: rgba(165,94,234,0.15); color: #a55eea; }
 .rarity-label.legendary { background: rgba(255,159,67,0.15); color: #ff9f43; }
+.rarity-label.divine { background: rgba(255,0,68,0.15); color: #ff0044; font-weight: bold; }
 .boss-badge { background: linear-gradient(45deg, #ff4757, #ff6b81); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; display: inline-block; margin-left: 6px; }
 .boss-defeated-badge { background: linear-gradient(45deg, #2ecc71, #27ae60); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; display: inline-block; margin-left: 6px; }
 .clue-badge { background: linear-gradient(45deg, #a55eea, #ff9f43); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; display: inline-block; margin-left: 6px; }
@@ -141,6 +144,7 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 .equipment-slot.rare { border-color: rgba(79,172,254,0.4); }
 .equipment-slot.epic { border-color: rgba(165,94,234,0.4); }
 .equipment-slot.legendary { border-color: rgba(255,159,67,0.4); }
+.equipment-slot.divine { border-color: rgba(255,0,68,0.5); }
 .equipment-bag { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; overflow-y: auto; overflow-x: hidden; }
 .equipment-bag-item { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 5px; text-align: center; border: 1px solid transparent; transition: all 0.3s; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
 .equipment-bag-item:hover { transform: translateY(-2px); }
@@ -148,6 +152,8 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 .equipment-bag-item.rare { border-color: rgba(79,172,254,0.4); }
 .equipment-bag-item.epic { border-color: rgba(165,94,234,0.4); }
 .equipment-bag-item.legendary { border-color: rgba(255,159,67,0.4); }
+.equipment-bag-item.divine { border-color: rgba(255,0,68,0.5); }
+.equipment-bag-item.divine:hover { box-shadow: 0 0 15px rgba(255,0,68,0.3); }
 .eq-bag-emoji { font-size: 1.2em; margin-bottom: 2px; }
 .eq-bag-name { font-size: 0.6em; font-weight: bold; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .eq-bag-stat { font-size: 0.5em; color: #888; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

@@ -182,6 +182,17 @@
         </div>
     </div>
 
+    <!-- 自定义确认弹窗 -->
+    <div id="confirmModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:3000;justify-content:center;align-items:center;backdrop-filter:blur(5px);">
+        <div style="background:linear-gradient(135deg, #1a1a2e, #16213e);border-radius:15px;border:1px solid rgba(255,255,255,0.15);padding:25px 30px;max-width:400px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.5);margin:20px;">
+            <div id="confirmMessage" style="font-size:1.1em;margin-bottom:20px;color:#fff;white-space:pre-wrap;word-break:break-word;"></div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+                <button class="btn btn-secondary" id="confirmCancelBtn" style="min-width:80px;">取消</button>
+                <button class="btn btn-primary" id="confirmOkBtn" style="min-width:80px;">确认</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/game.js"></script>
 </body>
 </html>

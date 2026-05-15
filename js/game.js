@@ -44,14 +44,19 @@ const TREASURE_POOL = [
     { id: 'w_claw', name: '锐利之爪', emoji: '🐾', rarity: 'common', stat: 'armorPenPercent', value: 0.03, sellPrice: 20 },
     { id: 'b_powder', name: '腐蚀粉', emoji: '🧪', rarity: 'rare', stat: 'armorPenPercent', value: 0.06, sellPrice: 50 },
     { id: 'p_crossbow', name: '穿甲弩', emoji: '🏹', rarity: 'epic', stat: 'armorPenPercent', value: 0.10, sellPrice: 120 },
-    { id: 'l_void', name: '虚空之刃', emoji: '⚫', rarity: 'legendary', stat: 'armorPenPercent', value: 0.15, sellPrice: 300 }
+    { id: 'l_void', name: '虚空之刃', emoji: '⚫', rarity: 'legendary', stat: 'armorPenPercent', value: 0.15, sellPrice: 300 },
+    // 神器级宝物（无尽模式专属）
+    { id: 'd_nucleus', name: '无尽之核', emoji: '💠', rarity: 'divine', stat: 'atk', value: 60, sellPrice: 800 },
+    { id: 'd_tear', name: '永恒之泪', emoji: '💧', rarity: 'divine', stat: 'maxHp', value: 300, sellPrice: 800 },
+    { id: 'd_blessing', name: '神明祝福', emoji: '✨', rarity: 'divine', stat: 'expBonus', value: 0.60, sellPrice: 1000 }
 ];
 
 const RARITY_CONFIG = {
     common: { weight: 55, color: '#ccc', label: '普通' },
     rare: { weight: 30, color: '#4facfe', label: '稀有' },
     epic: { weight: 12, color: '#a55eea', label: '史诗' },
-    legendary: { weight: 3, color: '#ff9f43', label: '传说' }
+    legendary: { weight: 3, color: '#ff9f43', label: '传说' },
+    divine: { weight: 1, color: '#ff0044', label: '神器' }
 };
 
 // ========== 装备系统常量 ==========
@@ -64,7 +69,9 @@ const ARMOR_SETS = {
     set_dragon_arm: { id: 'set_dragon_arm', name: '龙鳞战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.18, critDmg: 0.50 }, desc: '攻击力+18%、暴击伤害+50%', rarity: 'epic' },
     set_void_arm: { id: 'set_void_arm', name: '虚空战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.20, critDmg: 0.55 }, desc: '攻击力+20%、暴击伤害+55%', rarity: 'epic' },
     set_demon_arm: { id: 'set_demon_arm', name: '恶魔战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.25, critDmg: 0.65 }, desc: '攻击力+25%、暴击伤害+65%', rarity: 'legendary' },
-    set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80 }, desc: '攻击力+30%、暴击伤害+80%', rarity: 'legendary' }
+    set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80 }, desc: '攻击力+30%、暴击伤害+80%', rarity: 'legendary' },
+    set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.00, crit: 0.10 }, desc: '攻击力+35%、暴击伤害+100%、暴击率+10%', rarity: 'divine' },
+    set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%', rarity: 'divine' }
 };
 const ACCESSORY_SETS = {
     set_novice_acc: { id: 'set_novice_acc', name: '学徒饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.10, vamp: 0.02, expBonus: 0.10 }, desc: '攻速+10%、吸血+2%、经验+10%', rarity: 'common' },
@@ -87,7 +94,7 @@ const AREA_SETS = {
 };
 
 function buildArmorSet(id, name, rarity, tier) {
-    const m = { common: 1, rare: 2.4, epic: 5, legendary: 10 }[rarity] || 1;
+    const m = { common: 1, rare: 2.4, epic: 5, legendary: 10, divine: 15 }[rarity] || 1;
     return [
         { id: `${id}_weapon`, setId: id, name: `${name}剑`, emoji: '⚔️', slot: 'weapon', rarity: rarity, atk: Math.round(5 * m), sellPrice: Math.round(30 * tier) },
         { id: `${id}_helmet`, setId: id, name: `${name}盔`, emoji: '🪖', slot: 'helmet', rarity: rarity, def: Math.round(3 * m), maxHp: Math.round(10 * m), sellPrice: Math.round(25 * tier) },
@@ -97,10 +104,10 @@ function buildArmorSet(id, name, rarity, tier) {
     ];
 }
 function buildAccessorySet(id, name, rarity, tier) {
-    const m = { common: 1, rare: 2.4, epic: 5, legendary: 10 }[rarity] || 1;
+    const m = { common: 1, rare: 2.4, epic: 5, legendary: 10, divine: 15 }[rarity] || 1;
     return [
-        { id: `${id}_bracelet`, setId: id, name: `${name}镯`, emoji: '💎', slot: 'bracelet', rarity: rarity, crit: Math.round(20 * m) / 1000, sellPrice: Math.round(25 * tier) },
-        { id: `${id}_bracelet2`, setId: id, name: `${name}镯`, emoji: '💎', slot: 'bracelet', rarity: rarity, crit: Math.round(20 * m) / 1000, sellPrice: Math.round(25 * tier) },
+        { id: `${id}_bracelet`, setId: id, name: `${name}镯`, emoji: '💎', slot: 'bracelet', rarity: rarity, critDmg: Math.round(100 * m) / 1000, sellPrice: Math.round(25 * tier) },
+        { id: `${id}_bracelet2`, setId: id, name: `${name}镯`, emoji: '💎', slot: 'bracelet', rarity: rarity, critDmg: Math.round(100 * m) / 1000, sellPrice: Math.round(25 * tier) },
         { id: `${id}_necklace`, setId: id, name: `${name}链`, emoji: '📿', slot: 'necklace', rarity: rarity, vamp: Math.round(10 * m) / 1000, expBonus: Math.round(30 * m) / 1000, sellPrice: Math.round(25 * tier) },
         { id: `${id}_jade`, setId: id, name: `${name}玉`, emoji: '🏵️', slot: 'jade', rarity: rarity, def: Math.round(3 * m), spi: Math.round(1 * m), sellPrice: Math.round(25 * tier) }
     ];
@@ -145,10 +152,10 @@ const EQUIPMENT_POOL = [
     { id: 'eq_be_mithril', name: '秘银腰带', emoji: '🎗️', slot: 'belt', rarity: 'epic', maxHp: 80, atk: 10, sellPrice: 180 },
     { id: 'eq_be_dragon', name: '龙鳞腰带', emoji: '🎗️', slot: 'belt', rarity: 'legendary', maxHp: 160, atk: 20, sellPrice: 450 },
     // 手镯
-    { id: 'eq_br_bronze', name: '铜手镯', emoji: '💎', slot: 'bracelet', rarity: 'common', crit: 0.02, sellPrice: 25 },
-    { id: 'eq_br_silver', name: '银手镯', emoji: '💎', slot: 'bracelet', rarity: 'rare', crit: 0.04, sellPrice: 70 },
-    { id: 'eq_br_gold', name: '金手镯', emoji: '💎', slot: 'bracelet', rarity: 'epic', crit: 0.08, sellPrice: 180 },
-    { id: 'eq_br_dragon', name: '龙鳞手镯', emoji: '💎', slot: 'bracelet', rarity: 'legendary', crit: 0.12, sellPrice: 450 },
+    { id: 'eq_br_bronze', name: '铜手镯', emoji: '💎', slot: 'bracelet', rarity: 'common', critDmg: 0.10, sellPrice: 25 },
+    { id: 'eq_br_silver', name: '银手镯', emoji: '💎', slot: 'bracelet', rarity: 'rare', critDmg: 0.25, sellPrice: 70 },
+    { id: 'eq_br_gold', name: '金手镯', emoji: '💎', slot: 'bracelet', rarity: 'epic', critDmg: 0.50, sellPrice: 180 },
+    { id: 'eq_br_dragon', name: '龙鳞手镯', emoji: '💎', slot: 'bracelet', rarity: 'legendary', critDmg: 1.00, sellPrice: 450 },
     // 玉佩
     { id: 'eq_j_pearl', name: '珍珠玉佩', emoji: '🏵️', slot: 'jade', rarity: 'common', def: 3, spi: 1, sellPrice: 25 },
     { id: 'eq_j_green', name: '翡翠玉佩', emoji: '🏵️', slot: 'jade', rarity: 'rare', def: 7, spi: 2, sellPrice: 70 },
@@ -174,7 +181,10 @@ const EQUIPMENT_POOL = [
     ...buildAccessorySet('set_abyss_acc', '深渊', 'legendary', 18),
     ...buildArmorSet('set_demon_arm', '恶魔', 'legendary', 18),
     ...buildAccessorySet('set_godfall_acc', '神陨', 'legendary', 18),
-    ...buildArmorSet('set_chaos_arm', '混沌', 'legendary', 18)
+    ...buildArmorSet('set_chaos_arm', '混沌', 'legendary', 18),
+    // 无尽模式神器套装
+    ...buildArmorSet('set_endless_conqueror', '无尽征服者', 'divine', 30),
+    ...buildArmorSet('set_endless_guardian', '永恒守护者', 'divine', 30)
 ];
 
 const EQUIPMENT_DROP_RATES = [0.08, 0.12, 0.15, 0.18, 0.22, 0.26, 0.30, 0.33, 0.36, 0.38, 0.40, 0.42, 0.45, 0.48, 0.52];
@@ -189,6 +199,9 @@ const SHOP_ITEMS = [
     { id: 'def_stone', name: '防御强化石', emoji: '🛡️', desc: '防御力+15%，持续10分钟', basePrice: 500, type: 'buff_def', value: 0.15, duration: 600000 },
     { id: 'elite_core', name: '精英核心', emoji: '💠', desc: '蕴含精英怪物力量的核心，使用后永久攻击力+2', basePrice: 1000, type: 'permanent_atk', value: 2, dropOnly: true },
     { id: 'enhance_stone', name: '强化石', emoji: '🔮', desc: '铁匠铺锻造时使用，每个增加5%成功率', basePrice: 200, type: 'enhance_stone', dropOnly: true },
+    // 无尽模式特有道具
+    { id: 'endless_core', name: '无尽核心', emoji: '💎', desc: '蕴含无尽虚空之力的核心，使用后永久攻击力+5、防御力+3、最大生命+30', basePrice: 2000, type: 'permanent_all', value: { atk: 5, def: 3, maxHp: 30 }, dropOnly: true },
+    { id: 'divine_blessing', name: '神之恩赐', emoji: '🌟', desc: '神明的祝福，经验加成+50%、金币加成+50%，持续30分钟', basePrice: 1500, type: 'buff_exp_gold', value: { expBonus: 0.50, goldBonus: 0.50 }, duration: 1800000, dropOnly: true },
 ];
 
 // 铁匠打造价格配置
@@ -342,6 +355,47 @@ let currentEquipmentFilter = 'all';
 let currentItemFilter = 'all';
 let currentAppraiserFilter = 'all';
 
+let _confirmResolve = null;
+
+function showConfirm(message) {
+    return new Promise((resolve) => {
+        _confirmResolve = resolve;
+        const modal = document.getElementById('confirmModal');
+        const msg = document.getElementById('confirmMessage');
+        const okBtn = document.getElementById('confirmOkBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+        if (!modal || !msg) { resolve(false); return; }
+        msg.textContent = message;
+        modal.style.display = 'flex';
+
+        const onOk = () => { cleanup(); resolveConfirm(true); };
+        const onCancel = () => { cleanup(); resolveConfirm(false); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') { cleanup(); resolveConfirm(false); }
+            else if (e.key === 'Enter') { cleanup(); resolveConfirm(true); }
+        };
+
+        function cleanup() {
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            document.removeEventListener('keydown', onKey);
+        }
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+function resolveConfirm(result) {
+    const modal = document.getElementById('confirmModal');
+    if (modal) modal.style.display = 'none';
+    if (_confirmResolve) {
+        _confirmResolve(result);
+        _confirmResolve = null;
+    }
+}
+
 function switchBagTab(tab) {
     currentBagTab = tab;
     document.querySelectorAll('.bag-tab').forEach(btn => {
@@ -414,6 +468,7 @@ function checkAutoSell() {
             const item = bag[i];
             const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
             if (!eqDef) continue;
+            if (item.refine > 0) continue;
             const rarityOrder = RARITY_ORDER[eqDef.rarity] || 0;
             if (rarityOrder <= maxRarityOrder) {
                 bag.splice(i, 1);
@@ -489,9 +544,40 @@ const upgrades = [
     { id: 'vamp', name: '🧛 生命偷取', desc: '吸血 +2%', cost: 200, type: 'vamp', value: 0.02 }
 ];
 
+// ========== 存档签名 ==========
+function computeSignature(dataStr) {
+    const secret = 'BQ2025v31_Salt';
+    let hash = 0;
+    const combined = dataStr + secret;
+    for (let i = 0; i < combined.length; i++) {
+        const char = combined.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char + (i * 7);
+        hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+}
+
+function wrapSaveData(data) {
+    const dataStr = JSON.stringify(data);
+    return { data: data, signature: computeSignature(dataStr), version: 1 };
+}
+
+function unwrapSaveData(wrapped) {
+    // 旧存档兼容：没有 signature 的直接返回
+    if (!wrapped || wrapped.signature === undefined) {
+        return { valid: true, data: wrapped };
+    }
+    const dataStr = JSON.stringify(wrapped.data);
+    const expected = computeSignature(dataStr);
+    if (expected !== wrapped.signature) {
+        return { valid: false, data: null };
+    }
+    return { valid: true, data: wrapped.data };
+}
+
 function saveGame() {
     const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(wrapSaveData(data)));
     showNotification('💾 游戏已保存！');
     log('游戏进度已保存', 'log-loot');
 }
@@ -500,7 +586,10 @@ function loadGame() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) { showNotification('没有找到存档'); return false; }
     try {
-        const data = JSON.parse(raw);
+        const wrapped = JSON.parse(raw);
+        const result = unwrapSaveData(wrapped);
+        if (!result.valid) { showNotification('存档数据已被篡改或损坏！'); return false; }
+        const data = result.data;
         if (data.player) game.player = data.player;
         if (data.currentArea !== undefined) game.currentArea = data.currentArea;
         if (data.bossDefeated) game.bossDefeated = data.bossDefeated;
@@ -626,8 +715,9 @@ function base64ToUtf8(str) {
 
 function exportSave() {
     const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
+    const wrapped = wrapSaveData(data);
     let base64;
-    try { base64 = utf8ToBase64(JSON.stringify(data)); } catch (e) { alert('存档编码失败：' + e.message); return; }
+    try { base64 = utf8ToBase64(JSON.stringify(wrapped)); } catch (e) { alert('存档编码失败：' + e.message); return; }
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(base64).then(() => showNotification('📤 存档已复制到剪贴板！')).catch(() => prompt('请复制以下存档代码（Ctrl+C）：', base64));
     } else { prompt('请复制以下存档代码（Ctrl+C）：', base64); }
@@ -639,7 +729,10 @@ function importSave() {
     try {
         const cleaned = input.replace(/\s/g, '');
         const jsonStr = base64ToUtf8(cleaned);
-        const data = JSON.parse(jsonStr);
+        const wrapped = JSON.parse(jsonStr);
+        const result = unwrapSaveData(wrapped);
+        if (!result.valid) { alert('存档数据验证失败！\n该存档可能已被篡改或损坏。'); return; }
+        const data = result.data;
         if (data.player) game.player = data.player;
         if (data.currentArea !== undefined) game.currentArea = data.currentArea;
         if (data.bossDefeated) game.bossDefeated = data.bossDefeated;
@@ -654,8 +747,9 @@ function importSave() {
     } catch (e) { alert('存档代码无效！\n错误：' + e.message + '\n请检查是否复制完整，不要有多余空格或换行。'); }
 }
 
-function resetGame() {
-    if (!confirm('确定要重置所有进度吗？此操作不可撤销！')) return;
+async function resetGame() {
+    const confirmed = await showConfirm('确定要重置所有进度吗？此操作不可撤销！');
+    if (!confirmed) return;
     localStorage.removeItem(SAVE_KEY);
     const defaults = createDefaultSave();
     game.player = defaults.player;
@@ -671,7 +765,8 @@ function resetGame() {
 
 setInterval(() => {
     if (game.player) {
-        localStorage.setItem(SAVE_KEY, JSON.stringify({ player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() }));
+        const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
+        localStorage.setItem(SAVE_KEY, JSON.stringify(wrapSaveData(data)));
     }
 }, 30000);
 
@@ -978,9 +1073,23 @@ function spawnEnemy() {
         baseLevel = Math.max(1, area.level + Math.floor(Math.random() * 3) - 1);
         mult = area.multiplier;
     }
+    // 无尽模式层数特殊敌人
+    let isElite = false;
+    let isEndlessBoss = false;
+    if (areaIndex >= 15) {
+        const layer = areaIndex - 14;
+        if (layer > 0 && layer % 10 === 0) {
+            isEndlessBoss = true;
+        } else if (layer > 0 && layer % 5 === 0) {
+            isElite = true;
+        }
+    }
+
     const template = game.enemies[Math.floor(Math.random() * game.enemies.length)];
-    const eliteRate = isBossArea(game.currentArea) ? 0.30 : 0.15;
-    const isElite = Math.random() < eliteRate;
+    const eliteRate = areaIndex === 0 ? 0 : (isBossArea(game.currentArea) ? 0.30 : 0.15);
+    if (areaIndex < 15 && !isElite) {
+        isElite = Math.random() < eliteRate;
+    }
     const scale = 1 + Math.min(areaIndex, 14) * 0.05;
     let maxHp = Math.floor(60 * baseLevel * mult * 0.5 * scale);
     let atk = Math.floor(10 * baseLevel * mult * 0.28 * (1 + Math.min(areaIndex, 14) * 0.025));
@@ -998,8 +1107,15 @@ function spawnEnemy() {
         exp = Math.floor(30 * baseLevel * mult * 2.5);
         gold = Math.floor(15 * baseLevel * mult * 2.5);
     }
+    if (isEndlessBoss) {
+        maxHp = Math.floor(60 * baseLevel * mult * 1.8);
+        atk = Math.floor(10 * baseLevel * mult * 0.80);
+        def = Math.floor(4 * baseLevel * mult * 0.60);
+        exp = Math.floor(30 * baseLevel * mult * 5.0);
+        gold = Math.floor(15 * baseLevel * mult * 5.0);
+    }
     game.enemy = {
-        name: template.name, emoji: template.emoji, level: baseLevel, isBoss: false, isElite: isElite,
+        name: template.name, emoji: template.emoji, level: baseLevel, isBoss: isEndlessBoss, isElite: isElite,
         maxHp: maxHp, hp: 0,
         atk: atk,
         def: def,
@@ -1018,6 +1134,12 @@ function spawnEnemy() {
     if (areaIndex >= 12) game.enemy.curse = true;
     if (areaIndex >= 13) game.enemy.berserk = true;
     if (areaIndex >= 14) game.enemy.revive = true;
+    if (isEndlessBoss) {
+        game.enemy.bossSkills = [
+            { type: 'chaos_purge', interval: 12000, lastCast: 0 },
+            { type: 'damage_reduce', rate: 0.20 }
+        ];
+    }
     if (isElite) {
         const basicSkills = SKILLS.filter(s => s.isBasic);
         const skillCount = 1 + Math.floor(Math.random() * 2);
@@ -1067,7 +1189,7 @@ function getPlayerStats() {
         // 41-100级：攻速已达上限，伤害倍率线性增长，100级时达到3倍
         baseInterval = 100;
         const dmgLevel = Math.min(60, aspdLevel - 40);
-        speedMultiplier = Math.min(3, 1 + 0.0333 * dmgLevel);
+        speedMultiplier = Math.min(3, 1 + (2 / 60) * dmgLevel);
     }
     // buff加成
     let buffDef = 0;
@@ -1477,21 +1599,58 @@ function enemyDefeated() {
         }
     }
 
-    // 无尽模式：击败敌人后进入下一层
-    if (game.currentArea >= 15 && !game.enemy.isBoss) {
-        game.currentArea++;
+    // 无尽模式：所有敌人击败后都进入下一层 + 特有掉落
+    if (game.currentArea >= 15) {
         const layer = game.currentArea - 14;
-        log(`♾️ 无尽模式第 ${layer} 层！敌人变得更加强大了！`, 'log-boss');
+
+        // 神器装备掉落（低概率，随层数增加）
+        const divineRate = Math.min(0.05, 0.02 + layer * 0.0008);
+        if (Math.random() < divineRate) {
+            const divinePool = EQUIPMENT_POOL.filter(e => e.rarity === 'divine');
+            if (divinePool.length > 0) {
+                const equipment = divinePool[Math.floor(Math.random() * divinePool.length)];
+                addEquipmentToBag(equipment);
+                const rc = RARITY_CONFIG['divine'];
+                log(`🛡️ 掉落了 [${rc.label}] 装备：${equipment.emoji} ${equipment.name}！`, 'log-legendary');
+                dropLog(`🛡️ [${rc.label}] ${equipment.emoji} ${equipment.name}`);
+                showNotification(`🎉 获得${rc.label}装备：${equipment.name}！`);
+            }
+        }
+
+        // 无尽模式特有道具掉落
+        const endlessItemRate = 0.015;
+        if (Math.random() < endlessItemRate) {
+            const endlessItems = SHOP_ITEMS.filter(i => i.id === 'endless_core' || i.id === 'divine_blessing');
+            const item = endlessItems[Math.floor(Math.random() * endlessItems.length)];
+            if (item) {
+                game.player.items = game.player.items || {};
+                if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
+                game.player.items[item.id].count++;
+                log(`💎 无尽怪物掉落了 ${item.emoji} ${item.name}！`, 'log-legendary');
+                dropLog(`💎 无尽掉落：${item.emoji} ${item.name}`);
+                showNotification(`🎉 获得无尽掉落：${item.name}！`);
+            }
+        }
+
+        // 进入下一层
+        game.currentArea++;
+        const nextLayer = game.currentArea - 14;
+        if (game.enemy.isBoss) {
+            log(`♾️ 击败无尽BOSS！进入第 ${nextLayer} 层！`, 'log-boss');
+        } else {
+            log(`♾️ 无尽模式第 ${nextLayer} 层！敌人变得更加强大了！`, 'log-boss');
+        }
     }
     while (game.player.exp >= game.player.maxExp) levelUp();
     updateUI();
-    if (!game.enemy.isBoss) {
+    // 非BOSS敌人或无尽模式所有敌人击败后生成下一个
+    if (!game.enemy.isBoss || game.currentArea >= 15) {
         if (game.autoBattle) {
             spawnEnemy();
-            const encounterName = game.enemy.isElite ? `【精英】${game.enemy.name} Lv.${game.enemy.level}` : `${game.enemy.name} Lv.${game.enemy.level}`;
+            const encounterName = game.enemy.isElite ? `【精英】${game.enemy.name} Lv.${game.enemy.level}` : game.enemy.isBoss ? `【BOSS】${game.enemy.name} Lv.${game.enemy.level}` : `${game.enemy.name} Lv.${game.enemy.level}`;
             log(`遇到了新的敌人：${encounterName}`, 'log-loot');
         } else {
-            setTimeout(() => { spawnEnemy(); const encounterName = game.enemy.isElite ? `【精英】${game.enemy.name} Lv.${game.enemy.level}` : `${game.enemy.name} Lv.${game.enemy.level}`; log(`遇到了新的敌人：${encounterName}`, 'log-loot'); }, 800);
+            setTimeout(() => { spawnEnemy(); const encounterName = game.enemy.isElite ? `【精英】${game.enemy.name} Lv.${game.enemy.level}` : game.enemy.isBoss ? `【BOSS】${game.enemy.name} Lv.${game.enemy.level}` : `${game.enemy.name} Lv.${game.enemy.level}`; log(`遇到了新的敌人：${encounterName}`, 'log-loot'); }, 800);
         }
     }
     game.lastBattleEndTime = Date.now();
@@ -1806,20 +1965,28 @@ function changeArea(index) {
 
 function renderAreas() {
     const container = document.getElementById('areaSelector');
-    container.innerHTML = '';
-    const cityBtn = document.createElement('button');
+
+    // 主城按钮
+    let cityBtn = container.querySelector('[data-area="city"]');
+    if (!cityBtn) {
+        cityBtn = document.createElement('button');
+        cityBtn.setAttribute('data-area', 'city');
+        cityBtn.onclick = () => showNpcView();
+        container.appendChild(cityBtn);
+    }
     cityBtn.className = 'area-btn' + (game.inCity ? ' active' : '');
-    cityBtn.innerHTML = '🏰 主城';
-    cityBtn.onclick = () => showNpcView();
-    container.appendChild(cityBtn);
+    cityBtn.textContent = '🏰 主城';
+    cityBtn.disabled = false;
+    cityBtn.title = '';
+
+    const activeIndices = new Set();
     game.areas.forEach((area, index) => {
-        const btn = document.createElement('button');
+        activeIndices.add(index);
         const isBoss = isBossArea(index);
         const defeated = isBossDefeated(index);
         const isActive = !game.inCity && index === game.currentArea;
         let className = 'area-btn' + (isActive ? ' active' : '');
         if (isBoss && defeated) className += ' boss-defeated';
-        btn.className = className;
 
         const dropRate = AREA_DROP_RATES[index];
         const dropText = dropRate > 0 ? ` 掉率${Math.round(dropRate*100)}%` : '';
@@ -1841,6 +2008,15 @@ function renderAreas() {
 
         const maxAllowed = getMaxAllowedArea();
         const isLocked = index > maxAllowed;
+
+        let btn = container.querySelector(`[data-area-index="${index}"]`);
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.setAttribute('data-area-index', index);
+            btn.onclick = () => changeArea(index);
+            container.appendChild(btn);
+        }
+        btn.className = className;
         btn.innerHTML = `${area.emoji} ${area.name}${badge}${isActive ? '' : dropText}`;
         if (isLocked) {
             const nextBoss = BOSS_AREAS.find(a => a >= maxAllowed && !isBossDefeated(a));
@@ -1852,18 +2028,32 @@ function renderAreas() {
             btn.title = `需要等级 ${area.level}`;
         }
         btn.disabled = game.player.level < area.level || isLocked;
-        btn.onclick = () => changeArea(index);
-        container.appendChild(btn);
     });
+
+    // 移除超出范围的旧按钮
+    Array.from(container.children).forEach(child => {
+        const idx = child.getAttribute('data-area-index');
+        if (idx !== null && !activeIndices.has(parseInt(idx, 10))) {
+            container.removeChild(child);
+        }
+    });
+
     // 无尽模式入口
+    let endlessBtn = container.querySelector('[data-area="endless"]');
     if (isBossDefeated(14)) {
-        const endlessBtn = document.createElement('button');
+        if (!endlessBtn) {
+            endlessBtn = document.createElement('button');
+            endlessBtn.setAttribute('data-area', 'endless');
+            endlessBtn.onclick = () => enterEndlessMode();
+            container.appendChild(endlessBtn);
+        }
         const isEndlessActive = !game.inCity && game.currentArea >= 15;
         endlessBtn.className = 'area-btn' + (isEndlessActive ? ' active' : '');
-        endlessBtn.innerHTML = '♾️ 无尽模式';
+        endlessBtn.textContent = '♾️ 无尽模式';
         endlessBtn.title = '挑战无限强大的敌人';
-        endlessBtn.onclick = () => enterEndlessMode();
-        container.appendChild(endlessBtn);
+        endlessBtn.disabled = false;
+    } else if (endlessBtn) {
+        container.removeChild(endlessBtn);
     }
 }
 
@@ -1905,7 +2095,7 @@ function renderUpgrades() {
         const aspdCapped = upgrade.type === 'aspd' && aspdLevel >= 100;
         if (upgrade.type === 'aspd') {
             if (aspdCapped) {
-                nextDesc = '⚡ 已满级 (10次/秒 伤害×10)';
+                nextDesc = '⚡ 已满级 (10次/秒 伤害×3)';
             } else if (aspdLevel < 40) {
                 // 1-40级：攻速增长
                 const curSpeed = 1 + 0.005625 * aspdLevel * aspdLevel;
@@ -1914,7 +2104,7 @@ function renderUpgrades() {
                 nextDesc = `⚡ 攻速 +${speedGain}次/秒`;
             } else {
                 // 41-100级：攻速已达上限，伤害倍率线性增长
-                nextDesc = `⚡ 伤害倍率 +0.15`;
+                nextDesc = `⚡ 伤害倍率 +${(2/60).toFixed(2)}`;
             }
         } else if (upgrade.type === 'crit') {
             if (game.player.crit < 1.0) {
@@ -1950,6 +2140,60 @@ function renderUpgrades() {
     });
 }
 
+function _ensureBagPane(container, tabName) {
+    let pane = container.querySelector(`[data-bag-tab="${tabName}"]`);
+    if (!pane || !pane.querySelector('[data-header]')) {
+        container.innerHTML = '';
+        pane = document.createElement('div');
+        pane.setAttribute('data-bag-tab', tabName);
+        pane.innerHTML = `
+            <div data-header style="position:sticky;top:0;z-index:3;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
+                <div data-toolbar style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;"></div>
+                <div data-filter style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"></div>
+            </div>
+            <div data-content></div>
+        `;
+        container.appendChild(pane);
+    }
+    return pane;
+}
+
+function _bagBtn(parent, action, text, onClick, isActive, activeBg, padding) {
+    let btn = parent.querySelector(`[data-action="${action}"]`);
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.className = 'btn btn-secondary';
+        btn.setAttribute('data-action', action);
+        btn.style.cssText = `padding:${padding || '2px 8px'};font-size:0.7em;`;
+        btn.onclick = onClick;
+        parent.appendChild(btn);
+    }
+    btn.textContent = text;
+    if (isActive && activeBg) {
+        btn.style.background = activeBg;
+        btn.style.borderColor = 'transparent';
+        btn.style.color = '#fff';
+    } else {
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+    }
+    return btn;
+}
+
+function _bagText(parent, textKey, text, visible) {
+    let el = parent.querySelector(`[data-text="${textKey}"]`);
+    if (!el) {
+        el = document.createElement('span');
+        el.setAttribute('data-text', textKey);
+        el.style.cssText = 'color:#888;font-size:0.7em;margin-left:4px;';
+        parent.appendChild(el);
+    }
+    el.textContent = text;
+    el.style.display = visible ? '' : 'none';
+    return el;
+}
+
 function renderBag() {
     const container = document.getElementById('bagContent');
     if (!container) return;
@@ -1958,7 +2202,7 @@ function renderBag() {
     else if (currentBagTab === 'item') renderBagItems(container);
 }
 
-const RARITY_ORDER = { legendary: 4, epic: 3, rare: 2, common: 1 };
+const RARITY_ORDER = { divine: 5, legendary: 4, epic: 3, rare: 2, common: 1 };
 
 function renderBagTreasures(container) {
     const treasures = game.player.treasures || {};
@@ -1983,6 +2227,13 @@ function renderBagTreasures(container) {
         return (RARITY_ORDER[tb?.rarity] || 0) - (RARITY_ORDER[ta?.rarity] || 0);
     });
 
+    const pane = _ensureBagPane(container, 'treasure');
+    const toolbar = pane.querySelector('[data-toolbar]');
+    const filterBar = pane.querySelector('[data-filter]');
+    const content = pane.querySelector('[data-content]');
+
+    _bagBtn(toolbar, 'autoStrengthen', `⚡ 自动强化: ${game.autoStrengthen ? '开' : '关'}`, toggleAutoStrengthen, game.autoStrengthen, 'linear-gradient(45deg,#2ecc71,#27ae60)');
+
     const treasureFilterBtns = [
         { key: 'all', label: '📦 全部' },
         { key: 'atk', label: '攻击' },
@@ -1995,28 +2246,11 @@ function renderBagTreasures(container) {
         { key: 'armorPenPercent', label: '破甲(%)' },
         { key: 'upgradeable', label: '🔨 可强化' },
     ];
-
-    // 自动强化按钮（固定在顶部）
-    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:3;">';
-    const asActive = game.autoStrengthen ? 'background:linear-gradient(45deg,#2ecc71,#27ae60);border-color:transparent;color:#fff;' : '';
-    html += `<button class="btn btn-secondary" onclick="toggleAutoStrengthen()" style="padding:2px 8px;font-size:0.7em;${asActive}">⚡ 自动强化: ${game.autoStrengthen ? '开' : '关'}</button>`;
-    html += '</div>';
-
-    // 筛选栏
-    html += '<div class="bag-filter-bar" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">';
     treasureFilterBtns.forEach(btn => {
         const isActive = btn.key === 'all' ? TREASURE_FILTERS.size === 0 : TREASURE_FILTERS.has(btn.key);
-        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
-        const onclick = btn.key === 'all' ? 'clearTreasureFilters()' : `toggleTreasureFilter('${btn.key}')`;
-        html += `<button class="btn btn-secondary treasure-filter-btn" data-filter="${btn.key}" onclick="${onclick}" style="padding: 2px 7px; font-size: 0.7em;${activeStyle}">${btn.label}</button>`;
+        const onClick = btn.key === 'all' ? clearTreasureFilters : () => toggleTreasureFilter(btn.key);
+        _bagBtn(filterBar, btn.key, btn.label, onClick, isActive, 'linear-gradient(45deg,#e94560,#ff6b6b)', '2px 7px');
     });
-    html += '</div>';
-
-    if (entries.length === 0) {
-        html += '<div class="treasure-info" style="text-align:center;color:#666;padding:20px;">暂无符合条件的宝物</div>';
-        container.innerHTML = html;
-        return;
-    }
 
     const totalCount = entries.reduce((sum, [_, d]) => sum + d.count, 0);
     const b = getTreasureBonuses();
@@ -2029,12 +2263,40 @@ function renderBagTreasures(container) {
     if (b.goldBonus) texts.push(`金币+${Math.round(b.goldBonus*100)}%`);
     if (b.armorPenFlat) texts.push(`破甲(固)+${formatNumber(b.armorPenFlat)}`);
     if (b.armorPenPercent) texts.push(`破甲(%)+${Math.round(b.armorPenPercent*100)}%`);
-    html += `<div class="treasure-info">共 ${formatNumber(totalCount)} 件宝物 | ${texts.join(' | ')}</div>`;
 
-    html += '<div class="treasure-grid">';
+    // 更新或创建信息栏
+    let infoBar = content.querySelector('.treasure-info');
+    if (!infoBar) {
+        infoBar = document.createElement('div');
+        infoBar.className = 'treasure-info';
+        content.insertBefore(infoBar, content.firstChild);
+    }
+    if (entries.length === 0) {
+        infoBar.textContent = '';
+        infoBar.style.cssText = 'text-align:center;color:#666;padding:20px;';
+        infoBar.innerHTML = '暂无符合条件的宝物';
+    } else {
+        infoBar.style.cssText = '';
+        infoBar.textContent = `共 ${formatNumber(totalCount)} 件宝物 | ${texts.join(' | ')}`;
+    }
+
+    // 确保网格容器存在
+    let grid = content.querySelector('.treasure-grid');
+    if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'treasure-grid';
+        content.appendChild(grid);
+    }
+    if (entries.length === 0) {
+        grid.innerHTML = '';
+        return;
+    }
+
+    const activeIds = new Set();
     entries.forEach(([tid, data]) => {
         const t = TREASURE_POOL.find(x => x.id === tid);
         if (!t) return;
+        activeIds.add(tid);
         const rc = RARITY_CONFIG[t.rarity];
         const level = data.level || 1;
         const bonusPerLevel = t.value * 0.5;
@@ -2042,28 +2304,59 @@ function renderBagTreasures(container) {
         const canStrengthen = data.count > 1;
         const strengthenCost = Math.floor(t.sellPrice * 0.5 * level);
         const isLocked = data.locked || false;
-        html += `
-            <div class="treasure-item ${t.rarity}" ${isLocked ? 'style="border-color:rgba(233,69,96,0.6)"' : ''}>
-                <div style="position: absolute; top: 5px; left: 8px; font-size: 1em; cursor: pointer;" onclick="toggleTreasureLock('${tid}')" title="${isLocked ? '点击解锁' : '点击锁定'}">${isLocked ? '🔒' : '🔓'}</div>
-                <div class="treasure-count">×${data.count}</div>
-                <div class="treasure-emoji">${t.emoji}</div>
-                <div class="rarity-label ${t.rarity}">${rc.label}</div>
-                <div class="treasure-name" style="color:${rc.color}">${t.name}</div>
-                <div class="treasure-level">Lv.${level} | ${formatValue(t.stat, currentValue)}</div>
-                <div class="treasure-stat">基础 ${formatValue(t.stat, t.value)}</div>
-                <div class="treasure-actions">
-                    <button class="btn btn-success" onclick="strengthenTreasure('${tid}')" ${!canStrengthen ? 'disabled' : ''} title="消耗1个+${formatNumber(strengthenCost)}金币强化">🔨 强化</button>
-                    <button class="btn btn-warning" onclick="sellTreasure('${tid}')" ${isLocked ? 'disabled' : ''}>💰 ${formatNumber(t.sellPrice)}</button>
-                </div>
+
+        let card = grid.querySelector(`[data-treasure-id="${tid}"]`);
+        if (!card) {
+            card = document.createElement('div');
+            card.setAttribute('data-treasure-id', tid);
+            grid.appendChild(card);
+        }
+        card.className = `treasure-item ${t.rarity}`;
+        card.style.borderColor = isLocked ? 'rgba(233,69,96,0.6)' : '';
+        card.innerHTML = `
+            <div style="position: absolute; top: 5px; left: 8px; font-size: 1em; cursor: pointer;" onclick="toggleTreasureLock('${tid}')" title="${isLocked ? '点击解锁' : '点击锁定'}">${isLocked ? '🔒' : '🔓'}</div>
+            <div class="treasure-count">×${data.count}</div>
+            <div class="treasure-emoji">${t.emoji}</div>
+            <div class="rarity-label ${t.rarity}">${rc.label}</div>
+            <div class="treasure-name" style="color:${rc.color}">${t.name}</div>
+            <div class="treasure-level">Lv.${level} | ${formatValue(t.stat, currentValue)}</div>
+            <div class="treasure-stat">基础 ${formatValue(t.stat, t.value)}</div>
+            <div class="treasure-actions">
+                <button class="btn btn-success" onclick="strengthenTreasure('${tid}')" ${!canStrengthen ? 'disabled' : ''} title="消耗1个+${formatNumber(strengthenCost)}金币强化">🔨 强化</button>
+                <button class="btn btn-warning" onclick="sellTreasure('${tid}')" ${isLocked ? 'disabled' : ''}>💰 ${formatNumber(t.sellPrice)}</button>
             </div>
         `;
     });
-    html += '</div>';
-    container.innerHTML = html;
+
+    // 移除不再存在的卡片
+    Array.from(grid.children).forEach(child => {
+        const cid = child.getAttribute('data-treasure-id');
+        if (cid && !activeIds.has(cid)) grid.removeChild(child);
+    });
 }
 
 function renderBagEquipments(container) {
     const bag = game.player.equipmentBag || [];
+    const pane = _ensureBagPane(container, 'equipment');
+    const toolbar = pane.querySelector('[data-toolbar]');
+    const filterBar = pane.querySelector('[data-filter]');
+    const content = pane.querySelector('[data-content]');
+    filterBar.style.gap = '6px';
+
+    const as = game.autoSell;
+    const rarityOptions = [
+        { key: 'common', label: '普通', color: '#ccc' },
+        { key: 'rare', label: '稀有', color: '#4facfe' },
+        { key: 'epic', label: '史诗', color: '#a55eea' },
+        { key: 'legendary', label: '传说', color: '#f1c40f' },
+    ];
+
+    _bagBtn(toolbar, 'autoSellEquip', `💰 自动出售: ${as.equipment ? '开' : '关'}`, () => toggleAutoSell('equipment'), as.equipment, 'linear-gradient(45deg,#2ecc71,#27ae60)');
+    _bagText(toolbar, 'rarityLabel', '≤', as.equipment);
+    rarityOptions.forEach(r => {
+        _bagBtn(toolbar, `rarity_${r.key}`, r.label, () => setAutoSellRarity(r.key), as.maxRarity === r.key, 'linear-gradient(45deg,#f39c12,#e67e22)', '2px 6px').style.display = as.equipment ? '' : 'none';
+    });
+
     const filterSlots = [
         { key: 'all', name: '全部', emoji: '📦' },
         { key: 'weapon', name: '武器', emoji: '⚔️' },
@@ -2075,77 +2368,90 @@ function renderBagEquipments(container) {
         { key: 'jade', name: '玉佩', emoji: '🏵️' },
         { key: 'necklace', name: '项链', emoji: '📿' },
     ];
-
-    //let html = '<div style="font-size:0.85em;color:#aaa;margin-bottom:8px;">点击穿戴或出售</div>';
-    const as = game.autoSell;
-    const rarityOptions = [
-        { key: 'common', label: '普通', color: '#ccc' },
-        { key: 'rare', label: '稀有', color: '#4facfe' },
-        { key: 'epic', label: '史诗', color: '#a55eea' },
-    ];
-
-    // 自动出售配置
-    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:3;">';
-    const autoSellActive = as.equipment ? 'background:linear-gradient(45deg,#2ecc71,#27ae60);border-color:transparent;color:#fff;' : '';
-    html += `<button class="btn btn-secondary" onclick="toggleAutoSell('equipment')" style="padding:2px 8px;font-size:0.7em;${autoSellActive}">💰 自动出售: ${as.equipment ? '开' : '关'}</button>`;
-    if (as.equipment) {
-        html += '<span style="color:#888;font-size:0.7em;margin-left:4px;">≤</span>';
-        rarityOptions.forEach(r => {
-            const rActive = as.maxRarity === r.key ? 'background:linear-gradient(45deg,#f39c12,#e67e22);border-color:transparent;color:#fff;' : '';
-            html += `<button class="btn btn-secondary" onclick="setAutoSellRarity('${r.key}')" style="padding:2px 6px;font-size:0.7em;${rActive}">${r.label}</button>`;
-        });
-        html += '<span style="color:#ff9f43;font-size:0.65em;margin-left:4px;">❌ 传说</span>';
-    }
-    html += '</div>';
-
-    // 筛选栏
-    html += '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
     filterSlots.forEach(slot => {
         const isActive = currentEquipmentFilter === slot.key;
-        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
-        html += `<button class="btn btn-secondary" onclick="setEquipmentFilter('${slot.key}')" style="padding:2px 7px;font-size:0.7em;${activeStyle}">${slot.emoji} ${slot.name}</button>`;
+        _bagBtn(filterBar, slot.key, `${slot.emoji} ${slot.name}`, () => setEquipmentFilter(slot.key), isActive, 'linear-gradient(45deg,#e94560,#ff6b6b)', '2px 7px');
     });
-    html += '</div>';
-
-    html += '<div class="equipment-bag">';
 
     const bagWithIndex = bag.map((item, idx) => ({ item, idx }));
     bagWithIndex.sort((a, b) => {
         const ea = EQUIPMENT_POOL.find(e => e.id === a.item.id);
         const eb = EQUIPMENT_POOL.find(e => e.id === b.item.id);
-        return (RARITY_ORDER[eb?.rarity] || 0) - (RARITY_ORDER[ea?.rarity] || 0);
+        const ra = RARITY_ORDER[ea?.rarity] || 0;
+        const rb = RARITY_ORDER[eb?.rarity] || 0;
+        if (rb !== ra) return rb - ra;
+        const refineA = a.item.refine || 0;
+        const refineB = b.item.refine || 0;
+        if (refineB !== refineA) return refineB - refineA;
+        const appraisedA = a.item.appraised !== false ? 1 : 0;
+        const appraisedB = b.item.appraised !== false ? 1 : 0;
+        return appraisedB - appraisedA;
     });
 
-    let hasItem = false;
+    // 过滤并记录可见项
+    const visibleItems = [];
     bagWithIndex.forEach(({ item, idx: index }) => {
         const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
         if (!eqDef) return;
         if (currentEquipmentFilter !== 'all' && eqDef.slot !== currentEquipmentFilter) return;
-        hasItem = true;
+        visibleItems.push({ item, index, eqDef });
+    });
+
+    // 确保网格容器存在
+    let grid = content.querySelector('.equipment-bag');
+    if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'equipment-bag';
+        content.appendChild(grid);
+    }
+
+    // 更新或创建每个卡片
+    visibleItems.forEach(({ item, index, eqDef }, i) => {
         const rc = RARITY_CONFIG[eqDef.rarity];
         const refine = item.refine || 0;
         const refineTag = refine > 0 ? `<span style="color:#ff9f43;font-size:0.7em;">+${refine}</span>` : '';
         const isAppraised = item.appraised !== false;
         const setName = (isAppraised && eqDef.setId && ALL_SETS[eqDef.setId]) ? ALL_SETS[eqDef.setId].name : '';
         const setTag = setName ? `<div style="font-size:0.6em;color:#f1c40f;">${setName}</div>` : '';
-        html += `
-            <div class="equipment-bag-item ${eqDef.rarity}">
-                <div class="eq-bag-emoji">${isAppraised ? eqDef.emoji : '❓'}</div>
-                <div class="eq-bag-name" style="color:${isAppraised ? rc.color : '#888'}">${isAppraised ? eqDef.name : '未鉴定装备'} ${refineTag}</div>
-                ${setTag}
-                <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef) : '需要鉴定后才能使用'}</div>
-                <div class="eq-bag-actions">
-                    ${isAppraised ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button>` : ''}
-                    <button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>
-                </div>
+
+        let card = grid.querySelector(`[data-sort-index="${i}"]`);
+        if (!card) {
+            card = document.createElement('div');
+            card.setAttribute('data-sort-index', i);
+            grid.appendChild(card);
+        }
+        card.className = `equipment-bag-item ${eqDef.rarity}`;
+        card.innerHTML = `
+            <div class="eq-bag-emoji">${isAppraised ? eqDef.emoji : '❓'}</div>
+            <div class="eq-bag-name" style="color:${isAppraised ? rc.color : '#888'}">${!isAppraised ? '❓' : ''}${eqDef.name} ${refineTag}</div>
+            ${setTag}
+            <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef) : '需要鉴定后才能使用'}</div>
+            <div class="eq-bag-actions">
+                ${isAppraised ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button>` : ''}
+                <button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>
             </div>
         `;
     });
-    html += '</div>';
-    if (!hasItem) {
-        html += '<div style="text-align:center;color:#666;padding:20px;">暂无未穿戴装备</div>';
+
+    // 移除超出数量的旧卡片
+    Array.from(grid.children).forEach(child => {
+        const si = parseInt(child.getAttribute('data-sort-index'), 10);
+        if (si >= visibleItems.length) grid.removeChild(child);
+    });
+
+    // 空状态提示
+    let emptyMsg = content.querySelector('.equipment-empty-msg');
+    if (visibleItems.length === 0) {
+        if (!emptyMsg) {
+            emptyMsg = document.createElement('div');
+            emptyMsg.className = 'equipment-empty-msg';
+            emptyMsg.style.cssText = 'text-align:center;color:#666;padding:20px;';
+            content.appendChild(emptyMsg);
+        }
+        emptyMsg.textContent = '暂无未穿戴装备';
+    } else if (emptyMsg) {
+        content.removeChild(emptyMsg);
     }
-    container.innerHTML = html;
 }
 
 function setEquipmentFilter(filter) {
@@ -2169,39 +2475,31 @@ function renderBagItems(container) {
     ];
 
     const as = game.autoSell;
-
-    // 道具背包自动出售配置
     const rarityOptions = [
         { key: 'common', label: '普通' },
         { key: 'rare', label: '稀有' },
         { key: 'epic', label: '史诗' },
+        { key: 'legendary', label: '传说' },
     ];
-    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:3;">';
-    const autoSellActive = as.skillBooks ? 'background:linear-gradient(45deg,#2ecc71,#27ae60);border-color:transparent;color:#fff;' : '';
-    html += `<button class="btn btn-secondary" onclick="toggleAutoSell('skillBooks')" style="padding:2px 8px;font-size:0.7em;${autoSellActive}">💰 自动出售: ${as.skillBooks ? '开' : '关'}</button>`;
-    if (as.skillBooks) {
-        html += '<span style="color:#888;font-size:0.7em;margin-left:4px;">≤</span>';
-        rarityOptions.forEach(r => {
-            const rActive = as.maxRarity === r.key ? 'background:linear-gradient(45deg,#f39c12,#e67e22);border-color:transparent;color:#fff;' : '';
-            html += `<button class="btn btn-secondary" onclick="setAutoSellRarity('${r.key}')" style="padding:2px 6px;font-size:0.7em;${rActive}">${r.label}</button>`;
-        });
-        html += '<span style="color:#ff9f43;font-size:0.65em;margin-left:4px;">❌ 传说</span>';
-    }
-    html += '</div>';
 
-    // 筛选栏
-    html += '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
+    const pane = _ensureBagPane(container, 'item');
+    const toolbar = pane.querySelector('[data-toolbar]');
+    const filterBar = pane.querySelector('[data-filter]');
+    const content = pane.querySelector('[data-content]');
+    filterBar.style.gap = '6px';
+
+    _bagBtn(toolbar, 'autoSellBooks', `💰 自动出售: ${as.skillBooks ? '开' : '关'}`, () => toggleAutoSell('skillBooks'), as.skillBooks, 'linear-gradient(45deg,#2ecc71,#27ae60)');
+    _bagText(toolbar, 'rarityLabel', '≤', as.skillBooks);
+    rarityOptions.forEach(r => {
+        _bagBtn(toolbar, `rarity_${r.key}`, r.label, () => setAutoSellRarity(r.key), as.maxRarity === r.key, 'linear-gradient(45deg,#f39c12,#e67e22)', '2px 6px').style.display = as.skillBooks ? '' : 'none';
+    });
+
     itemFilters.forEach(f => {
         const isActive = currentItemFilter === f.key;
-        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
-        html += `<button class="btn btn-secondary" onclick="setItemFilter('${f.key}')" style="padding:2px 7px;font-size:0.7em;${activeStyle}">${f.emoji} ${f.name}</button>`;
+        _bagBtn(filterBar, f.key, `${f.emoji} ${f.name}`, () => setItemFilter(f.key), isActive, 'linear-gradient(45deg,#e94560,#ff6b6b)', '2px 7px');
     });
-    html += '</div>';
 
-    // 收集所有条目
     let allEntries = [];
-
-    // 道具（商店购买）
     const items = game.player.items || {};
     const itemEntries = Object.entries(items).filter(([_, d]) => d && d.count > 0);
     const showConsumables = currentItemFilter === 'all' || currentItemFilter === 'consumable';
@@ -2213,7 +2511,6 @@ function renderBagItems(container) {
         });
     }
 
-    // 技能书
     const books = game.player.skillBooks || {};
     let bookEntries = Object.entries(books).filter(([_, d]) => d && d.count > 0);
     if (currentItemFilter === 'appraised') {
@@ -2230,11 +2527,77 @@ function renderBagItems(container) {
         });
     }
 
+    // 初始化事件委托（只执行一次）
+    if (!content._delegated) {
+        content._delegated = true;
+        let lpTimer = null;
+        let lpTriggered = false;
+
+        const clearLp = () => {
+            if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+        };
+
+        const startLp = (btn) => {
+            clearLp();
+            lpTriggered = false;
+            lpTimer = setTimeout(() => {
+                lpTriggered = true;
+                lpTimer = null;
+                const id = btn.dataset.id;
+                useAllItems(id);
+            }, 600);
+        };
+
+        content.addEventListener('mousedown', (e) => {
+            const btn = e.target.closest('[data-action="use"]');
+            if (btn) startLp(btn);
+        });
+        content.addEventListener('touchstart', (e) => {
+            const btn = e.target.closest('[data-action="use"]');
+            if (btn) { startLp(btn); }
+        }, { passive: true });
+        content.addEventListener('mouseup', clearLp);
+        content.addEventListener('mouseleave', clearLp);
+        content.addEventListener('touchend', clearLp);
+        content.addEventListener('touchcancel', clearLp);
+
+        content.addEventListener('click', (e) => {
+            if (lpTriggered) {
+                lpTriggered = false;
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const id = btn.dataset.id;
+            if (action === 'use') useItem(id);
+            else if (action === 'sell') sellItem(id);
+            else if (action === 'learn') learnFromBook(id);
+            else if (action === 'sell-book') sellSkillBook(id);
+        });
+    }
+
     if (allEntries.length === 0) {
-        html += '<div style="text-align:center;color:#666;padding:30px;">暂无符合条件的道具</div>';
-        container.innerHTML = html;
+        Array.from(content.children).forEach(c => {
+            if (!c.classList.contains('treasure-grid')) content.removeChild(c);
+        });
+        let empty = content.querySelector('.bag-empty-msg');
+        if (!empty) {
+            empty = document.createElement('div');
+            empty.className = 'bag-empty-msg';
+            empty.style.cssText = 'text-align:center;color:#666;padding:30px;';
+            empty.textContent = '暂无符合条件的道具';
+            content.appendChild(empty);
+        }
+        let grid = content.querySelector('.treasure-grid');
+        if (grid) grid.innerHTML = '';
         return;
     }
+
+    let empty = content.querySelector('.bag-empty-msg');
+    if (empty) content.removeChild(empty);
 
     allEntries.sort((a, b) => {
         const ra = RARITY_ORDER[a.def?.rarity] || 0;
@@ -2242,21 +2605,38 @@ function renderBagItems(container) {
         return rb - ra;
     });
 
-    html += '<div class="treasure-grid">';
+    let grid = content.querySelector('.treasure-grid');
+    if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'treasure-grid';
+        content.appendChild(grid);
+    }
+
+    const activeIds = new Set();
     allEntries.forEach(entry => {
+        const cardId = entry.type === 'item' ? `item-${entry.id}` : `book-${entry.id}`;
+        activeIds.add(cardId);
+
+        let card = grid.querySelector(`[data-card-id="${cardId}"]`);
+        if (!card) {
+            card = document.createElement('div');
+            card.setAttribute('data-card-id', cardId);
+            grid.appendChild(card);
+        }
+
         if (entry.type === 'item') {
             const itemDef = entry.def;
             const data = entry.data;
-            html += `
-                <div class="treasure-item" style="border-color:rgba(46,204,113,0.3);">
-                    <div class="treasure-emoji">${itemDef.emoji}</div>
-                    <div class="rarity-label" style="background:rgba(46,204,113,0.15);color:#2ecc71;">道具</div>
-                    <div class="treasure-name" style="color:#2ecc71;">${itemDef.name} ×${data.count}</div>
-                    <div class="treasure-stat">${itemDef.desc}</div>
-                    <div class="treasure-actions">
-                        <button class="btn btn-success" onclick="useItem('${itemDef.id}')">使用</button>
-                        <button class="btn btn-warning" onclick="sellItem('${itemDef.id}')">💰 ${formatNumber(Math.floor(itemDef.basePrice * 0.3))}</button>
-                    </div>
+            card.className = 'treasure-item';
+            card.style.borderColor = 'rgba(46,204,113,0.3)';
+            card.innerHTML = `
+                <div class="treasure-emoji">${itemDef.emoji}</div>
+                <div class="rarity-label" style="background:rgba(46,204,113,0.15);color:#2ecc71;">道具</div>
+                <div class="treasure-name" style="color:#2ecc71;">${itemDef.name} ×${data.count}</div>
+                <div class="treasure-stat">${itemDef.desc}</div>
+                <div class="treasure-actions">
+                    ${itemDef.type !== 'enhance_stone' ? `<button class="btn btn-success" data-action="use" data-id="${itemDef.id}">使用</button>` : '<span style="font-size:0.7em;color:#888">铁匠铺使用</span>'}
+                    <button class="btn btn-warning" data-action="sell" data-id="${itemDef.id}">💰 ${formatNumber(Math.floor(itemDef.basePrice * 0.3))}</button>
                 </div>
             `;
         } else {
@@ -2264,35 +2644,28 @@ function renderBagItems(container) {
             const data = entry.data;
             const rc = RARITY_CONFIG[book.rarity];
             const isAppraised = data.appraised;
-            html += `
-                <div class="treasure-item ${book.rarity}">
-                    <div class="treasure-emoji">${book.emoji}</div>
-                    <div class="rarity-label ${book.rarity}">${rc.label}</div>
-                    <div class="treasure-name" style="color:${rc.color}">${book.name} ×${data.count}</div>
-                    <div class="treasure-stat">${isAppraised ? '🔍 已鉴定' : '❓ 未鉴定'}</div>
-                    <div class="treasure-actions">
-                        ${isAppraised ? (game.player.skills[book.skillId]?.level > 0 ? '<span style="font-size:0.7em;color:#2ecc71">已学会</span>' : `<button class="btn btn-success" onclick="learnFromBook('${book.id}')">学习</button>`) : `<span style="font-size:0.7em;color:#888">❓ 未鉴定</span>`}
-                        <button class="btn btn-warning" onclick="sellSkillBook('${book.id}')">💰 ${formatNumber(book.sellPrice)}</button>
-                    </div>
+            card.className = `treasure-item ${book.rarity}`;
+            card.style.borderColor = '';
+            card.innerHTML = `
+                <div class="treasure-emoji">${book.emoji}</div>
+                <div class="rarity-label ${book.rarity}">${rc.label}</div>
+                <div class="treasure-name" style="color:${rc.color}">${book.name} ×${data.count}</div>
+                <div class="treasure-stat">${isAppraised ? '🔍 已鉴定' : '❓ 未鉴定'}</div>
+                <div class="treasure-actions">
+                    ${isAppraised ? (game.player.skills[book.skillId]?.level > 0 ? '<span style="font-size:0.7em;color:#2ecc71">已学会</span>' : `<button class="btn btn-success" data-action="learn" data-id="${book.id}">学习</button>`) : `<span style="font-size:0.7em;color:#888">❓ 未鉴定</span>`}
+                    <button class="btn btn-warning" data-action="sell-book" data-id="${book.id}">💰 ${formatNumber(book.sellPrice)}</button>
                 </div>
             `;
         }
     });
-    html += '</div>';
-    container.innerHTML = html;
+
+    Array.from(grid.children).forEach(child => {
+        const cid = child.getAttribute('data-card-id');
+        if (cid && !activeIds.has(cid)) grid.removeChild(child);
+    });
 }
 
-function useItem(itemId) {
-    const item = SHOP_ITEMS.find(i => i.id === itemId);
-    if (!item) return;
-    const playerItems = game.player.items || {};
-    const data = playerItems[itemId];
-    if (!data || data.count <= 0) { log('道具数量不足！', 'log-damage'); return; }
-
-    data.count--;
-    if (data.count <= 0) delete playerItems[itemId];
-
-    const now = Date.now();
+function _applyItemEffect(item, now) {
     switch (item.type) {
         case 'permanent_atk': {
             game.player.atk += item.value;
@@ -2317,29 +2690,119 @@ function useItem(itemId) {
         }
         case 'buff_exp': {
             game.player.buffs = game.player.buffs || {};
-            game.player.buffs.expBonus = { value: item.value, endTime: now + item.duration };
-            const mins = Math.floor(item.duration / 60000);
-            log(`📜 使用了${item.name}，经验加成+${Math.round(item.value * 100)}%，持续${mins}分钟！`, 'log-epic');
-            showNotification(`📜 经验加成+${Math.round(item.value * 100)}%，持续${mins}分钟！`);
+            const existingExp = game.player.buffs.expBonus;
+            let expMins;
+            if (existingExp && existingExp.endTime > now) {
+                existingExp.endTime += item.duration;
+                expMins = Math.floor((existingExp.endTime - now) / 60000);
+                log(`📜 使用了${item.name}，经验加成持续时间延长，剩余${expMins}分钟！`, 'log-epic');
+            } else {
+                game.player.buffs.expBonus = { value: item.value, endTime: now + item.duration };
+                expMins = Math.floor(item.duration / 60000);
+                log(`📜 使用了${item.name}，经验加成+${Math.round(item.value * 100)}%，持续${expMins}分钟！`, 'log-epic');
+            }
+            showNotification(`📜 经验加成+${Math.round(item.value * 100)}%，剩余${expMins}分钟！`);
             break;
         }
         case 'buff_atk': {
             game.player.buffs = game.player.buffs || {};
-            game.player.buffs.atkBonus = { value: item.value, endTime: now + item.duration };
-            const mins = Math.floor(item.duration / 60000);
-            log(`⚔️ 使用了${item.name}，攻击力+${Math.round(item.value * 100)}%，持续${mins}分钟！`, 'log-epic');
-            showNotification(`⚔️ 攻击力+${Math.round(item.value * 100)}%，持续${mins}分钟！`);
+            const existingAtk = game.player.buffs.atkBonus;
+            let atkMins;
+            if (existingAtk && existingAtk.endTime > now) {
+                existingAtk.endTime += item.duration;
+                atkMins = Math.floor((existingAtk.endTime - now) / 60000);
+                log(`⚔️ 使用了${item.name}，攻击加成持续时间延长，剩余${atkMins}分钟！`, 'log-epic');
+            } else {
+                game.player.buffs.atkBonus = { value: item.value, endTime: now + item.duration };
+                atkMins = Math.floor(item.duration / 60000);
+                log(`⚔️ 使用了${item.name}，攻击力+${Math.round(item.value * 100)}%，持续${atkMins}分钟！`, 'log-epic');
+            }
+            showNotification(`⚔️ 攻击力+${Math.round(item.value * 100)}%，剩余${atkMins}分钟！`);
             break;
         }
         case 'buff_def': {
             game.player.buffs = game.player.buffs || {};
-            game.player.buffs.defBonus = { value: item.value, endTime: now + item.duration };
-            const mins = Math.floor(item.duration / 60000);
-            log(`🛡️ 使用了${item.name}，防御力+${Math.round(item.value * 100)}%，持续${mins}分钟！`, 'log-epic');
-            showNotification(`🛡️ 防御力+${Math.round(item.value * 100)}%，持续${mins}分钟！`);
+            const existingDef = game.player.buffs.defBonus;
+            let defMins;
+            if (existingDef && existingDef.endTime > now) {
+                existingDef.endTime += item.duration;
+                defMins = Math.floor((existingDef.endTime - now) / 60000);
+                log(`🛡️ 使用了${item.name}，防御加成持续时间延长，剩余${defMins}分钟！`, 'log-epic');
+            } else {
+                game.player.buffs.defBonus = { value: item.value, endTime: now + item.duration };
+                defMins = Math.floor(item.duration / 60000);
+                log(`🛡️ 使用了${item.name}，防御力+${Math.round(item.value * 100)}%，持续${defMins}分钟！`, 'log-epic');
+            }
+            showNotification(`🛡️ 防御力+${Math.round(item.value * 100)}%，剩余${defMins}分钟！`);
+            break;
+        }
+        case 'permanent_all': {
+            const v = item.value;
+            game.player.atk += v.atk;
+            game.player.def += v.def;
+            game.player.maxHp += v.maxHp;
+            log(`💠 使用了${item.name}，永久攻击力+${v.atk}、防御力+${v.def}、最大生命+${v.maxHp}！`, 'log-skill');
+            break;
+        }
+        case 'buff_exp_gold': {
+            game.player.buffs = game.player.buffs || {};
+            const v = item.value;
+            const existingExp = game.player.buffs.expBonus;
+            const existingGold = game.player.buffs.goldBonus;
+            let mins;
+            if (existingExp && existingExp.endTime > now) {
+                existingExp.endTime += item.duration;
+                existingGold.endTime += item.duration;
+                mins = Math.floor((existingExp.endTime - now) / 60000);
+                log(`🌟 使用了${item.name}，经验与金币加成持续时间延长，剩余${mins}分钟！`, 'log-epic');
+            } else {
+                game.player.buffs.expBonus = { value: v.expBonus, endTime: now + item.duration };
+                game.player.buffs.goldBonus = { value: v.goldBonus, endTime: now + item.duration };
+                mins = Math.floor(item.duration / 60000);
+                log(`🌟 使用了${item.name}，经验加成+${Math.round(v.expBonus * 100)}%、金币加成+${Math.round(v.goldBonus * 100)}%，持续${mins}分钟！`, 'log-epic');
+            }
+            showNotification(`🌟 经验+${Math.round(v.expBonus * 100)}%、金币+${Math.round(v.goldBonus * 100)}%，剩余${mins}分钟！`);
             break;
         }
     }
+}
+
+function useItem(itemId) {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) return;
+    if (item.type === 'enhance_stone') { log('🔮 强化石只能在铁匠铺锻造时使用！', 'log-damage'); return; }
+    const playerItems = game.player.items || {};
+    const data = playerItems[itemId];
+    if (!data || data.count <= 0) { log('道具数量不足！', 'log-damage'); return; }
+
+    data.count--;
+    if (data.count <= 0) delete playerItems[itemId];
+
+    _applyItemEffect(item, Date.now());
+
+    renderBag();
+    updateUI();
+}
+
+async function useAllItems(itemId) {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) return;
+    if (item.type === 'enhance_stone') { log('🔮 强化石只能在铁匠铺锻造时使用！', 'log-damage'); return; }
+    const playerItems = game.player.items || {};
+    const data = playerItems[itemId];
+    if (!data || data.count <= 0) { log('道具数量不足！', 'log-damage'); return; }
+
+    const count = data.count;
+    const confirmed = await showConfirm(`确定要一次性使用全部 ${count} 个 ${item.name} 吗？`);
+    if (!confirmed) return;
+
+    delete playerItems[itemId];
+    const now = Date.now();
+    for (let i = 0; i < count; i++) {
+        _applyItemEffect(item, now);
+    }
+    log(`🏪 批量使用了 ${item.emoji} ${item.name} ×${count}！`, 'log-epic');
+    showNotification(`🏪 已使用 ${item.name} ×${count}`);
 
     renderBag();
     updateUI();
@@ -2365,6 +2828,7 @@ function getActiveBuffs() {
     const now = Date.now();
     const active = [];
     if (buffs.expBonus && buffs.expBonus.endTime > now) active.push({ name: '经验加成', emoji: '📜', value: buffs.expBonus.value, endTime: buffs.expBonus.endTime });
+    if (buffs.goldBonus && buffs.goldBonus.endTime > now) active.push({ name: '金币加成', emoji: '💰', value: buffs.goldBonus.value, endTime: buffs.goldBonus.endTime });
     if (buffs.atkBonus && buffs.atkBonus.endTime > now) active.push({ name: '攻击加成', emoji: '⚔️', value: buffs.atkBonus.value, endTime: buffs.atkBonus.endTime });
     if (buffs.defBonus && buffs.defBonus.endTime > now) active.push({ name: '防御加成', emoji: '🛡️', value: buffs.defBonus.value, endTime: buffs.defBonus.endTime });
     if (buffs.shield && buffs.shield.endTime > now) active.push({ name: '护盾', emoji: '🛡️', value: buffs.shield.defBonus, endTime: buffs.shield.endTime });
@@ -2379,7 +2843,7 @@ function cleanExpiredBuffs() {
         if (buff.endTime && buff.endTime <= now) {
             delete buffs[key];
             expired = true;
-            const names = { expBonus: '📜 经验加成', atkBonus: '⚔️ 攻击加成', defBonus: '🛡️ 防御加成', shield: '🛡️ 护盾' };
+            const names = { expBonus: '📜 经验加成', goldBonus: '💰 金币加成', atkBonus: '⚔️ 攻击加成', defBonus: '🛡️ 防御加成', shield: '🛡️ 护盾' };
             log(`${names[key] || key} 效果已消失`, 'log-death');
         }
     }
@@ -2411,9 +2875,9 @@ function formatNumber(num) {
 }
 
 function formatValue(stat, value) {
-    const names = { atk: '攻击力', def: '防御力', maxHp: '生命', crit: '暴击率', expBonus: '经验加成', goldBonus: '金币加成', armorPenFlat: '破甲(固定)', armorPenPercent: '破甲(%)' };
+    const names = { atk: '攻击力', def: '防御力', maxHp: '生命', crit: '暴击率', critDmg: '暴击伤害', expBonus: '经验加成', goldBonus: '金币加成', armorPenFlat: '破甲(固定)', armorPenPercent: '破甲(%)' };
     const name = names[stat] || stat;
-    if (stat === 'crit' || stat === 'expBonus' || stat === 'goldBonus' || stat === 'armorPenPercent') return `${name}+${Math.round(value*100)}%`;
+    if (stat === 'crit' || stat === 'critDmg' || stat === 'expBonus' || stat === 'goldBonus' || stat === 'armorPenPercent') return `${name}+${Math.round(value*100)}%`;
     return `${name}+${formatNumber(value)}`;
 }
 
@@ -2424,6 +2888,7 @@ function formatEqStat(eqDef) {
     if (eqDef.maxHp) texts.push(`生命+${formatNumber(eqDef.maxHp)}`);
     if (eqDef.aspd) texts.push(`攻速+${formatNumber(eqDef.aspd)}`);
     if (eqDef.crit) texts.push(`暴击+${Math.round(eqDef.crit*100)}%`);
+    if (eqDef.critDmg) texts.push(`爆伤+${Math.round(eqDef.critDmg*100)}%`);
     if (eqDef.vamp) texts.push(`吸血+${Math.round(eqDef.vamp*100)}%`);
     if (eqDef.expBonus) texts.push(`经验+${Math.round(eqDef.expBonus*100)}%`);
     if (eqDef.spi) texts.push(`精神+${formatNumber(eqDef.spi)}`);
@@ -2435,7 +2900,6 @@ function renderEquipments() {
     const info = document.getElementById('equipmentInfo');
     if (!grid) return;
     const eqs = game.player.equipments || {};
-    let html = '';
     const eqBonuses = getEquipmentBonuses();
     const bonusTexts = [];
     if (eqBonuses.atk) bonusTexts.push(`攻击+${formatNumber(eqBonuses.atk)}`);
@@ -2453,6 +2917,14 @@ function renderEquipments() {
     info.textContent = infoText;
 
     for (const [slotKey, slotDef] of Object.entries(EQUIPMENT_SLOTS)) {
+        let slot = grid.querySelector(`[data-slot="${slotKey}"]`);
+        if (!slot) {
+            slot = document.createElement('div');
+            slot.setAttribute('data-slot', slotKey);
+            slot.onclick = () => unequipItem(slotKey);
+            grid.appendChild(slot);
+        }
+
         const data = eqs[slotKey];
         if (data) {
             const eqDef = EQUIPMENT_POOL.find(e => e.id === data.id);
@@ -2461,26 +2933,25 @@ function renderEquipments() {
                 const refine = data.refine || 0;
                 const refineTag = refine > 0 ? `<span style="color:#ff9f43;font-size:0.65em;">+${refine}</span>` : '';
                 const setTag = eqDef.setId ? `<div style="font-size:0.6em;color:#f1c40f;margin-top:2px;">${ALL_SETS[eqDef.setId]?.name || ''}</div>` : '';
-                html += `
-                    <div class="equipment-slot ${eqDef.rarity}" onclick="unequipItem('${slotKey}')" title="点击卸下">
-                        <div class="slot-emoji">${eqDef.emoji}</div>
-                        <div class="eq-name" style="color:${rc.color}">${eqDef.name} ${refineTag}</div>
-                        <div class="eq-stat">${formatEqStat(eqDef)}</div>
-                        ${setTag}
-                    </div>
+                slot.className = `equipment-slot ${eqDef.rarity}`;
+                slot.title = '点击卸下';
+                slot.innerHTML = `
+                    <div class="slot-emoji">${eqDef.emoji}</div>
+                    <div class="eq-name" style="color:${rc.color}">${eqDef.name} ${refineTag}</div>
+                    <div class="eq-stat">${formatEqStat(eqDef)}</div>
+                    ${setTag}
                 `;
                 continue;
             }
         }
-        html += `
-            <div class="equipment-slot empty">
-                <div class="slot-emoji" style="opacity:0.4">${slotDef.emoji}</div>
-                <div class="eq-name">${slotDef.name}</div>
-                <div class="eq-stat" style="opacity:0;">&nbsp;</div>
-            </div>
+        slot.className = 'equipment-slot empty';
+        slot.title = '';
+        slot.innerHTML = `
+            <div class="slot-emoji" style="opacity:0.4">${slotDef.emoji}</div>
+            <div class="eq-name">${slotDef.name}</div>
+            <div class="eq-stat" style="opacity:0;">&nbsp;</div>
         `;
     }
-    grid.innerHTML = html;
 }
 
 function updateUI() {
@@ -2516,37 +2987,71 @@ function updateUI() {
     // 更新buff与成就显示
     const buffPanel = document.getElementById('buffPanel');
     const activeBuffs = getActiveBuffs();
-    let achHtml = '';
-    if (stats.ach && (stats.ach.atk || stats.ach.def || stats.ach.maxHp || stats.ach.crit || stats.ach.vamp || stats.ach.spi)) {
-        const achTexts = [];
-        if (stats.ach.atk) achTexts.push(`攻击+${stats.ach.atk}`);
-        if (stats.ach.def) achTexts.push(`防御+${stats.ach.def}`);
-        if (stats.ach.maxHp) achTexts.push(`生命+${stats.ach.maxHp}`);
-        if (stats.ach.crit) achTexts.push(`暴击+${Math.round(stats.ach.crit*100)}%`);
-        if (stats.ach.vamp) achTexts.push(`吸血+${Math.round(stats.ach.vamp*100)}%`);
-        if (stats.ach.spi) achTexts.push(`精神+${stats.ach.spi}`);
-        achHtml = `<div style="margin-top:4px;font-size:0.7em;color:#f1c40f;">🏆 成就加成: ${achTexts.join(' | ')}</div>`;
-    }
-    if ((activeBuffs.length > 0 || achHtml) && buffPanel) {
-        let buffHtml = '';
+    let hasAny = false;
+    if (buffPanel) {
+        // 成就文本
+        let achText = '';
+        if (stats.ach && (stats.ach.atk || stats.ach.def || stats.ach.maxHp || stats.ach.crit || stats.ach.vamp || stats.ach.spi)) {
+            const achTexts = [];
+            if (stats.ach.atk) achTexts.push(`攻击+${stats.ach.atk}`);
+            if (stats.ach.def) achTexts.push(`防御+${stats.ach.def}`);
+            if (stats.ach.maxHp) achTexts.push(`生命+${stats.ach.maxHp}`);
+            if (stats.ach.crit) achTexts.push(`暴击+${Math.round(stats.ach.crit*100)}%`);
+            if (stats.ach.vamp) achTexts.push(`吸血+${Math.round(stats.ach.vamp*100)}%`);
+            if (stats.ach.spi) achTexts.push(`精神+${stats.ach.spi}`);
+            achText = `🏆 成就加成: ${achTexts.join(' | ')}`;
+            hasAny = true;
+        }
+
+        // 复用/创建成就元素
+        let achEl = buffPanel.querySelector('[data-ach]');
+        if (achText) {
+            if (!achEl) {
+                achEl = document.createElement('div');
+                achEl.setAttribute('data-ach', '');
+                achEl.style.cssText = 'margin-top:4px;font-size:0.7em;color:#f1c40f;';
+                buffPanel.appendChild(achEl);
+            }
+            achEl.textContent = achText;
+            achEl.style.display = '';
+        } else if (achEl) {
+            achEl.style.display = 'none';
+        }
+
+        // 复用/创建buff元素
+        const buffIds = new Set();
         activeBuffs.forEach(buff => {
+            const bid = `buff-${buff.name}`;
+            buffIds.add(bid);
+            let el = buffPanel.querySelector(`[data-buff="${bid}"]`);
+            if (!el) {
+                el = document.createElement('span');
+                el.setAttribute('data-buff', bid);
+                el.style.cssText = 'display:inline-block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px;';
+                buffPanel.appendChild(el);
+            }
             const remaining = Math.max(0, Math.ceil((buff.endTime - Date.now()) / 1000));
             const mins = Math.floor(remaining / 60);
             const secs = remaining % 60;
             const timeStr = mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
             const isPercentBuff = buff.name !== '护盾';
             const buffVal = isPercentBuff ? `+${Math.round(buff.value * 100)}%` : `+${formatNumber(buff.value)}`;
-            buffHtml += `<span style="display:inline-block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px;">${buff.emoji} ${buff.name} ${buffVal} (${timeStr})</span>`;
+            el.textContent = `${buff.emoji} ${buff.name} ${buffVal} (${timeStr})`;
+            el.style.display = '';
+            hasAny = true;
         });
-        buffPanel.innerHTML = buffHtml + achHtml;
-        buffPanel.style.display = 'block';
-    } else if (buffPanel) {
-        buffPanel.style.display = 'none';
+
+        // 移除过期的buff元素
+        Array.from(buffPanel.children).forEach(child => {
+            const bid = child.getAttribute('data-buff');
+            if (bid && !buffIds.has(bid)) buffPanel.removeChild(child);
+        });
+
+        buffPanel.style.display = hasAny ? 'block' : 'none';
     }
 
     updateEnemyUI();
     renderUpgrades();
-    renderBag();
     renderEquipments();
 }
 
@@ -2724,51 +3229,94 @@ function castSkill(skillId) {
 function tryAutoCastSkill() {
     if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) return;
     const now = Date.now();
-    const sortedSkills = Object.entries(game.player.skills || {})
+    const availableSkills = Object.entries(game.player.skills || {})
         .filter(([_, d]) => d && d.level > 0)
         .map(([sid, d]) => {
             const skill = SKILLS.find(s => s.id === sid);
             return { skill, data: d };
         })
-        .filter(({ skill, data }) => skill && data.cooldownEnd <= now && game.player.mp >= skill.mpCost && skill.type.startsWith('damage'))
-        .sort((a, b) => calculateSkillDamage(b.skill, b.data.level) - calculateSkillDamage(a.skill, a.data.level));
+        .filter(({ skill, data }) => skill && data.cooldownEnd <= now && game.player.mp >= skill.mpCost);
 
-    if (sortedSkills.length > 0) {
-        castSkill(sortedSkills[0].skill.id);
+    // 1. 血量低于 70% 优先治疗
+    const maxHp = game.player.maxHp + getTreasureBonuses().maxHp;
+    if (game.player.hp / maxHp < 0.7) {
+        const healSkills = availableSkills.filter(({ skill }) => skill.type === 'heal')
+            .sort((a, b) => calculateSkillDamage(b.skill, b.data.level) - calculateSkillDamage(a.skill, a.data.level));
+        if (healSkills.length > 0) {
+            castSkill(healSkills[0].skill.id);
+            return;
+        }
+    }
+
+    // 2. 没有护盾时优先上 buff
+    const hasShield = game.player.buffs && game.player.buffs.shield && game.player.buffs.shield.endTime > now;
+    if (!hasShield) {
+        const buffSkills = availableSkills.filter(({ skill }) => skill.type === 'buff');
+        if (buffSkills.length > 0) {
+            castSkill(buffSkills[0].skill.id);
+            return;
+        }
+    }
+
+    // 3. 按伤害排序释放输出技能（damage / damage_lifesteal / dot）
+    const attackSkills = availableSkills.filter(({ skill }) => skill.type.startsWith('damage') || skill.type === 'dot')
+        .sort((a, b) => calculateSkillDamage(b.skill, b.data.level) - calculateSkillDamage(a.skill, a.data.level));
+    if (attackSkills.length > 0) {
+        castSkill(attackSkills[0].skill.id);
     }
 }
 
 function updateSkillButtons() {
     const container = document.getElementById('skillBar');
     if (!container) return;
-    container.innerHTML = '';
     const now = Date.now();
     const skills = game.player.skills || {};
+    const activeSkillIds = new Set();
 
     Object.entries(skills).forEach(([skillId, data]) => {
         if (!data || data.level <= 0) return;
         const skill = SKILLS.find(s => s.id === skillId);
         if (!skill) return;
+        activeSkillIds.add(skillId);
         const cdRemaining = Math.max(0, data.cooldownEnd - now);
         const cdPercent = skill.cooldown > 0 ? (cdRemaining / skill.cooldown) * 100 : 0;
         const canUse = cdRemaining <= 0 && game.player.mp >= skill.mpCost;
         const elInfo = ELEMENTS[skill.element];
 
-        const btn = document.createElement('button');
-        btn.className = 'skill-btn';
+        let btn = container.querySelector(`[data-skill-id="${skillId}"]`);
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.className = 'skill-btn';
+            btn.setAttribute('data-skill-id', skillId);
+            btn.innerHTML = `<span class="skill-label"></span><span class="skill-mp"></span><span class="skill-cd"></span>`;
+            btn.onclick = () => castSkill(skillId);
+            container.appendChild(btn);
+        }
         btn.disabled = !canUse;
         btn.style.borderColor = elInfo.color;
-        btn.innerHTML = `
-            ${skill.emoji} ${skill.name}
-            <span class="skill-mp">💧${skill.mpCost}</span>
-            ${cdRemaining > 0 ? `<span class="skill-cd" style="width: ${cdPercent}%"></span>` : ''}
-        `;
-        btn.onclick = () => castSkill(skillId);
-        container.appendChild(btn);
+        btn.querySelector('.skill-label').textContent = `${skill.emoji} ${skill.name}`;
+        btn.querySelector('.skill-mp').textContent = `💧${skill.mpCost}`;
+        const cdEl = btn.querySelector('.skill-cd');
+        if (cdRemaining > 0) {
+            cdEl.style.display = '';
+            cdEl.style.width = `${cdPercent}%`;
+        } else {
+            cdEl.style.display = 'none';
+        }
     });
 
-    if (container.children.length === 0) {
-        container.innerHTML = '<span style="color: #666; font-size: 0.85em;">前往主城学习技能</span>';
+    // 移除已不再激活的技能按钮与占位提示
+    Array.from(container.children).forEach(child => {
+        const sid = child.getAttribute && child.getAttribute('data-skill-id');
+        if (sid) {
+            if (!activeSkillIds.has(sid)) container.removeChild(child);
+        } else if (activeSkillIds.size > 0) {
+            container.removeChild(child);
+        }
+    });
+
+    if (activeSkillIds.size === 0 && !container.querySelector('.skill-empty-placeholder')) {
+        container.innerHTML = '<span class="skill-empty-placeholder" style="color: #666; font-size: 0.85em;">前往主城学习技能</span>';
     }
 }
 
@@ -2802,6 +3350,7 @@ function equipItem(bagIndex) {
     log(`🛡️ 穿戴了 ${eqDef.emoji} ${eqDef.name}！`, 'log-loot');
     showNotification(`🛡️ 穿戴了 ${eqDef.name}！`);
     updateUI();
+    renderEquipments();
 }
 
 function unequipItem(slotKey) {
@@ -2813,7 +3362,13 @@ function unequipItem(slotKey) {
     delete game.player.equipments[slotKey];
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     log(`🛡️ 卸下了 ${eqDef ? eqDef.emoji : ''} ${eqDef ? eqDef.name : ''}`, 'log-loot');
+    if (game.autoSell && game.autoSell.equipment) {
+        game.autoSell.equipment = false;
+        log('💰 自动出售已关闭（卸下装备）', 'log-loot');
+        renderBag();
+    }
     updateUI();
+    renderEquipments();
 }
 
 function sellEquipment(bagIndex) {
@@ -2887,38 +3442,42 @@ function renderInnContent() {
     const mpPercent = Math.round((game.player.mp / stats.maxMp) * 100);
     const isFull = game.player.hp >= stats.maxHp && game.player.mp >= stats.maxMp;
 
-    let html = '<div style="text-align:center;padding:20px 0;">';
-    html += '<div style="font-size:4em;margin-bottom:15px;">🏨</div>';
-    html += '<div style="font-size:1.2em;font-weight:bold;color:#3498db;margin-bottom:10px;">欢迎光临勇者客栈</div>';
-    html += '<div style="color:#aaa;margin-bottom:20px;font-size:0.9em;">在这里好好休息，恢复所有战斗状态</div>';
-
-    html += '<div style="max-width:300px;margin:0 auto;text-align:left;">';
-    html += '<div style="margin-bottom:15px;">';
-    html += '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">';
-    html += '<span>生命值</span><span>' + formatNumber(game.player.hp) + '/' + formatNumber(stats.maxHp) + ' (' + hpPercent + '%)</span>';
-    html += '</div>';
-    html += '<div class="hp-bar"><div class="hp-fill" style="width:' + hpPercent + '%"></div></div>';
-    html += '</div>';
-
-    html += '<div style="margin-bottom:20px;">';
-    html += '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">';
-    html += '<span>魔力值</span><span>' + formatNumber(game.player.mp) + '/' + formatNumber(stats.maxMp) + ' (' + mpPercent + '%)</span>';
-    html += '</div>';
-    html += '<div class="mp-bar"><div class="mp-fill" style="width:' + mpPercent + '%"></div></div>';
-    html += '</div>';
-    html += '</div>';
-
-    html += '<div style="margin-top:25px;">';
-    if (isFull) {
-        html += '<div style="color:#2ecc71;font-weight:bold;margin-bottom:10px;">✅ 状态已满，无需休息</div>';
-        html += '<button class="btn btn-secondary" disabled>💤 休息</button>';
-    } else {
-        html += '<button class="btn btn-primary" onclick="restAtInn()" style="font-size:1.1em;padding:10px 30px;">💤 休息恢复</button>';
+    if (!container.querySelector('.inn-panel')) {
+        container.innerHTML = `
+            <div class="inn-panel" style="text-align:center;padding:20px 0;">
+                <div style="font-size:4em;margin-bottom:15px;">🏨</div>
+                <div style="font-size:1.2em;font-weight:bold;color:#3498db;margin-bottom:10px;">欢迎光临勇者客栈</div>
+                <div style="color:#aaa;margin-bottom:20px;font-size:0.9em;">在这里好好休息，恢复所有战斗状态</div>
+                <div style="max-width:300px;margin:0 auto;text-align:left;">
+                    <div style="margin-bottom:15px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                            <span>生命值</span><span class="inn-hp-text"></span>
+                        </div>
+                        <div class="hp-bar"><div class="hp-fill" style="width:0%"></div></div>
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                            <span>魔力值</span><span class="inn-mp-text"></span>
+                        </div>
+                        <div class="mp-bar"><div class="mp-fill" style="width:0%"></div></div>
+                    </div>
+                </div>
+                <div class="inn-action" style="margin-top:25px;"></div>
+            </div>
+        `;
     }
-    html += '</div>';
-    html += '</div>';
 
-    container.innerHTML = html;
+    container.querySelector('.inn-hp-text').textContent = formatNumber(game.player.hp) + '/' + formatNumber(stats.maxHp) + ' (' + hpPercent + '%)';
+    container.querySelector('.hp-fill').style.width = hpPercent + '%';
+    container.querySelector('.inn-mp-text').textContent = formatNumber(game.player.mp) + '/' + formatNumber(stats.maxMp) + ' (' + mpPercent + '%)';
+    container.querySelector('.mp-fill').style.width = mpPercent + '%';
+
+    const actionEl = container.querySelector('.inn-action');
+    if (isFull) {
+        actionEl.innerHTML = '<div style="color:#2ecc71;font-weight:bold;margin-bottom:10px;">✅ 状态已满，无需休息</div><button class="btn btn-secondary" disabled>💤 休息</button>';
+    } else {
+        actionEl.innerHTML = '<button class="btn btn-primary" onclick="restAtInn()" style="font-size:1.1em;padding:10px 30px;">💤 休息恢复</button>';
+    }
 }
 
 function restAtInn() {
@@ -2954,6 +3513,7 @@ function showBattleView() {
     document.getElementById('npcView').style.display = 'none';
     document.getElementById('battleView').style.display = 'block';
     renderAreas();
+    updateClueUI();
     updateEnemyUI();
 }
 
@@ -2978,27 +3538,48 @@ function switchAppraiserFilter(filter) {
 
 function renderAppraiserContent() {
     const container = document.getElementById('appraiserContent');
-    let html = '<div style="display:flex;flex-direction:column;height:100%;">';
 
-    // 筛选按钮
+    // 筛选按钮（局部更新）
     const filters = [
         { key: 'all', name: '全部', emoji: '📦' },
         { key: 'equipment', name: '装备', emoji: '🛡️' },
         { key: 'skillBook', name: '技能书', emoji: '📕' }
     ];
-    html += '<div style="flex-shrink:0;display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
+    let filterBar = container.querySelector('[data-appraiser-filter]');
+    if (!filterBar) {
+        container.innerHTML = '<div style="display:flex;flex-direction:column;height:100%;"><div data-appraiser-filter style="flex-shrink:0;display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;"></div><div data-appraiser-list class="npc-scroll-content" style="flex:1;min-height:0;overflow-y:auto;"></div></div>';
+        filterBar = container.querySelector('[data-appraiser-filter]');
+    }
     filters.forEach(f => {
+        let btn = filterBar.querySelector(`[data-filter="${f.key}"]`);
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.setAttribute('data-filter', f.key);
+            btn.className = 'btn btn-secondary';
+            btn.style.cssText = 'padding:4px 10px;font-size:0.8em;';
+            btn.onclick = () => switchAppraiserFilter(f.key);
+            filterBar.appendChild(btn);
+        }
         const isActive = currentAppraiserFilter === f.key;
-        const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
-        html += `<button class="btn btn-secondary" onclick="switchAppraiserFilter('${f.key}')" style="padding:4px 10px;font-size:0.8em;${activeStyle}">${f.emoji} ${f.name}</button>`;
+        btn.textContent = `${f.emoji} ${f.name}`;
+        if (isActive) {
+            btn.style.background = 'linear-gradient(45deg,#e94560,#ff6b6b)';
+            btn.style.borderColor = 'transparent';
+            btn.style.color = '#fff';
+        } else {
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.style.color = '';
+        }
     });
-    html += '</div>';
-    html += '<div class="npc-scroll-content" style="flex:1;min-height:0;overflow-y:auto;">';
 
-    // 未鉴定装备
+    const listContainer = container.querySelector('[data-appraiser-list]');
     const showEquip = currentAppraiserFilter === 'all' || currentAppraiserFilter === 'equipment';
     const showBooks = currentAppraiserFilter === 'all' || currentAppraiserFilter === 'skillBook';
 
+    const activeIds = new Set();
+
+    // 未鉴定装备
     const unappraisedEquips = [];
     (game.player.equipmentBag || []).forEach((item, idx) => {
         if (item.appraised === false) unappraisedEquips.push({ item, idx });
@@ -3008,27 +3589,54 @@ function renderAppraiserContent() {
         const eb = EQUIPMENT_POOL.find(e => e.id === b.item.id);
         return (RARITY_ORDER[eb?.rarity] || 0) - (RARITY_ORDER[ea?.rarity] || 0);
     });
+
+    let hasContent = false;
     if (showEquip && unappraisedEquips.length > 0) {
-        html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">🛡️ 未鉴定装备</div>';
+        let header = listContainer.querySelector('[data-section="equip-header"]');
+        if (!header) {
+            header = document.createElement('div');
+            header.setAttribute('data-section', 'equip-header');
+            header.style.cssText = 'font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;';
+            listContainer.appendChild(header);
+        }
+        header.textContent = '🛡️ 未鉴定装备';
+        header.style.display = '';
+        hasContent = true;
+
         unappraisedEquips.forEach(({ item, idx }) => {
             const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
             if (!eqDef) return;
+            const id = `appraise-eq-${idx}`;
+            activeIds.add(id);
             const rc = RARITY_CONFIG[eqDef.rarity];
             const cost = Math.floor(eqDef.sellPrice * 0.5);
             const canAfford = game.player.gold >= cost;
-            html += `
-                <div class="skill-list-item" style="border-color:${rc.color};">
-                    <div class="skill-list-info">
-                        <div class="skill-list-name" style="color:${rc.color};">${eqDef.emoji} ${eqDef.name}</div>
-                        <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能穿戴</div>
-                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(eqDef.sellPrice)}金币</div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="skill-list-cost">💰 ${formatNumber(cost)}</span>
-                        <button class="btn btn-primary" onclick="appraiseEquipment(${idx})" ${!canAfford ? 'disabled' : ''}>鉴定</button>
-                    </div>
+
+            let el = listContainer.querySelector(`[data-appraise-id="${id}"]`);
+            if (!el) {
+                el = document.createElement('div');
+                el.setAttribute('data-appraise-id', id);
+                el.className = 'skill-list-item';
+                listContainer.appendChild(el);
+            }
+            el.style.borderColor = rc.color;
+            el.innerHTML = `
+                <div class="skill-list-info">
+                    <div class="skill-list-name" style="color:${rc.color};">${eqDef.emoji} ${eqDef.name}</div>
+                    <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能穿戴</div>
+                    <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(eqDef.sellPrice)}金币</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="skill-list-cost">💰 ${formatNumber(cost)}</span>
+                    <button class="btn btn-primary" onclick="appraiseEquipment(${idx})" ${!canAfford ? 'disabled' : ''}>鉴定</button>
                 </div>
             `;
+        });
+    } else {
+        const header = listContainer.querySelector('[data-section="equip-header"]');
+        if (header) header.style.display = 'none';
+        listContainer.querySelectorAll('[data-appraise-id^="appraise-eq-"]').forEach(el => {
+            if (el.parentNode) el.parentNode.removeChild(el);
         });
     }
 
@@ -3040,39 +3648,73 @@ function renderAppraiserContent() {
         const bb = SKILL_BOOKS.find(x => x.id === b[0]);
         return (RARITY_ORDER[bb?.rarity] || 0) - (RARITY_ORDER[ba?.rarity] || 0);
     });
+
     if (showBooks && unappraisedBooks.length > 0) {
-        if (html) html += '<div style="margin-top:20px;"></div>';
-        html += '<div style="font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;">📕 未鉴定技能书</div>';
+        let header = listContainer.querySelector('[data-section="book-header"]');
+        if (!header) {
+            header = document.createElement('div');
+            header.setAttribute('data-section', 'book-header');
+            header.style.cssText = 'font-size:0.9em;color:#e94560;margin-bottom:10px;font-weight:bold;';
+            listContainer.appendChild(header);
+        }
+        header.textContent = '📕 未鉴定技能书';
+        header.style.display = '';
+        hasContent = true;
+
         unappraisedBooks.forEach(([bookId, data]) => {
             const book = SKILL_BOOKS.find(b => b.id === bookId);
             if (!book) return;
+            const id = `appraise-book-${bookId}`;
+            activeIds.add(id);
             const cost = Math.floor(book.sellPrice * 0.8);
             const canAfford = game.player.gold >= cost;
             const rc = RARITY_CONFIG[book.rarity];
-            html += `
-                <div class="skill-list-item" style="border-color:${rc.color};">
-                    <div class="skill-list-info">
-                        <div class="skill-list-name" style="color:${rc.color};">${book.emoji} ${book.name} ×${data.count}</div>
-                        <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能学习</div>
-                        <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(book.sellPrice)}金币</div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="skill-list-cost">💰 ${formatNumber(cost)}</span>
-                        <button class="btn btn-primary" onclick="appraiseBook('${book.id}')" ${!canAfford ? 'disabled' : ''}>鉴定</button>
-                    </div>
+
+            let el = listContainer.querySelector(`[data-appraise-id="${id}"]`);
+            if (!el) {
+                el = document.createElement('div');
+                el.setAttribute('data-appraise-id', id);
+                el.className = 'skill-list-item';
+                listContainer.appendChild(el);
+            }
+            el.style.borderColor = rc.color;
+            el.innerHTML = `
+                <div class="skill-list-info">
+                    <div class="skill-list-name" style="color:${rc.color};">${book.emoji} ${book.name} ×${data.count}</div>
+                    <div class="skill-list-desc"><span class="skill-book-status unidentified">❓ 未鉴定</span> 需要鉴定后才能学习</div>
+                    <div class="skill-list-meta">${rc.label}品质 | 出售价: ${formatNumber(book.sellPrice)}金币</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="skill-list-cost">💰 ${formatNumber(cost)}</span>
+                    <button class="btn btn-primary" onclick="appraiseBook('${book.id}')" ${!canAfford ? 'disabled' : ''}>鉴定</button>
                 </div>
             `;
         });
+    } else {
+        const header = listContainer.querySelector('[data-section="book-header"]');
+        if (header) header.style.display = 'none';
+        listContainer.querySelectorAll('[data-appraise-id^="appraise-book-"]').forEach(el => {
+            if (el.parentNode) el.parentNode.removeChild(el);
+        });
     }
 
+    // 空状态
     let emptyMsg = '你暂时没有需要鉴定的物品';
     if (currentAppraiserFilter === 'equipment') emptyMsg = '暂无未鉴定装备';
     else if (currentAppraiserFilter === 'skillBook') emptyMsg = '暂无未鉴定技能书';
-    if (!html.includes('skill-list-item')) {
-        html += '<div style="text-align:center;color:#666;padding:30px">' + emptyMsg + '</div>';
+    let emptyEl = listContainer.querySelector('[data-appraiser-empty]');
+    if (!hasContent) {
+        if (!emptyEl) {
+            emptyEl = document.createElement('div');
+            emptyEl.setAttribute('data-appraiser-empty', '');
+            emptyEl.style.cssText = 'text-align:center;color:#666;padding:30px';
+            listContainer.appendChild(emptyEl);
+        }
+        emptyEl.textContent = emptyMsg;
+        emptyEl.style.display = '';
+    } else if (emptyEl) {
+        emptyEl.style.display = 'none';
     }
-    html += '</div></div>';
-    container.innerHTML = html;
 }
 
 // ========== 铁匠系统 ==========
@@ -3164,6 +3806,13 @@ function renderBlacksmithRefine(container) {
         return;
     }
 
+    // 保存输入框值和焦点
+    const focusedId = document.activeElement?.id;
+    const inputValues = {};
+    container.querySelectorAll('input[type="number"]').forEach(input => {
+        inputValues[input.id] = input.value;
+    });
+
     const filterSlots = [
         { key: 'all', name: '全部', emoji: '📦' },
         { key: 'weapon', name: '武器', emoji: '⚔️' },
@@ -3195,11 +3844,20 @@ function renderBlacksmithRefine(container) {
     bagWithIndex.sort((a, b) => {
         const ea = EQUIPMENT_POOL.find(e => e.id === a.item.id);
         const eb = EQUIPMENT_POOL.find(e => e.id === b.item.id);
-        return (RARITY_ORDER[eb?.rarity] || 0) - (RARITY_ORDER[ea?.rarity] || 0);
+        const ra = RARITY_ORDER[ea?.rarity] || 0;
+        const rb = RARITY_ORDER[eb?.rarity] || 0;
+        if (rb !== ra) return rb - ra;
+        const refineA = a.item.refine || 0;
+        const refineB = b.item.refine || 0;
+        if (refineB !== refineA) return refineB - refineA;
+        const appraisedA = a.item.appraised !== false ? 1 : 0;
+        const appraisedB = b.item.appraised !== false ? 1 : 0;
+        return appraisedB - appraisedA;
     });
 
     let hasItem = false;
     bagWithIndex.forEach(({ item, idx: index }) => {
+        if (item.appraised === false) return;
         const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
         if (!eqDef) return;
         if (currentEquipmentFilter !== 'all' && eqDef.slot !== currentEquipmentFilter) return;
@@ -3230,10 +3888,20 @@ function renderBlacksmithRefine(container) {
     });
     html += '</div>';
     if (!hasItem) {
-        html += '<div style="text-align:center;color:#666;padding:20px;">暂无未穿戴装备</div>';
+        html += '<div style="text-align:center;color:#666;padding:20px;">暂无已鉴定的装备</div>';
     }
     html += '</div></div>';
     container.innerHTML = html;
+
+    // 恢复输入框值和焦点
+    Object.entries(inputValues).forEach(([id, val]) => {
+        const input = document.getElementById(id);
+        if (input) input.value = val;
+    });
+    if (focusedId) {
+        const el = document.getElementById(focusedId);
+        if (el) el.focus();
+    }
 }
 
 function updateRefineRate(index, baseRate) {
@@ -3255,6 +3923,7 @@ function refineEquipment(bagIndex) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
+    if (item.appraised === false) { log('❓ 未鉴定装备无法锻造！', 'log-damage'); return; }
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
 
@@ -3309,55 +3978,89 @@ function renderShopContent() {
     const playerLevel = game.player.level;
     const levelMult = 1 + (playerLevel - 1) * 0.1;
 
-    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">';
+    let grid = container.querySelector('.shop-grid');
+    if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'shop-grid';
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;';
+        container.appendChild(grid);
+    }
+
+    const activeIds = new Set();
     SHOP_ITEMS.forEach(item => {
         if (item.dropOnly) return;
         const price = Math.floor(item.basePrice * levelMult);
         const canAfford = game.player.gold >= price;
-        html += `
-            <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);">
-                <div style="font-size:2em;margin-bottom:5px;">${item.emoji}</div>
-                <div style="font-weight:bold;font-size:0.9em;margin-bottom:4px;">${item.name}</div>
-                <div style="font-size:0.75em;color:#aaa;margin-bottom:8px;">${item.desc}</div>
-                <div style="color:#f1c40f;font-weight:bold;font-size:0.9em;margin-bottom:8px;">💰 ${formatNumber(price)}</div>
+        activeIds.add(item.id);
+
+        let card = grid.querySelector(`[data-shop-id="${item.id}"]`);
+        if (!card) {
+            card = document.createElement('div');
+            card.setAttribute('data-shop-id', item.id);
+            card.style.cssText = 'background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);';
+            grid.appendChild(card);
+        }
+        card.innerHTML = `
+            <div style="font-size:2em;margin-bottom:5px;">${item.emoji}</div>
+            <div style="font-weight:bold;font-size:0.9em;margin-bottom:4px;">${item.name}</div>
+            <div style="font-size:0.75em;color:#aaa;margin-bottom:8px;">${item.desc}</div>
+            <div style="color:#f1c40f;font-weight:bold;font-size:0.9em;margin-bottom:8px;">💰 ${formatNumber(price)}</div>
+            <div style="display:flex;gap:6px;justify-content:center;">
                 <button class="btn btn-success" onclick="buyShopItem('${item.id}')" ${!canAfford ? 'disabled' : ''} style="padding:4px 12px;font-size:0.8em;">购买</button>
+                <button class="btn btn-primary" onclick="buyShopItem('${item.id}', 10)" ${game.player.gold < price * 10 ? 'disabled' : ''} style="padding:4px 12px;font-size:0.8em;">购买×10</button>
             </div>
         `;
     });
-    html += '</div>';
-    container.innerHTML = html;
+
+    Array.from(grid.children).forEach(child => {
+        const sid = child.getAttribute('data-shop-id');
+        if (sid && !activeIds.has(sid)) grid.removeChild(child);
+    });
 }
 
-function buyShopItem(itemId) {
+function buyShopItem(itemId, count = 1) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
     const playerLevel = game.player.level;
     const levelMult = 1 + (playerLevel - 1) * 0.1;
     const price = Math.floor(item.basePrice * levelMult);
+    const totalPrice = price * count;
 
-    if (game.player.gold < price) { log('金币不足！', 'log-damage'); return; }
+    if (game.player.gold < totalPrice) { log('金币不足！', 'log-damage'); return; }
 
-    game.player.gold -= price;
+    game.player.gold -= totalPrice;
 
     // 存入背包
     game.player.items = game.player.items || {};
     if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
-    game.player.items[item.id].count++;
+    game.player.items[item.id].count += count;
 
-    log(`🏪 购买了 ${item.emoji} ${item.name} ×1`, 'log-loot');
-    showNotification(`🏪 购买成功！${item.name}`);
+    log(`🏪 购买了 ${item.emoji} ${item.name} ×${count}`, 'log-loot');
+    showNotification(`🏪 购买成功！${item.name} ×${count}`);
     renderShopContent();
     updateUI();
 }
 
 function renderSkillList(container) {
-    let html = '';
+    const activeIds = new Set();
+    let hasContent = false;
 
     // 基础技能：未学会的可学习，已学会的可升级
     const basicSkills = SKILLS.filter(s => s.isBasic);
     if (basicSkills.length > 0) {
-        html += '<div style="font-size:0.85em;color:#aaa;margin:10px 0 5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;">基础技能</div>';
+        let header = container.querySelector('[data-section="basic-skills"]');
+        if (!header) {
+            header = document.createElement('div');
+            header.setAttribute('data-section', 'basic-skills');
+            header.style.cssText = 'font-size:0.85em;color:#aaa;margin:10px 0 5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;';
+            container.appendChild(header);
+        }
+        header.textContent = '基础技能';
+        header.style.display = '';
+
         basicSkills.forEach(skill => {
+            const id = `skill-basic-${skill.id}`;
+            activeIds.add(id);
             const learned = game.player.skills[skill.id];
             const isLearned = learned && learned.level > 0;
             const elInfo = ELEMENTS[skill.element];
@@ -3370,53 +4073,104 @@ function renderSkillList(container) {
                 const isMax = learned.level >= skill.maxLevel;
                 const cost = Math.floor(skill.upgradeCost * Math.pow(1.3, learned.level - 1));
                 const canAfford = game.player.gold >= cost;
-                const nextDmg = calculateSkillDamage(skill, learned.level + 1);
                 actionHtml = isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${formatNumber(cost)}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`;
             }
 
-            html += `
-                <div class="skill-list-item">
-                    <div class="skill-list-info">
-                        <div class="skill-list-name" style="color: ${elInfo.color}">${skill.emoji} ${skill.name} ${isLearned ? `Lv.${learned.level}` : '<span style="color:#666">[未学会]</span>'}</div>
-                        <div class="skill-list-desc">${skill.desc}</div>
-                        <div class="skill-list-meta">${elInfo.emoji} ${elInfo.name}属性 | 💧消耗${skill.mpCost} | ⏱️冷却${skill.cooldown/1000}秒 | ${isLearned ? `当前伤害: ${formatNumber(calculateSkillDamage(skill, learned.level))}` : `基础伤害: ${formatNumber(skill.baseDmg)}`}</div>
-                    </div>
-                    <div style="display:flex;align-items:center;">
-                        ${actionHtml}
-                    </div>
+            let el = container.querySelector(`[data-skill-id="${id}"]`);
+            if (!el) {
+                el = document.createElement('div');
+                el.setAttribute('data-skill-id', id);
+                el.className = 'skill-list-item';
+                container.appendChild(el);
+            }
+            el.innerHTML = `
+                <div class="skill-list-info">
+                    <div class="skill-list-name" style="color: ${elInfo.color}">${skill.emoji} ${skill.name} ${isLearned ? `Lv.${learned.level}` : '<span style="color:#666">[未学会]</span>'}</div>
+                    <div class="skill-list-desc">${skill.desc}</div>
+                    <div class="skill-list-meta">${elInfo.emoji} ${elInfo.name}属性 | 💧消耗${skill.mpCost} | ⏱️冷却${skill.cooldown/1000}秒 | ${isLearned ? `当前伤害: ${formatNumber(calculateSkillDamage(skill, learned.level))}` : `基础伤害: ${formatNumber(skill.baseDmg)}`}</div>
+                </div>
+                <div style="display:flex;align-items:center;">
+                    ${actionHtml}
                 </div>
             `;
+            hasContent = true;
         });
     }
 
     // 高阶技能：只显示已学会的（可升级）
     const learnedAdvanced = Object.entries(game.player.skills || {}).filter(([sid, d]) => d && d.level > 0 && !SKILLS.find(s => s.id === sid)?.isBasic);
     if (learnedAdvanced.length > 0) {
-        html += '<div style="font-size:0.85em;color:#aaa;margin:15px 0 5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;">高阶技能</div>';
+        let header = container.querySelector('[data-section="advanced-skills"]');
+        if (!header) {
+            header = document.createElement('div');
+            header.setAttribute('data-section', 'advanced-skills');
+            header.style.cssText = 'font-size:0.85em;color:#aaa;margin:15px 0 5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;';
+            container.appendChild(header);
+        }
+        header.textContent = '高阶技能';
+        header.style.display = '';
+
         learnedAdvanced.forEach(([skillId, data]) => {
             const skill = SKILLS.find(s => s.id === skillId);
             if (!skill) return;
+            const id = `skill-adv-${skillId}`;
+            activeIds.add(id);
             const isMax = data.level >= skill.maxLevel;
             const cost = Math.floor(skill.upgradeCost * Math.pow(1.3, data.level - 1));
             const canAfford = game.player.gold >= cost;
             const elInfo = ELEMENTS[skill.element];
 
-            html += `
-                <div class="skill-list-item">
-                    <div class="skill-list-info">
-                        <div class="skill-list-name" style="color: ${elInfo.color}">${skill.emoji} ${skill.name} Lv.${data.level}${isMax ? ' <span style="color:#f1c40f">[满级]</span>' : ''}</div>
-                        <div class="skill-list-desc">${skill.desc}</div>
-                        <div class="skill-list-meta">当前伤害: ${formatNumber(calculateSkillDamage(skill, data.level))} | ${!isMax ? `升级后: ${formatNumber(calculateSkillDamage(skill, data.level + 1))}` : '已达最高等级'}</div>
-                    </div>
-                    <div style="display:flex;align-items:center;">
-                        ${isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${formatNumber(cost)}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`}
-                    </div>
+            let el = container.querySelector(`[data-skill-id="${id}"]`);
+            if (!el) {
+                el = document.createElement('div');
+                el.setAttribute('data-skill-id', id);
+                el.className = 'skill-list-item';
+                container.appendChild(el);
+            }
+            el.innerHTML = `
+                <div class="skill-list-info">
+                    <div class="skill-list-name" style="color: ${elInfo.color}">${skill.emoji} ${skill.name} Lv.${data.level}${isMax ? ' <span style="color:#f1c40f">[满级]</span>' : ''}</div>
+                    <div class="skill-list-desc">${skill.desc}</div>
+                    <div class="skill-list-meta">当前伤害: ${formatNumber(calculateSkillDamage(skill, data.level))} | ${!isMax ? `升级后: ${formatNumber(calculateSkillDamage(skill, data.level + 1))}` : '已达最高等级'}</div>
+                </div>
+                <div style="display:flex;align-items:center;">
+                    ${isMax ? '<span style="color:#f1c40f;margin-right:10px">已满级</span>' : `<span class="skill-list-cost">💰 ${formatNumber(cost)}</span><button class="btn btn-primary" onclick="upgradeSkill('${skill.id}')" ${!canAfford ? 'disabled' : ''}>升级</button>`}
                 </div>
             `;
+            hasContent = true;
         });
     }
 
-    container.innerHTML = html || '<div style="text-align:center;color:#666;padding:30px">暂无可操作技能</div>';
+    // 隐藏未使用的header
+    if (!basicSkills.length) {
+        const h = container.querySelector('[data-section="basic-skills"]');
+        if (h) h.style.display = 'none';
+    }
+    if (!learnedAdvanced.length) {
+        const h = container.querySelector('[data-section="advanced-skills"]');
+        if (h) h.style.display = 'none';
+    }
+
+    // 移除不再存在的技能元素
+    Array.from(container.children).forEach(child => {
+        const sid = child.getAttribute('data-skill-id');
+        if (sid && !activeIds.has(sid)) container.removeChild(child);
+    });
+
+    // 空状态
+    let emptyEl = container.querySelector('[data-skill-empty]');
+    if (!hasContent) {
+        if (!emptyEl) {
+            emptyEl = document.createElement('div');
+            emptyEl.setAttribute('data-skill-empty', '');
+            emptyEl.style.cssText = 'text-align:center;color:#666;padding:30px';
+            container.appendChild(emptyEl);
+        }
+        emptyEl.textContent = '暂无可操作技能';
+        emptyEl.style.display = '';
+    } else if (emptyEl) {
+        emptyEl.style.display = 'none';
+    }
 }
 
 function renderAppraiseBooks(container) {
@@ -3467,16 +4221,24 @@ function renderTrainSpirit(container) {
     const level = game.player.spiLevel || 0;
     const cost = Math.floor(80 * Math.pow(1.2, level));
     const canAfford = game.player.gold >= cost;
-    container.innerHTML = `
-        <div class="train-panel">
-            <div class="train-desc">通过冥想修炼提升精神力，增加魔力上限和技能伤害</div>
-            <div class="train-stat">当前精神: <span style="color:#e94560;font-size:1.3em">${formatNumber(game.player.spi)}</span> | 当前等级: <span style="color:#f1c40f">${level}</span></div>
-            <div class="train-stat">最大魔力: ${formatNumber(game.player.maxMp)} | 每次修炼: 精神+2，魔力上限+6</div>
-            <button class="btn btn-primary" onclick="trainSpirit()" ${!canAfford ? 'disabled' : ''} style="font-size:1.1em;padding:10px 24px">
-                🧘 修炼精神 (💰 ${formatNumber(cost)})
-            </button>
-        </div>
-    `;
+
+    if (!container.querySelector('.train-panel')) {
+        container.innerHTML = `
+            <div class="train-panel">
+                <div class="train-desc">通过冥想修炼提升精神力，增加魔力上限和技能伤害</div>
+                <div class="train-stat">当前精神: <span class="train-spi" style="color:#e94560;font-size:1.3em"></span> | 当前等级: <span class="train-lvl" style="color:#f1c40f"></span></div>
+                <div class="train-stat">最大魔力: <span class="train-mp"></span> | 每次修炼: 精神+2，魔力上限+6</div>
+                <button class="btn btn-primary train-btn" onclick="trainSpirit()" style="font-size:1.1em;padding:10px 24px"></button>
+            </div>
+        `;
+    }
+
+    container.querySelector('.train-spi').textContent = formatNumber(game.player.spi);
+    container.querySelector('.train-lvl').textContent = level;
+    container.querySelector('.train-mp').textContent = formatNumber(game.player.maxMp);
+    const btn = container.querySelector('.train-btn');
+    btn.textContent = `🧘 修炼精神 (💰 ${formatNumber(cost)})`;
+    btn.disabled = !canAfford;
 }
 
 function learnSkill(skillId) {

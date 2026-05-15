@@ -277,7 +277,11 @@ const SKILLS = [
       learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false },
     { id: 'poison_mist', name: '毒雾', emoji: '💀', element: 'nature', type: 'dot',
       desc: '释放毒雾持续造成伤害（5秒内每秒一次）', baseDmg: 12, mpCost: 25, cooldown: 10000,
-      learnCost: 0, upgradeCost: 180, maxLevel: 5, isBasic: false, dotDuration: 5000, dotInterval: 1000 }
+      learnCost: 0, upgradeCost: 180, maxLevel: 5, isBasic: false, dotDuration: 5000, dotInterval: 1000 },
+    // 禁咒级技能（无尽模式专属）
+    { id: 'void_annihilation', name: '虚空湮灭', emoji: '☠️', element: 'dark', type: 'damage',
+      desc: '召唤虚空之力对敌人造成毁灭性打击，伤害无视防御', baseDmg: 180, mpCost: 100, cooldown: 18000,
+      learnCost: 0, upgradeCost: 800, maxLevel: 3, isBasic: false, isForbidden: true }
 ];
 
 const SKILL_BOOKS = [
@@ -286,7 +290,9 @@ const SKILL_BOOKS = [
     { id: 'book_shadow_bolt', skillId: 'shadow_bolt', name: '暗影箭秘籍', emoji: '📕', rarity: 'rare', sellPrice: 120 },
     { id: 'book_holy_judgment', skillId: 'holy_judgment', name: '圣光审判秘籍', emoji: '📕', rarity: 'epic', sellPrice: 150 },
     { id: 'book_frost_nova', skillId: 'frost_nova', name: '冰冻新星秘籍', emoji: '📕', rarity: 'epic', sellPrice: 150 },
-    { id: 'book_poison_mist', skillId: 'poison_mist', name: '毒雾秘籍', emoji: '📕', rarity: 'rare', sellPrice: 120 }
+    { id: 'book_poison_mist', skillId: 'poison_mist', name: '毒雾秘籍', emoji: '📕', rarity: 'rare', sellPrice: 120 },
+    // 禁咒级技能书（无尽模式专属）
+    { id: 'book_void_annihilation', skillId: 'void_annihilation', name: '虚空湮灭禁咒', emoji: '📕', rarity: 'divine', sellPrice: 2000 }
 ];
 
 const ENEMY_ELEMENTS = {
@@ -911,7 +917,11 @@ function addEquipmentToBag(equipment) {
 function rollTreasureDrop(minRarity, customRate) {
     const rate = customRate !== undefined ? customRate : getAreaDropRate();
     if (rate <= 0 || Math.random() > rate) return null;
-    const rarities = Object.keys(RARITY_CONFIG);
+    let rarities = Object.keys(RARITY_CONFIG);
+    // 非无尽模式排除 divine 稀有度
+    if (game.currentArea < 15) {
+        rarities = rarities.filter(r => r !== 'divine');
+    }
     const weights = rarities.map(r => RARITY_CONFIG[r].weight);
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     let roll = Math.random() * totalWeight;
@@ -922,7 +932,12 @@ function rollTreasureDrop(minRarity, customRate) {
         const currentIdx = rarities.indexOf(selectedRarity);
         if (currentIdx < minIdx) selectedRarity = minRarity;
     }
-    const pool = TREASURE_POOL.filter(t => t.rarity === selectedRarity);
+    const pool = TREASURE_POOL.filter(t => {
+        if (t.rarity !== selectedRarity) return false;
+        // 非无尽模式过滤无尽专属宝物
+        if (game.currentArea < 15 && (t.id.startsWith('d_') || t.id.startsWith('t_'))) return false;
+        return true;
+    });
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -1451,9 +1466,17 @@ function enemyDefeated() {
         return;
     }
     const stats = getPlayerStats();
-    const exp = Math.floor(game.enemy.exp * (1 + stats.expBonus));
-    const baseGold = game.enemy.gold;
-    const gold = Math.floor(baseGold * (1 + stats.goldBonus));
+    let exp = Math.floor(game.enemy.exp * (1 + stats.expBonus));
+    let baseGold = game.enemy.gold;
+    let gold = Math.floor(baseGold * (1 + stats.goldBonus));
+
+    // 无尽模式普通怪：经验和金币额外加成，但不掉落特有道具/装备/宝物
+    if (game.currentArea >= 15 && !game.enemy.isElite && !game.enemy.isBoss) {
+        const extraMult = 1.5 + (game.currentArea - 14) * 0.02;
+        exp = Math.floor(exp * extraMult);
+        gold = Math.floor(gold * extraMult);
+    }
+
     game.player.exp += exp;
     game.player.gold += gold;
     game.player.kills++;
@@ -1609,7 +1632,9 @@ function enemyDefeated() {
         // 普通怪物技能书：基础概率
         const bookDropRate = SKILL_BOOK_DROP_RATES[game.currentArea] || 0;
         if (bookDropRate > 0 && Math.random() < bookDropRate) {
-            const book = SKILL_BOOKS[Math.floor(Math.random() * SKILL_BOOKS.length)];
+            // 非无尽模式过滤禁咒技能书
+            const eligibleBooks = game.currentArea >= 15 ? SKILL_BOOKS : SKILL_BOOKS.filter(b => b.id !== 'book_void_annihilation');
+            const book = eligibleBooks[Math.floor(Math.random() * eligibleBooks.length)];
             addSkillBook(book);
             const rc = RARITY_CONFIG[book.rarity];
             log(`📕 掉落了 [${rc.label}] 技能书：${book.name}！`, 'log-epic');
@@ -1635,49 +1660,65 @@ function enemyDefeated() {
     if (game.currentArea >= 15) {
         const layer = game.currentArea - 14;
 
-        // 神器装备掉落（低概率，随层数增加）
-        const divineRate = Math.min(0.05, 0.02 + layer * 0.0008);
-        if (Math.random() < divineRate) {
-            const divinePool = EQUIPMENT_POOL.filter(e => e.rarity === 'divine');
-            if (divinePool.length > 0) {
-                const equipment = divinePool[Math.floor(Math.random() * divinePool.length)];
-                addEquipmentToBag(equipment);
-                const rc = RARITY_CONFIG['divine'];
-                log(`🛡️ 掉落了 [${rc.label}] 装备：${equipment.emoji} ${equipment.name}！`, 'log-legendary');
-                dropLog(`🛡️ [${rc.label}] ${equipment.emoji} ${equipment.name}`);
-                showNotification(`🎉 获得${rc.label}装备：${equipment.name}！`);
+        // 无尽模式特有掉落仅限精英及以上怪物
+        if (game.enemy.isElite || game.enemy.isBoss) {
+            // 神器装备掉落（最高10%）
+            const divineRate = Math.min(0.10, 0.02 + layer * 0.001);
+            if (Math.random() < divineRate) {
+                const divinePool = EQUIPMENT_POOL.filter(e => e.rarity === 'divine');
+                if (divinePool.length > 0) {
+                    const equipment = divinePool[Math.floor(Math.random() * divinePool.length)];
+                    addEquipmentToBag(equipment);
+                    const rc = RARITY_CONFIG['divine'];
+                    log(`🛡️ 掉落了 [${rc.label}] 装备：${equipment.emoji} ${equipment.name}！`, 'log-legendary');
+                    dropLog(`🛡️ [${rc.label}] ${equipment.emoji} ${equipment.name}`);
+                    showNotification(`🎉 获得${rc.label}装备：${equipment.name}！`);
+                }
             }
-        }
 
-        // 超脱级套装掉落（独立概率，超越现有神器）
-        const transcendentRate = Math.min(0.03, 0.005 + layer * 0.001);
-        if (Math.random() < transcendentRate) {
-            const newSets = ['set_void_annihilator', 'set_eternal_throne'];
-            const setId = newSets[Math.floor(Math.random() * newSets.length)];
-            const setItems = EQUIPMENT_POOL.filter(e => e.setId === setId);
-            if (setItems.length > 0) {
-                const item = setItems[Math.floor(Math.random() * setItems.length)];
-                addEquipmentToBag(item);
-                const rc = RARITY_CONFIG['divine'];
-                log(`🛡️ 掉落了 [${rc.label}] 装备：${item.emoji} ${item.name}！`, 'log-legendary');
-                dropLog(`🛡️ [${rc.label}] ${item.emoji} ${item.name}`);
-                showNotification(`🎉 获得${rc.label}装备：${item.name}！`);
+            // 超脱级套装掉落（独立概率，最高10%）
+            const transcendentRate = Math.min(0.10, 0.005 + layer * 0.001);
+            if (Math.random() < transcendentRate) {
+                const newSets = ['set_void_annihilator', 'set_eternal_throne'];
+                const setId = newSets[Math.floor(Math.random() * newSets.length)];
+                const setItems = EQUIPMENT_POOL.filter(e => e.setId === setId);
+                if (setItems.length > 0) {
+                    const item = setItems[Math.floor(Math.random() * setItems.length)];
+                    addEquipmentToBag(item);
+                    const rc = RARITY_CONFIG['divine'];
+                    log(`🛡️ 掉落了 [${rc.label}] 装备：${item.emoji} ${item.name}！`, 'log-legendary');
+                    dropLog(`🛡️ [${rc.label}] ${item.emoji} ${item.name}`);
+                    showNotification(`🎉 获得${rc.label}装备：${item.name}！`);
+                }
             }
-        }
 
-        // 无尽模式特有道具掉落（包含超脱级道具）
-        const endlessItemRate = 0.015;
-        if (Math.random() < endlessItemRate) {
-            const endlessItemIds = ['endless_core', 'divine_blessing', 'chaos_core', 'void_essence', 'annihilation_potion'];
-            const endlessItems = SHOP_ITEMS.filter(i => endlessItemIds.includes(i.id));
-            const item = endlessItems[Math.floor(Math.random() * endlessItems.length)];
-            if (item) {
-                game.player.items = game.player.items || {};
-                if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
-                game.player.items[item.id].count++;
-                log(`💎 无尽怪物掉落了 ${item.emoji} ${item.name}！`, 'log-legendary');
-                dropLog(`💎 无尽掉落：${item.emoji} ${item.name}`);
-                showNotification(`🎉 获得无尽掉落：${item.name}！`);
+            // 无尽模式特有道具掉落（最高10%）
+            const endlessItemRate = Math.min(0.10, 0.01 + layer * 0.0005);
+            if (Math.random() < endlessItemRate) {
+                const endlessItemIds = ['endless_core', 'divine_blessing', 'chaos_core', 'void_essence', 'annihilation_potion'];
+                const endlessItems = SHOP_ITEMS.filter(i => endlessItemIds.includes(i.id));
+                const item = endlessItems[Math.floor(Math.random() * endlessItems.length)];
+                if (item) {
+                    game.player.items = game.player.items || {};
+                    if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
+                    game.player.items[item.id].count++;
+                    log(`💎 无尽怪物掉落了 ${item.emoji} ${item.name}！`, 'log-legendary');
+                    dropLog(`💎 无尽掉落：${item.emoji} ${item.name}`);
+                    showNotification(`🎉 获得无尽掉落：${item.name}！`);
+                }
+            }
+
+            // 禁咒技能书掉落（最高10%）
+            const forbiddenBookRate = Math.min(0.10, 0.005 + layer * 0.001);
+            if (Math.random() < forbiddenBookRate) {
+                const forbiddenBook = SKILL_BOOKS.find(b => b.id === 'book_void_annihilation');
+                if (forbiddenBook) {
+                    addSkillBook(forbiddenBook);
+                    const rc = RARITY_CONFIG['divine'];
+                    log(`📕 掉落了 [${rc.label}] 禁咒：${forbiddenBook.name}！`, 'log-legendary');
+                    dropLog(`📕 [${rc.label}] ${forbiddenBook.emoji} ${forbiddenBook.name}`);
+                    showNotification(`🎉 获得禁咒技能书：${forbiddenBook.name}！`);
+                }
             }
         }
 

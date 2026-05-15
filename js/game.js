@@ -55,6 +55,57 @@ const RARITY_CONFIG = {
 };
 
 // ========== 装备系统常量 ==========
+const ARMOR_SETS = {
+    set_novice_arm: { id: 'set_novice_arm', name: '学徒战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.08, critDmg: 0.20 }, desc: '攻击力+8%、暴击伤害+20%', rarity: 'common' },
+    set_miner_arm: { id: 'set_miner_arm', name: '矿工战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.10, critDmg: 0.30 }, desc: '攻击力+10%、暴击伤害+30%', rarity: 'common' },
+    set_guardian_arm: { id: 'set_guardian_arm', name: '守卫战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.12, critDmg: 0.35 }, desc: '攻击力+12%、暴击伤害+35%', rarity: 'rare' },
+    set_frost_arm: { id: 'set_frost_arm', name: '寒冰战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.13, critDmg: 0.40 }, desc: '攻击力+13%、暴击伤害+40%', rarity: 'rare' },
+    set_shadow_arm: { id: 'set_shadow_arm', name: '暗影战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.15, critDmg: 0.45 }, desc: '攻击力+15%、暴击伤害+45%', rarity: 'epic' },
+    set_dragon_arm: { id: 'set_dragon_arm', name: '龙鳞战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.18, critDmg: 0.50 }, desc: '攻击力+18%、暴击伤害+50%', rarity: 'epic' },
+    set_void_arm: { id: 'set_void_arm', name: '虚空战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.20, critDmg: 0.55 }, desc: '攻击力+20%、暴击伤害+55%', rarity: 'epic' },
+    set_demon_arm: { id: 'set_demon_arm', name: '恶魔战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.25, critDmg: 0.65 }, desc: '攻击力+25%、暴击伤害+65%', rarity: 'legendary' },
+    set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80 }, desc: '攻击力+30%、暴击伤害+80%', rarity: 'legendary' }
+};
+const ACCESSORY_SETS = {
+    set_novice_acc: { id: 'set_novice_acc', name: '学徒饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.10, vamp: 0.02, expBonus: 0.10 }, desc: '攻速+10%、吸血+2%、经验+10%', rarity: 'common' },
+    set_flame_acc: { id: 'set_flame_acc', name: '烈焰饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.15, vamp: 0.03, expBonus: 0.15 }, desc: '攻速+15%、吸血+3%、经验+15%', rarity: 'rare' },
+    set_swamp_acc: { id: 'set_swamp_acc', name: '沼泽饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.18, vamp: 0.04, expBonus: 0.20 }, desc: '攻速+18%、吸血+4%、经验+20%', rarity: 'epic' },
+    set_sky_acc: { id: 'set_sky_acc', name: '天空饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.22, vamp: 0.05, expBonus: 0.25 }, desc: '攻速+22%、吸血+5%、经验+25%', rarity: 'epic' },
+    set_abyss_acc: { id: 'set_abyss_acc', name: '深渊饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.25, vamp: 0.06, expBonus: 0.30 }, desc: '攻速+25%、吸血+6%、经验+30%', rarity: 'legendary' },
+    set_godfall_acc: { id: 'set_godfall_acc', name: '神陨饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.30, vamp: 0.08, expBonus: 0.35 }, desc: '攻速+30%、吸血+8%、经验+35%', rarity: 'legendary' }
+};
+const ALL_SETS = { ...ARMOR_SETS, ...ACCESSORY_SETS };
+const AREA_SETS = {
+    0: 'set_novice_arm', 1: 'set_novice_acc',
+    2: 'set_miner_arm', 3: 'set_guardian_arm',
+    4: 'set_flame_acc', 5: 'set_frost_arm',
+    6: 'set_swamp_acc', 7: 'set_shadow_arm',
+    8: 'set_dragon_arm', 9: 'set_sky_acc',
+    10: 'set_void_arm', 11: 'set_abyss_acc',
+    12: 'set_demon_arm', 13: 'set_godfall_acc',
+    14: 'set_chaos_arm'
+};
+
+function buildArmorSet(id, name, rarity, tier) {
+    const m = { common: 1, rare: 2.4, epic: 5, legendary: 10 }[rarity] || 1;
+    return [
+        { id: `${id}_weapon`, setId: id, name: `${name}剑`, emoji: '⚔️', slot: 'weapon', rarity: rarity, atk: Math.round(5 * m), sellPrice: Math.round(30 * tier) },
+        { id: `${id}_helmet`, setId: id, name: `${name}盔`, emoji: '🪖', slot: 'helmet', rarity: rarity, def: Math.round(3 * m), maxHp: Math.round(10 * m), sellPrice: Math.round(25 * tier) },
+        { id: `${id}_armor`, setId: id, name: `${name}甲`, emoji: '👕', slot: 'armor', rarity: rarity, def: Math.round(5 * m), maxHp: Math.round(20 * m), sellPrice: Math.round(30 * tier) },
+        { id: `${id}_boots`, setId: id, name: `${name}靴`, emoji: '👢', slot: 'boots', rarity: rarity, def: Math.round(2 * m), aspd: Math.round(50 * m), sellPrice: Math.round(25 * tier) },
+        { id: `${id}_belt`, setId: id, name: `${name}带`, emoji: '🎗️', slot: 'belt', rarity: rarity, maxHp: Math.round(15 * m), atk: Math.round(2 * m), sellPrice: Math.round(25 * tier) }
+    ];
+}
+function buildAccessorySet(id, name, rarity, tier) {
+    const m = { common: 1, rare: 2.4, epic: 5, legendary: 10 }[rarity] || 1;
+    return [
+        { id: `${id}_bracelet`, setId: id, name: `${name}镯`, emoji: '💎', slot: 'bracelet', rarity: rarity, crit: Math.round(20 * m) / 1000, sellPrice: Math.round(25 * tier) },
+        { id: `${id}_bracelet2`, setId: id, name: `${name}镯`, emoji: '💎', slot: 'bracelet', rarity: rarity, crit: Math.round(20 * m) / 1000, sellPrice: Math.round(25 * tier) },
+        { id: `${id}_necklace`, setId: id, name: `${name}链`, emoji: '📿', slot: 'necklace', rarity: rarity, vamp: Math.round(10 * m) / 1000, expBonus: Math.round(30 * m) / 1000, sellPrice: Math.round(25 * tier) },
+        { id: `${id}_jade`, setId: id, name: `${name}玉`, emoji: '🏵️', slot: 'jade', rarity: rarity, def: Math.round(3 * m), spi: Math.round(1 * m), sellPrice: Math.round(25 * tier) }
+    ];
+}
+
 const EQUIPMENT_SLOTS = {
     necklace: { name: '项链', emoji: '📿' },
     helmet: { name: '帽子', emoji: '🪖' },
@@ -107,10 +158,26 @@ const EQUIPMENT_POOL = [
     { id: 'eq_n_copper', name: '铜项链', emoji: '📿', slot: 'necklace', rarity: 'common', vamp: 0.01, expBonus: 0.03, sellPrice: 25 },
     { id: 'eq_n_silver', name: '银项链', emoji: '📿', slot: 'necklace', rarity: 'rare', vamp: 0.02, expBonus: 0.06, sellPrice: 70 },
     { id: 'eq_n_gold', name: '金项链', emoji: '📿', slot: 'necklace', rarity: 'epic', vamp: 0.04, expBonus: 0.12, sellPrice: 180 },
-    { id: 'eq_n_dragon', name: '龙纹项链', emoji: '📿', slot: 'necklace', rarity: 'legendary', vamp: 0.08, expBonus: 0.25, sellPrice: 450 }
+    { id: 'eq_n_dragon', name: '龙纹项链', emoji: '📿', slot: 'necklace', rarity: 'legendary', vamp: 0.08, expBonus: 0.25, sellPrice: 450 },
+    // 套装装备
+    ...buildArmorSet('set_novice_arm', '学徒', 'common', 1),
+    ...buildAccessorySet('set_novice_acc', '学徒', 'common', 1),
+    ...buildArmorSet('set_miner_arm', '矿工', 'common', 1.2),
+    ...buildArmorSet('set_guardian_arm', '守卫', 'rare', 2.7),
+    ...buildAccessorySet('set_flame_acc', '烈焰', 'rare', 2.7),
+    ...buildArmorSet('set_frost_arm', '寒冰', 'rare', 2.7),
+    ...buildAccessorySet('set_swamp_acc', '沼泽', 'epic', 7),
+    ...buildArmorSet('set_shadow_arm', '暗影', 'epic', 7),
+    ...buildArmorSet('set_dragon_arm', '龙鳞', 'epic', 7),
+    ...buildAccessorySet('set_sky_acc', '天空', 'epic', 7),
+    ...buildArmorSet('set_void_arm', '虚空', 'epic', 7),
+    ...buildAccessorySet('set_abyss_acc', '深渊', 'legendary', 18),
+    ...buildArmorSet('set_demon_arm', '恶魔', 'legendary', 18),
+    ...buildAccessorySet('set_godfall_acc', '神陨', 'legendary', 18),
+    ...buildArmorSet('set_chaos_arm', '混沌', 'legendary', 18)
 ];
 
-const EQUIPMENT_DROP_RATES = [0.05, 0.08, 0.12, 0.15, 0.18, 0.21, 0.24, 0.27, 0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42];
+const EQUIPMENT_DROP_RATES = [0.08, 0.12, 0.15, 0.18, 0.22, 0.26, 0.30, 0.33, 0.36, 0.38, 0.40, 0.42, 0.45, 0.48, 0.52];
 
 // ========== 商店商品 ==========
 const SHOP_ITEMS = [
@@ -228,6 +295,7 @@ let game = {
     autoBattle: false, autoBattleTimer: null,
     autoStrengthen: false,
     autoRecover: false,
+    autoSell: { equipment: false, skillBooks: false, maxRarity: 'rare' },
     _renderBagTimeout: null,
     lastPlayerAttack: 0, lastEnemyAttack: 0,
     lastBattleEndTime: null,
@@ -284,18 +352,8 @@ function switchBagTab(tab) {
 
 function toggleAutoStrengthen() {
     game.autoStrengthen = !game.autoStrengthen;
-    const btn = document.getElementById('autoStrengthenBtn');
-    if (game.autoStrengthen) {
-        btn.textContent = '⚡ 自动强化: 开';
-        btn.style.background = 'linear-gradient(45deg, #2ecc71, #27ae60)';
-        btn.style.borderColor = 'transparent';
-        log('⚡ 自动强化已开启', 'log-loot');
-    } else {
-        btn.textContent = '⚡ 自动强化: 关';
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        log('⚡ 自动强化已关闭', 'log-loot');
-    }
+    renderBag();
+    log(game.autoStrengthen ? '⚡ 自动强化已开启' : '⚡ 自动强化已关闭', 'log-loot');
 }
 
 function checkAutoStrengthen() {
@@ -327,6 +385,68 @@ function checkAutoStrengthen() {
 }
 
 setInterval(checkAutoStrengthen, 300);
+
+function toggleAutoSell(type) {
+    const as = game.autoSell;
+    as[type] = !as[type];
+    renderBag();
+    const typeLabel = type === 'equipment' ? '装备' : '技能书';
+    log(as[type] ? `💰 ${typeLabel}自动出售已开启` : `💰 ${typeLabel}自动出售已关闭`, 'log-loot');
+}
+
+function setAutoSellRarity(rarity) {
+    game.autoSell.maxRarity = rarity;
+    renderBag();
+}
+
+function checkAutoSell() {
+    if (!game.autoSell || !game.player) return;
+    const as = game.autoSell;
+    if (!as.equipment && !as.skillBooks) return;
+    const maxRarityOrder = RARITY_ORDER[as.maxRarity] || 2;
+    let soldCount = 0;
+    const maxSellPerCheck = 5;
+
+    // 自动出售装备
+    if (as.equipment) {
+        const bag = game.player.equipmentBag || [];
+        for (let i = bag.length - 1; i >= 0 && soldCount < maxSellPerCheck; i--) {
+            const item = bag[i];
+            const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
+            if (!eqDef) continue;
+            const rarityOrder = RARITY_ORDER[eqDef.rarity] || 0;
+            if (rarityOrder <= maxRarityOrder) {
+                bag.splice(i, 1);
+                game.player.gold += eqDef.sellPrice;
+                log(`💰 自动出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${formatNumber(eqDef.sellPrice)} 金币`, 'log-loot');
+                soldCount++;
+            }
+        }
+    }
+
+    // 自动出售技能书
+    if (as.skillBooks) {
+        const books = game.player.skillBooks || {};
+        for (const [bookId, data] of Object.entries(books)) {
+            if (soldCount >= maxSellPerCheck) break;
+            if (!data || data.count <= 0) continue;
+            const book = SKILL_BOOKS.find(b => b.id === bookId);
+            if (!book) continue;
+            const rarityOrder = RARITY_ORDER[book.rarity] || 0;
+            if (rarityOrder <= maxRarityOrder) {
+                data.count--;
+                if (data.count <= 0) delete game.player.skillBooks[bookId];
+                game.player.gold += book.sellPrice;
+                log(`💰 自动出售了 ${book.emoji} ${book.name}，获得 ${formatNumber(book.sellPrice)} 金币`, 'log-loot');
+                soldCount++;
+            }
+        }
+    }
+
+    if (soldCount > 0) { updateUI(); renderBag(); }
+}
+
+setInterval(checkAutoSell, 500);
 
 function toggleTreasureFilter(filter) {
     const btn = document.querySelector(`.treasure-filter-btn[data-filter="${filter}"]`);
@@ -370,7 +490,7 @@ const upgrades = [
 ];
 
 function saveGame() {
-    const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, savedAt: Date.now() };
+    const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     showNotification('💾 游戏已保存！');
     log('游戏进度已保存', 'log-loot');
@@ -388,6 +508,7 @@ function loadGame() {
         if (data.clues) game.clues = data.clues;
         if (data.fightingBoss !== undefined) game.fightingBoss = data.fightingBoss;
         if (data.autoStrengthen !== undefined) game.autoStrengthen = data.autoStrengthen;
+        if (data.autoSell !== undefined) game.autoSell = { ...game.autoSell, ...data.autoSell };
         migrateOldSave();
         spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
         showNotification('📂 存档读取成功！'); log('游戏进度已读取', 'log-loot');
@@ -504,7 +625,7 @@ function base64ToUtf8(str) {
 }
 
 function exportSave() {
-    const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, savedAt: Date.now() };
+    const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
     let base64;
     try { base64 = utf8ToBase64(JSON.stringify(data)); } catch (e) { alert('存档编码失败：' + e.message); return; }
     if (navigator.clipboard && window.isSecureContext) {
@@ -526,17 +647,8 @@ function importSave() {
         if (data.clues) game.clues = data.clues;
         if (data.fightingBoss !== undefined) game.fightingBoss = data.fightingBoss;
         if (data.autoStrengthen !== undefined) game.autoStrengthen = data.autoStrengthen;
+        if (data.autoSell !== undefined) game.autoSell = { ...game.autoSell, ...data.autoSell };
         migrateOldSave();
-        const autoBtn = document.getElementById('autoStrengthenBtn');
-        if (game.autoStrengthen) {
-            autoBtn.textContent = '⚡ 自动强化: 开';
-            autoBtn.style.background = 'linear-gradient(45deg, #2ecc71, #27ae60)';
-            autoBtn.style.borderColor = 'transparent';
-        } else {
-            autoBtn.textContent = '⚡ 自动强化: 关';
-            autoBtn.style.background = '';
-            autoBtn.style.borderColor = '';
-        }
         spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
         showNotification('📥 存档导入成功！'); log('外部存档已导入', 'log-loot');
     } catch (e) { alert('存档代码无效！\n错误：' + e.message + '\n请检查是否复制完整，不要有多余空格或换行。'); }
@@ -559,7 +671,7 @@ function resetGame() {
 
 setInterval(() => {
     if (game.player) {
-        localStorage.setItem(SAVE_KEY, JSON.stringify({ player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, savedAt: Date.now() }));
+        localStorage.setItem(SAVE_KEY, JSON.stringify({ player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() }));
     }
 }, 30000);
 
@@ -580,12 +692,16 @@ function getTreasureBonuses() {
 }
 
 function getEquipmentBonuses() {
-    const bonuses = { atk: 0, def: 0, maxHp: 0, aspd: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, spi: 0 };
+    const bonuses = { atk: 0, def: 0, maxHp: 0, aspd: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, spi: 0, atkMult: 0, defMult: 0, hpMult: 0, aspdMult: 0, critMult: 0, critDmgMult: 0, vampMult: 0, expMult: 0, activeSets: [], activeSetDescs: [] };
     const eqs = game.player.equipments || {};
+    const setCount = {};
     for (const [slotKey, data] of Object.entries(eqs)) {
         if (!data) continue;
         const eqDef = EQUIPMENT_POOL.find(e => e.id === data.id);
         if (!eqDef) continue;
+        if (eqDef.setId) {
+            setCount[eqDef.setId] = (setCount[eqDef.setId] || 0) + 1;
+        }
         const level = data.level || 1;
         const refine = data.refine || 0;
         const refineMult = 1 + refine * 0.1;
@@ -600,24 +716,67 @@ function getEquipmentBonuses() {
         if (eqDef.expBonus) bonuses.expBonus += eqDef.expBonus * levelMult;
         if (eqDef.spi) bonuses.spi += eqDef.spi * levelMult;
     }
+    for (const [setId, count] of Object.entries(setCount)) {
+        const set = ALL_SETS[setId];
+        if (!set) continue;
+        if (count >= set.slots.length) {
+            bonuses.activeSets.push(setId);
+            bonuses.activeSetDescs.push(`${set.name}：${set.desc}`);
+            for (const [stat, val] of Object.entries(set.bonus)) {
+                bonuses[stat] = (bonuses[stat] || 0) + val;
+            }
+        }
+    }
     return bonuses;
+}
+
+function getAchievementBonuses() {
+    const p = game.player;
+    const lvl = Math.floor((p.level || 1) / 10);
+    return {
+        atk: lvl * 2 + Math.floor((p.atkLevel || 0) / 10) * 3,
+        def: lvl * 1 + Math.floor((p.defLevel || 0) / 10) * 3,
+        maxHp: lvl * 10 + Math.floor((p.hpLevel || 0) / 10) * 20,
+        crit: Math.floor((p.critLevel || 0) / 10) * 0.02,
+        vamp: Math.floor((p.vampLevel || 0) / 10) * 0.01,
+        spi: Math.floor((p.spiLevel || 0) / 10) * 2
+    };
 }
 
 function getAreaDropRate() { return AREA_DROP_RATES[game.currentArea] || 0; }
 
+function getAreaRarityWeights() {
+    const area = game.currentArea;
+    if (area <= 2) return { common: 55, rare: 35, epic: 9, legendary: 1 };
+    if (area <= 5) return { common: 40, rare: 35, epic: 20, legendary: 5 };
+    if (area <= 8) return { common: 25, rare: 35, epic: 30, legendary: 10 };
+    if (area <= 11) return { common: 15, rare: 30, epic: 35, legendary: 20 };
+    return { common: 5, rare: 20, epic: 40, legendary: 35 };
+}
+
 function rollEquipmentDrop(minRarity) {
-    const rarities = Object.keys(RARITY_CONFIG);
-    const weights = rarities.map(r => RARITY_CONFIG[r].weight);
-    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    const areaSetId = AREA_SETS[game.currentArea];
+    // 30% 概率出当前地图的套装件
+    if (areaSetId && Math.random() < 0.30) {
+        const setItems = EQUIPMENT_POOL.filter(e => e.setId === areaSetId);
+        if (setItems.length > 0) {
+            return setItems[Math.floor(Math.random() * setItems.length)];
+        }
+    }
+    // 70% 概率出非套装杂件，使用区域稀有度权重
+    const weights = getAreaRarityWeights();
+    const rarities = ['common','rare','epic','legendary'];
+    const w = rarities.map(r => weights[r]);
+    const totalWeight = w.reduce((a, b) => a + b, 0);
     let roll = Math.random() * totalWeight;
     let selectedRarity = 'common';
-    for (let i = 0; i < rarities.length; i++) { roll -= weights[i]; if (roll <= 0) { selectedRarity = rarities[i]; break; } }
+    for (let i = 0; i < rarities.length; i++) { roll -= w[i]; if (roll <= 0) { selectedRarity = rarities[i]; break; } }
     if (minRarity) {
         const minIdx = rarities.indexOf(minRarity);
         const currentIdx = rarities.indexOf(selectedRarity);
         if (currentIdx < minIdx) selectedRarity = minRarity;
     }
-    const pool = EQUIPMENT_POOL.filter(e => e.rarity === selectedRarity);
+    const pool = EQUIPMENT_POOL.filter(e => !e.setId && e.rarity === selectedRarity);
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -824,8 +983,8 @@ function spawnEnemy() {
     const isElite = Math.random() < eliteRate;
     const scale = 1 + Math.min(areaIndex, 14) * 0.05;
     let maxHp = Math.floor(60 * baseLevel * mult * 0.5 * scale);
-    let atk = Math.floor(10 * baseLevel * mult * 0.28 * (1 + Math.min(areaIndex, 14) * 0.03));
-    let def = Math.floor(4 * baseLevel * mult * 0.22 * (1 + Math.min(areaIndex, 14) * 0.02));
+    let atk = Math.floor(10 * baseLevel * mult * 0.28 * (1 + Math.min(areaIndex, 14) * 0.025));
+    let def = Math.floor(4 * baseLevel * mult * 0.22 * (1 + Math.min(areaIndex, 14) * 0.018));
     let exp = Math.floor(30 * baseLevel * mult * 1.0);
     let gold = Math.floor(15 * baseLevel * mult * 1.0);
     // 怪物类型加成
@@ -833,9 +992,9 @@ function spawnEnemy() {
     if (template.type === 'tank') maxHp = Math.floor(maxHp * 1.30);
     if (template.type === 'fragile') { atk = Math.floor(atk * 1.30); maxHp = Math.floor(maxHp * 0.70); }
     if (isElite) {
-        maxHp = Math.floor(60 * baseLevel * mult * 1.1);
-        atk = Math.floor(10 * baseLevel * mult * 0.55);
-        def = Math.floor(4 * baseLevel * mult * 0.45);
+        maxHp = Math.floor(60 * baseLevel * mult * 0.9);
+        atk = Math.floor(10 * baseLevel * mult * 0.50);
+        def = Math.floor(4 * baseLevel * mult * 0.40);
         exp = Math.floor(30 * baseLevel * mult * 2.5);
         gold = Math.floor(15 * baseLevel * mult * 2.5);
     }
@@ -850,15 +1009,15 @@ function spawnEnemy() {
         aspd: template.type === 'pack' ? 750 : 900,
         endlessLayer: endlessLayer
     };
-    // 区域被动技能
-    if (areaIndex >= 4) game.enemy.burn = true;
-    if (areaIndex >= 5) game.enemy.frost = true;
-    if (areaIndex >= 7) game.enemy.lifeSteal = 0.15;
-    if (areaIndex >= 8) game.enemy.thorns = 0.10;
-    if (areaIndex >= 10) game.enemy.armorPen = 0.20;
-    if (areaIndex >= 11) game.enemy.curse = true;
-    if (areaIndex >= 12) game.enemy.berserk = true;
-    if (areaIndex >= 13) game.enemy.revive = true;
+    // 区域被动技能（逐层递进，更平滑）
+    if (areaIndex >= 5) game.enemy.burn = true;
+    if (areaIndex >= 6) game.enemy.frost = true;
+    if (areaIndex >= 8) game.enemy.lifeSteal = 0.12;
+    if (areaIndex >= 9) game.enemy.thorns = 0.08;
+    if (areaIndex >= 11) game.enemy.armorPen = 0.15;
+    if (areaIndex >= 12) game.enemy.curse = true;
+    if (areaIndex >= 13) game.enemy.berserk = true;
+    if (areaIndex >= 14) game.enemy.revive = true;
     if (isElite) {
         const basicSkills = SKILLS.filter(s => s.isBasic);
         const skillCount = 1 + Math.floor(Math.random() * 2);
@@ -910,8 +1069,6 @@ function getPlayerStats() {
         const dmgLevel = Math.min(60, aspdLevel - 40);
         speedMultiplier = Math.min(3, 1 + 0.0333 * dmgLevel);
     }
-    const rawAspd = Math.max(1, baseInterval - eq.aspd);
-    const realAspd = Math.max(100, rawAspd);
     // buff加成
     let buffDef = 0;
     let buffAtkMult = 1.0;
@@ -932,16 +1089,20 @@ function getPlayerStats() {
             buffExpMult = p.buffs.expBonus.value;
         }
     }
-    const baseAtk = p.atk + b.atk + eq.atk;
-    let baseDef = p.def + b.def + buffDef + eq.def;
+    const ach = getAchievementBonuses();
+    const baseAtk = (p.atk + b.atk + eq.atk + ach.atk) * (1 + eq.atkMult);
+    let baseDef = (p.def + b.def + buffDef + eq.def + ach.def) * (1 + eq.defMult);
     if (game.player.armorPenDebuff) baseDef = Math.floor(baseDef * 0.8);
+    const baseHp = (p.maxHp + b.maxHp + eq.maxHp + ach.maxHp) * (1 + eq.hpMult);
+    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult)));
     return {
-        atk: Math.floor(baseAtk * buffAtkMult), def: Math.floor(baseDef * buffDefMult), maxHp: p.maxHp + b.maxHp + eq.maxHp,
+        atk: Math.floor(baseAtk * buffAtkMult), def: Math.floor(baseDef * buffDefMult), maxHp: Math.floor(baseHp),
         aspd: realAspd, speedMultiplier,
-        crit: Math.min(1.0, p.crit + b.crit + eq.crit), critDmg: p.critDmg + b.critDmg + eq.critDmg,
-        vamp: p.vamp + b.vamp + eq.vamp, expBonus: b.expBonus + eq.expBonus + buffExpMult, goldBonus: b.goldBonus,
+        crit: Math.min(1.0, p.crit + b.crit + eq.crit + eq.critMult + ach.crit), critDmg: p.critDmg + b.critDmg + eq.critDmg + eq.critDmgMult,
+        vamp: p.vamp + b.vamp + eq.vamp + eq.vampMult + ach.vamp, expBonus: b.expBonus + eq.expBonus + buffExpMult + eq.expMult, goldBonus: b.goldBonus,
         armorPenFlat: b.armorPenFlat, armorPenPercent: Math.min(0.35, b.armorPenPercent),
-        spi: p.spi + eq.spi, maxMp: p.maxMp, mp: p.mp
+        spi: p.spi + eq.spi + ach.spi, maxMp: p.maxMp, mp: p.mp,
+        activeSets: eq.activeSets, activeSetDescs: eq.activeSetDescs, ach: ach
     };
 }
 
@@ -1347,6 +1508,10 @@ function levelUp() {
     game.player.spi += 1;
     game.player.maxMp = 50 + game.player.spi * 3 + game.player.level * 2;
     game.player.mp = game.player.maxMp;
+    if (game.player.level % 10 === 0) {
+        log(`🏆 等级成就！Lv.${game.player.level} 达成！攻击+2 防御+1 生命+10`, 'log-epic');
+        showNotification(`🏆 等级成就奖励！`);
+    }
     log(`🎉 升级了！当前等级：${game.player.level}，精神+1，魔力恢复满！`, 'log-level');
     showNotification(`升级了！Lv.${game.player.level}`);
     renderAreas();
@@ -1444,6 +1609,9 @@ function autoBattleLoop() {
 
     // 持续更新技能冷却进度条
     updateSkillButtons();
+
+    // 自动出售（战斗中获得的物品立即处理）
+    checkAutoSell();
 
     // 链式调度下一次执行，确保固定间隔
     if (game.autoBattle) {
@@ -1568,6 +1736,12 @@ function buyUpgrade(upgradeId) {
     if (game.player.gold >= cost) {
         game.player.gold -= cost;
         game.player[levelKey] = level + 1;
+        if ((level + 1) % 10 === 0) {
+            const labels = { atk: '攻击+3', def: '防御+3', maxHp: '生命+20', crit: '暴击+2%', vamp: '吸血+1%', spi: '精神+2', aspd: '攻速上限提升' };
+            const label = labels[upgrade.type] || '属性提升';
+            log(`🏆 能力成就！${upgrade.name} Lv.${level + 1} 达成！${label}`, 'log-epic');
+            showNotification(`🏆 能力成就奖励！`);
+        }
         if (upgrade.type === 'aspd') {
             // 攻速升级只增加等级，实际攻速在 getPlayerStats 中按曲线计算
         } else if (upgrade.type === 'crit') {
@@ -1822,7 +1996,14 @@ function renderBagTreasures(container) {
         { key: 'upgradeable', label: '🔨 可强化' },
     ];
 
-    let html = '<div class="bag-filter-bar" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">';
+    // 自动强化按钮（固定在顶部）
+    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:3;">';
+    const asActive = game.autoStrengthen ? 'background:linear-gradient(45deg,#2ecc71,#27ae60);border-color:transparent;color:#fff;' : '';
+    html += `<button class="btn btn-secondary" onclick="toggleAutoStrengthen()" style="padding:2px 8px;font-size:0.7em;${asActive}">⚡ 自动强化: ${game.autoStrengthen ? '开' : '关'}</button>`;
+    html += '</div>';
+
+    // 筛选栏
+    html += '<div class="bag-filter-bar" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">';
     treasureFilterBtns.forEach(btn => {
         const isActive = btn.key === 'all' ? TREASURE_FILTERS.size === 0 : TREASURE_FILTERS.has(btn.key);
         const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
@@ -1883,11 +2064,6 @@ function renderBagTreasures(container) {
 
 function renderBagEquipments(container) {
     const bag = game.player.equipmentBag || [];
-    if (bag.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:#666;padding:30px;">暂无未穿戴装备</div>';
-        return;
-    }
-
     const filterSlots = [
         { key: 'all', name: '全部', emoji: '📦' },
         { key: 'weapon', name: '武器', emoji: '⚔️' },
@@ -1901,13 +2077,36 @@ function renderBagEquipments(container) {
     ];
 
     //let html = '<div style="font-size:0.85em;color:#aaa;margin-bottom:8px;">点击穿戴或出售</div>';
-    let html = '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
+    const as = game.autoSell;
+    const rarityOptions = [
+        { key: 'common', label: '普通', color: '#ccc' },
+        { key: 'rare', label: '稀有', color: '#4facfe' },
+        { key: 'epic', label: '史诗', color: '#a55eea' },
+    ];
+
+    // 自动出售配置
+    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:3;">';
+    const autoSellActive = as.equipment ? 'background:linear-gradient(45deg,#2ecc71,#27ae60);border-color:transparent;color:#fff;' : '';
+    html += `<button class="btn btn-secondary" onclick="toggleAutoSell('equipment')" style="padding:2px 8px;font-size:0.7em;${autoSellActive}">💰 自动出售: ${as.equipment ? '开' : '关'}</button>`;
+    if (as.equipment) {
+        html += '<span style="color:#888;font-size:0.7em;margin-left:4px;">≤</span>';
+        rarityOptions.forEach(r => {
+            const rActive = as.maxRarity === r.key ? 'background:linear-gradient(45deg,#f39c12,#e67e22);border-color:transparent;color:#fff;' : '';
+            html += `<button class="btn btn-secondary" onclick="setAutoSellRarity('${r.key}')" style="padding:2px 6px;font-size:0.7em;${rActive}">${r.label}</button>`;
+        });
+        html += '<span style="color:#ff9f43;font-size:0.65em;margin-left:4px;">❌ 传说</span>';
+    }
+    html += '</div>';
+
+    // 筛选栏
+    html += '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
     filterSlots.forEach(slot => {
         const isActive = currentEquipmentFilter === slot.key;
         const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
         html += `<button class="btn btn-secondary" onclick="setEquipmentFilter('${slot.key}')" style="padding:2px 7px;font-size:0.7em;${activeStyle}">${slot.emoji} ${slot.name}</button>`;
     });
     html += '</div>';
+
     html += '<div class="equipment-bag">';
 
     const bagWithIndex = bag.map((item, idx) => ({ item, idx }));
@@ -1927,23 +2126,24 @@ function renderBagEquipments(container) {
         const refine = item.refine || 0;
         const refineTag = refine > 0 ? `<span style="color:#ff9f43;font-size:0.7em;">+${refine}</span>` : '';
         const isAppraised = item.appraised !== false;
+        const setName = (isAppraised && eqDef.setId && ALL_SETS[eqDef.setId]) ? ALL_SETS[eqDef.setId].name : '';
+        const setTag = setName ? `<div style="font-size:0.6em;color:#f1c40f;">${setName}</div>` : '';
         html += `
             <div class="equipment-bag-item ${eqDef.rarity}">
                 <div class="eq-bag-emoji">${isAppraised ? eqDef.emoji : '❓'}</div>
                 <div class="eq-bag-name" style="color:${isAppraised ? rc.color : '#888'}">${isAppraised ? eqDef.name : '未鉴定装备'} ${refineTag}</div>
+                ${setTag}
                 <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef) : '需要鉴定后才能使用'}</div>
                 <div class="eq-bag-actions">
-                    ${isAppraised
-                        ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button><button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>`
-                        : `<span style="font-size:0.7em;color:#888;">❓ 未鉴定</span>`
-                    }
+                    ${isAppraised ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button>` : ''}
+                    <button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>
                 </div>
             </div>
         `;
     });
     html += '</div>';
     if (!hasItem) {
-        html += '<div style="text-align:center;color:#666;padding:20px;">该分类下暂无装备</div>';
+        html += '<div style="text-align:center;color:#666;padding:20px;">暂无未穿戴装备</div>';
     }
     container.innerHTML = html;
 }
@@ -1968,7 +2168,29 @@ function renderBagItems(container) {
         { key: 'unappraised', name: '未鉴定', emoji: '❓' },
     ];
 
-    let html = '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
+    const as = game.autoSell;
+
+    // 道具背包自动出售配置
+    const rarityOptions = [
+        { key: 'common', label: '普通' },
+        { key: 'rare', label: '稀有' },
+        { key: 'epic', label: '史诗' },
+    ];
+    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:3;">';
+    const autoSellActive = as.skillBooks ? 'background:linear-gradient(45deg,#2ecc71,#27ae60);border-color:transparent;color:#fff;' : '';
+    html += `<button class="btn btn-secondary" onclick="toggleAutoSell('skillBooks')" style="padding:2px 8px;font-size:0.7em;${autoSellActive}">💰 自动出售: ${as.skillBooks ? '开' : '关'}</button>`;
+    if (as.skillBooks) {
+        html += '<span style="color:#888;font-size:0.7em;margin-left:4px;">≤</span>';
+        rarityOptions.forEach(r => {
+            const rActive = as.maxRarity === r.key ? 'background:linear-gradient(45deg,#f39c12,#e67e22);border-color:transparent;color:#fff;' : '';
+            html += `<button class="btn btn-secondary" onclick="setAutoSellRarity('${r.key}')" style="padding:2px 6px;font-size:0.7em;${rActive}">${r.label}</button>`;
+        });
+        html += '<span style="color:#ff9f43;font-size:0.65em;margin-left:4px;">❌ 传说</span>';
+    }
+    html += '</div>';
+
+    // 筛选栏
+    html += '<div class="bag-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;">';
     itemFilters.forEach(f => {
         const isActive = currentItemFilter === f.key;
         const activeStyle = isActive ? 'background:linear-gradient(45deg,#e94560,#ff6b6b);border-color:transparent;color:#fff;' : '';
@@ -2224,7 +2446,11 @@ function renderEquipments() {
     if (eqBonuses.vamp) bonusTexts.push(`吸血+${Math.round(eqBonuses.vamp*100)}%`);
     if (eqBonuses.expBonus) bonusTexts.push(`经验+${Math.round(eqBonuses.expBonus*100)}%`);
     if (eqBonuses.spi) bonusTexts.push(`精神+${formatNumber(eqBonuses.spi)}`);
-    info.textContent = bonusTexts.length > 0 ? `装备加成: ${bonusTexts.join(' | ')}` : '暂无装备加成';
+    let infoText = bonusTexts.length > 0 ? `装备加成: ${bonusTexts.join(' | ')}` : '暂无装备加成';
+    if (eqBonuses.activeSetDescs && eqBonuses.activeSetDescs.length > 0) {
+        infoText += ` | 套装: ${eqBonuses.activeSetDescs.join('；')}`;
+    }
+    info.textContent = infoText;
 
     for (const [slotKey, slotDef] of Object.entries(EQUIPMENT_SLOTS)) {
         const data = eqs[slotKey];
@@ -2234,11 +2460,13 @@ function renderEquipments() {
                 const rc = RARITY_CONFIG[eqDef.rarity];
                 const refine = data.refine || 0;
                 const refineTag = refine > 0 ? `<span style="color:#ff9f43;font-size:0.65em;">+${refine}</span>` : '';
+                const setTag = eqDef.setId ? `<div style="font-size:0.6em;color:#f1c40f;margin-top:2px;">${ALL_SETS[eqDef.setId]?.name || ''}</div>` : '';
                 html += `
                     <div class="equipment-slot ${eqDef.rarity}" onclick="unequipItem('${slotKey}')" title="点击卸下">
                         <div class="slot-emoji">${eqDef.emoji}</div>
                         <div class="eq-name" style="color:${rc.color}">${eqDef.name} ${refineTag}</div>
                         <div class="eq-stat">${formatEqStat(eqDef)}</div>
+                        ${setTag}
                     </div>
                 `;
                 continue;
@@ -2285,10 +2513,21 @@ function updateUI() {
     const power = Math.floor((stats.atk * 2 + stats.def * 1.5 + stats.maxHp * 0.5 + stats.crit * 100 + stats.critDmg * 20 + stats.armorPenFlat * 5 + stats.armorPenPercent * 300 + stats.spi * 5) * stats.speedMultiplier);
     document.getElementById('power').textContent = formatNumber(power);
 
-    // 更新buff显示
+    // 更新buff与成就显示
     const buffPanel = document.getElementById('buffPanel');
     const activeBuffs = getActiveBuffs();
-    if (activeBuffs.length > 0 && buffPanel) {
+    let achHtml = '';
+    if (stats.ach && (stats.ach.atk || stats.ach.def || stats.ach.maxHp || stats.ach.crit || stats.ach.vamp || stats.ach.spi)) {
+        const achTexts = [];
+        if (stats.ach.atk) achTexts.push(`攻击+${stats.ach.atk}`);
+        if (stats.ach.def) achTexts.push(`防御+${stats.ach.def}`);
+        if (stats.ach.maxHp) achTexts.push(`生命+${stats.ach.maxHp}`);
+        if (stats.ach.crit) achTexts.push(`暴击+${Math.round(stats.ach.crit*100)}%`);
+        if (stats.ach.vamp) achTexts.push(`吸血+${Math.round(stats.ach.vamp*100)}%`);
+        if (stats.ach.spi) achTexts.push(`精神+${stats.ach.spi}`);
+        achHtml = `<div style="margin-top:4px;font-size:0.7em;color:#f1c40f;">🏆 成就加成: ${achTexts.join(' | ')}</div>`;
+    }
+    if ((activeBuffs.length > 0 || achHtml) && buffPanel) {
         let buffHtml = '';
         activeBuffs.forEach(buff => {
             const remaining = Math.max(0, Math.ceil((buff.endTime - Date.now()) / 1000));
@@ -2299,7 +2538,7 @@ function updateUI() {
             const buffVal = isPercentBuff ? `+${Math.round(buff.value * 100)}%` : `+${formatNumber(buff.value)}`;
             buffHtml += `<span style="display:inline-block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px;">${buff.emoji} ${buff.name} ${buffVal} (${timeStr})</span>`;
         });
-        buffPanel.innerHTML = buffHtml;
+        buffPanel.innerHTML = buffHtml + achHtml;
         buffPanel.style.display = 'block';
     } else if (buffPanel) {
         buffPanel.style.display = 'none';
@@ -2379,7 +2618,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('beforeunload', () => {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, savedAt: Date.now() }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() }));
 });
 
 // ========== 技能系统 ==========
@@ -2581,7 +2820,6 @@ function sellEquipment(bagIndex) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
-    if (item.appraised === false) { log('该装备尚未鉴定，无法出售！', 'log-damage'); return; }
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
     bag.splice(bagIndex, 1);
@@ -2992,7 +3230,7 @@ function renderBlacksmithRefine(container) {
     });
     html += '</div>';
     if (!hasItem) {
-        html += '<div style="text-align:center;color:#666;padding:20px;">该分类下暂无装备</div>';
+        html += '<div style="text-align:center;color:#666;padding:20px;">暂无未穿戴装备</div>';
     }
     html += '</div></div>';
     container.innerHTML = html;

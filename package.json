@@ -1,0 +1,23 @@
+{
+  "name": "idle-quest-of-the-brave",
+  "version": "3.0.0",
+  "description": "勇者挂机传说 - 基于原生 HTML/CSS/JavaScript 的放置类挂机 RPG 游戏",
+  "main": "index.html",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js && npx serve dist",
+    "clean": "node -e \"const fs=require('fs');fs.existsSync('dist')&&fs.rmSync('dist',{recursive:true});console.log('dist cleaned')\""
+  },
+  "keywords": [
+    "idle",
+    "rpg",
+    "game",
+    " incremental",
+    "browser-game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

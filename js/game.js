@@ -16,25 +16,25 @@ const TREASURE_POOL = [
     { id: 'w_stone', name: '磨刀石', emoji: '🪨', rarity: 'common', stat: 'atk', value: 3, sellPrice: 15 },
     { id: 'w_shield', name: '木盾', emoji: '🛡️', rarity: 'common', stat: 'def', value: 2, sellPrice: 15 },
     { id: 'w_berry', name: '野莓', emoji: '🫐', rarity: 'common', stat: 'maxHp', value: 15, sellPrice: 12 },
-    { id: 'w_luck', name: '幸运符', emoji: '🍀', rarity: 'common', stat: 'crit', value: 0.02, sellPrice: 18 },
+    { id: 'w_luck', name: '幸运符', emoji: '🍀', rarity: 'common', stat: 'critDmg', value: 0.10, sellPrice: 18 },
     { id: 'w_book', name: '旧书', emoji: '📖', rarity: 'common', stat: 'expBonus', value: 0.05, sellPrice: 15 },
     { id: 'w_coin', name: '铜币袋', emoji: '🪙', rarity: 'common', stat: 'goldBonus', value: 0.05, sellPrice: 20 },
     { id: 'b_sword', name: '精钢剑', emoji: '⚔️', rarity: 'rare', stat: 'atk', value: 7, sellPrice: 40 },
     { id: 'b_armor', name: '铁甲', emoji: '👕', rarity: 'rare', stat: 'def', value: 4, sellPrice: 40 },
     { id: 'b_ring', name: '生命戒指', emoji: '💍', rarity: 'rare', stat: 'maxHp', value: 35, sellPrice: 35 },
-    { id: 'b_eye', name: '鹰眼', emoji: '👁️', rarity: 'rare', stat: 'crit', value: 0.04, sellPrice: 45 },
+    { id: 'b_eye', name: '鹰眼', emoji: '👁️', rarity: 'rare', stat: 'critDmg', value: 0.25, sellPrice: 45 },
     { id: 'b_scroll', name: '卷轴', emoji: '📜', rarity: 'rare', stat: 'expBonus', value: 0.10, sellPrice: 40 },
     { id: 'b_pouch', name: '银袋', emoji: '💰', rarity: 'rare', stat: 'goldBonus', value: 0.10, sellPrice: 50 },
     { id: 'p_axe', name: '战斧', emoji: '🪓', rarity: 'epic', stat: 'atk', value: 15, sellPrice: 100 },
     { id: 'p_plate', name: '板甲', emoji: '🦺', rarity: 'epic', stat: 'def', value: 8, sellPrice: 100 },
     { id: 'p_heart', name: '巨龙之心', emoji: '❤️', rarity: 'epic', stat: 'maxHp', value: 70, sellPrice: 90 },
-    { id: 'p_gem', name: '暴击宝石', emoji: '💎', rarity: 'epic', stat: 'crit', value: 0.08, sellPrice: 110 },
+    { id: 'p_gem', name: '暴击宝石', emoji: '💎', rarity: 'epic', stat: 'critDmg', value: 0.50, sellPrice: 110 },
     { id: 'p_tome', name: '魔法典籍', emoji: '📚', rarity: 'epic', stat: 'expBonus', value: 0.18, sellPrice: 100 },
     { id: 'p_chest', name: '小宝箱', emoji: '📦', rarity: 'epic', stat: 'goldBonus', value: 0.18, sellPrice: 120 },
     { id: 'l_blade', name: '屠龙刀', emoji: '🔪', rarity: 'legendary', stat: 'atk', value: 30, sellPrice: 250 },
     { id: 'l_shield', name: '圣盾', emoji: '🛡️', rarity: 'legendary', stat: 'def', value: 15, sellPrice: 250 },
     { id: 'l_phoenix', name: '凤凰之血', emoji: '🔥', rarity: 'legendary', stat: 'maxHp', value: 150, sellPrice: 230 },
-    { id: 'l_star', name: '星辰碎片', emoji: '⭐', rarity: 'legendary', stat: 'crit', value: 0.12, sellPrice: 260 },
+    { id: 'l_star', name: '星辰碎片', emoji: '⭐', rarity: 'legendary', stat: 'critDmg', value: 1.00, sellPrice: 260 },
     { id: 'l_crown', name: '智慧之冠', emoji: '👑', rarity: 'legendary', stat: 'expBonus', value: 0.30, sellPrice: 250 },
     { id: 'l_gold', name: '聚宝盆', emoji: '🏆', rarity: 'legendary', stat: 'goldBonus', value: 0.30, sellPrice: 300 },
     { id: 'w_stone2', name: '破甲石', emoji: '🔨', rarity: 'common', stat: 'armorPenFlat', value: 2, sellPrice: 20 },
@@ -50,7 +50,7 @@ const TREASURE_POOL = [
     { id: 'd_tear', name: '永恒之泪', emoji: '💧', rarity: 'divine', stat: 'maxHp', value: 300, sellPrice: 800 },
     { id: 'd_blessing', name: '神明祝福', emoji: '✨', rarity: 'divine', stat: 'expBonus', value: 0.60, sellPrice: 1000 },
     // 超脱级宝物（超越神器，无尽模式深层专属）
-    { id: 't_eye', name: '虚空之眼', emoji: '👁️', rarity: 'divine', stat: 'crit', value: 0.25, sellPrice: 1200 },
+    { id: 't_eye', name: '虚空之眼', emoji: '👁️', rarity: 'divine', stat: 'critDmg', value: 2.00, sellPrice: 1200 },
     { id: 't_heart', name: '湮灭之心', emoji: '💀', rarity: 'divine', stat: 'maxHp', value: 500, sellPrice: 1200 },
     { id: 't_source', name: '混沌之源', emoji: '🔥', rarity: 'divine', stat: 'atk', value: 100, sellPrice: 1200 },
     { id: 't_wheel', name: '永恒之轮', emoji: '🌀', rarity: 'divine', stat: 'expBonus', value: 0.80, sellPrice: 1500 },
@@ -76,7 +76,7 @@ const ARMOR_SETS = {
     set_void_arm: { id: 'set_void_arm', name: '虚空战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.20, critDmg: 0.55 }, desc: '攻击力+20%、暴击伤害+55%', rarity: 'epic' },
     set_demon_arm: { id: 'set_demon_arm', name: '恶魔战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.25, critDmg: 0.65 }, desc: '攻击力+25%、暴击伤害+65%', rarity: 'legendary' },
     set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80 }, desc: '攻击力+30%、暴击伤害+80%', rarity: 'legendary' },
-    set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.00, crit: 0.10 }, desc: '攻击力+35%、暴击伤害+100%、暴击率+10%', rarity: 'divine' },
+    set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.50 }, desc: '攻击力+35%、暴击伤害+150%', rarity: 'divine' },
     set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%', rarity: 'divine' },
     // 无尽模式超脱级战甲套装（超越神器）
     set_void_annihilator: { id: 'set_void_annihilator', name: '虚空湮灭者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.60, critDmg: 2.00, armorPenFlat: 50 }, desc: '攻击力+60%、暴击伤害+200%、破甲+50', rarity: 'divine' }
@@ -226,7 +226,7 @@ const SHOP_ITEMS = [
     { id: 'divine_blessing', name: '神之恩赐', emoji: '🌟', desc: '神明的祝福，经验加成+50%、金币加成+50%，持续30分钟', basePrice: 1500, type: 'buff_exp_gold', value: { expBonus: 0.50, goldBonus: 0.50 }, duration: 1800000, dropOnly: true },
     // 无尽模式超脱级道具（超越现有）
     { id: 'chaos_core', name: '混沌核心', emoji: '🔴', desc: '蕴含混沌之力的核心，使用后永久攻击力+15、防御力+10、最大生命+100、精神+5', basePrice: 5000, type: 'permanent_all', value: { atk: 15, def: 10, maxHp: 100, spi: 5 }, dropOnly: true },
-    { id: 'void_essence', name: '虚空精华', emoji: '💜', desc: '虚空凝聚的精华，使用后永久暴击率+5%、暴击伤害+30%', basePrice: 4000, type: 'permanent_crit', value: { crit: 0.05, critDmg: 0.30 }, dropOnly: true },
+    { id: 'void_essence', name: '虚空精华', emoji: '💜', desc: '虚空凝聚的精华，使用后永久暴击伤害+35%', basePrice: 4000, type: 'permanent_crit', value: { critDmg: 0.35 }, dropOnly: true },
     { id: 'annihilation_potion', name: '湮灭药水', emoji: '⚗️', desc: '传说中的禁药，攻击力+80%、攻速+80%，持续20分钟', basePrice: 3000, type: 'buff_atk_aspd', value: { atkMult: 0.80, aspdMult: 0.80 }, duration: 1200000, dropOnly: true },
 ];
 
@@ -536,28 +536,13 @@ function checkAutoSell() {
 setInterval(checkAutoSell, 500);
 
 function toggleTreasureFilter(filter) {
-    const btn = document.querySelector(`.treasure-filter-btn[data-filter="${filter}"]`);
     if (filter === 'upgradeable') {
         const isActive = TREASURE_FILTERS.has('upgradeable');
-        if (isActive) {
-            TREASURE_FILTERS.delete('upgradeable');
-            btn.style.background = '';
-            btn.style.borderColor = '';
-        } else {
-            TREASURE_FILTERS.add('upgradeable');
-            btn.style.background = 'linear-gradient(45deg, #e94560, #ff6b6b)';
-            btn.style.borderColor = 'transparent';
-        }
+        if (isActive) TREASURE_FILTERS.delete('upgradeable');
+        else TREASURE_FILTERS.add('upgradeable');
     } else {
-        if (TREASURE_FILTERS.has(filter)) {
-            TREASURE_FILTERS.delete(filter);
-            btn.style.background = '';
-            btn.style.borderColor = '';
-        } else {
-            TREASURE_FILTERS.add(filter);
-            btn.style.background = 'linear-gradient(45deg, #e94560, #ff6b6b)';
-            btn.style.borderColor = 'transparent';
-        }
+        if (TREASURE_FILTERS.has(filter)) TREASURE_FILTERS.delete(filter);
+        else TREASURE_FILTERS.add(filter);
     }
     renderBag();
 }
@@ -2856,9 +2841,8 @@ function _applyItemEffect(item, now) {
         }
         case 'permanent_crit': {
             const v = item.value;
-            game.player.crit += v.crit;
             game.player.critDmg += v.critDmg;
-            log(`💠 使用了${item.name}，永久暴击率+${Math.round(v.crit * 100)}%、暴击伤害+${Math.round(v.critDmg * 100)}%！`, 'log-skill');
+            log(`💠 使用了${item.name}，永久暴击伤害+${Math.round(v.critDmg * 100)}%！`, 'log-skill');
             break;
         }
         case 'buff_atk_aspd': {

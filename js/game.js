@@ -48,7 +48,13 @@ const TREASURE_POOL = [
     // 神器级宝物（无尽模式专属）
     { id: 'd_nucleus', name: '无尽之核', emoji: '💠', rarity: 'divine', stat: 'atk', value: 60, sellPrice: 800 },
     { id: 'd_tear', name: '永恒之泪', emoji: '💧', rarity: 'divine', stat: 'maxHp', value: 300, sellPrice: 800 },
-    { id: 'd_blessing', name: '神明祝福', emoji: '✨', rarity: 'divine', stat: 'expBonus', value: 0.60, sellPrice: 1000 }
+    { id: 'd_blessing', name: '神明祝福', emoji: '✨', rarity: 'divine', stat: 'expBonus', value: 0.60, sellPrice: 1000 },
+    // 超脱级宝物（超越神器，无尽模式深层专属）
+    { id: 't_eye', name: '虚空之眼', emoji: '👁️', rarity: 'divine', stat: 'crit', value: 0.25, sellPrice: 1200 },
+    { id: 't_heart', name: '湮灭之心', emoji: '💀', rarity: 'divine', stat: 'maxHp', value: 500, sellPrice: 1200 },
+    { id: 't_source', name: '混沌之源', emoji: '🔥', rarity: 'divine', stat: 'atk', value: 100, sellPrice: 1200 },
+    { id: 't_wheel', name: '永恒之轮', emoji: '🌀', rarity: 'divine', stat: 'expBonus', value: 0.80, sellPrice: 1500 },
+    { id: 't_web', name: '命运织网', emoji: '🕸️', rarity: 'divine', stat: 'vamp', value: 0.15, sellPrice: 1200 }
 ];
 
 const RARITY_CONFIG = {
@@ -71,7 +77,9 @@ const ARMOR_SETS = {
     set_demon_arm: { id: 'set_demon_arm', name: '恶魔战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.25, critDmg: 0.65 }, desc: '攻击力+25%、暴击伤害+65%', rarity: 'legendary' },
     set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80 }, desc: '攻击力+30%、暴击伤害+80%', rarity: 'legendary' },
     set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.00, crit: 0.10 }, desc: '攻击力+35%、暴击伤害+100%、暴击率+10%', rarity: 'divine' },
-    set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%', rarity: 'divine' }
+    set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%', rarity: 'divine' },
+    // 无尽模式超脱级战甲套装（超越神器）
+    set_void_annihilator: { id: 'set_void_annihilator', name: '虚空湮灭者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.60, critDmg: 1.50, crit: 0.20, armorPenFlat: 50 }, desc: '攻击力+60%、暴击伤害+150%、暴击率+20%、破甲+50', rarity: 'divine' }
 };
 const ACCESSORY_SETS = {
     set_novice_acc: { id: 'set_novice_acc', name: '学徒饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.10, vamp: 0.02, expBonus: 0.10 }, desc: '攻速+10%、吸血+2%、经验+10%', rarity: 'common' },
@@ -79,7 +87,9 @@ const ACCESSORY_SETS = {
     set_swamp_acc: { id: 'set_swamp_acc', name: '沼泽饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.18, vamp: 0.04, expBonus: 0.20 }, desc: '攻速+18%、吸血+4%、经验+20%', rarity: 'epic' },
     set_sky_acc: { id: 'set_sky_acc', name: '天空饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.22, vamp: 0.05, expBonus: 0.25 }, desc: '攻速+22%、吸血+5%、经验+25%', rarity: 'epic' },
     set_abyss_acc: { id: 'set_abyss_acc', name: '深渊饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.25, vamp: 0.06, expBonus: 0.30 }, desc: '攻速+25%、吸血+6%、经验+30%', rarity: 'legendary' },
-    set_godfall_acc: { id: 'set_godfall_acc', name: '神陨饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.30, vamp: 0.08, expBonus: 0.35 }, desc: '攻速+30%、吸血+8%、经验+35%', rarity: 'legendary' }
+    set_godfall_acc: { id: 'set_godfall_acc', name: '神陨饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.30, vamp: 0.08, expBonus: 0.35 }, desc: '攻速+30%、吸血+8%、经验+35%', rarity: 'legendary' },
+    // 无尽模式超脱级饰品套装（超越神器）
+    set_eternal_throne: { id: 'set_eternal_throne', name: '永恒圣座', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.50, vamp: 0.15, expBonus: 0.60, goldBonus: 0.50 }, desc: '攻速+50%、吸血+15%、经验+60%、金币+50%', rarity: 'divine' }
 };
 const ALL_SETS = { ...ARMOR_SETS, ...ACCESSORY_SETS };
 const AREA_SETS = {
@@ -184,7 +194,19 @@ const EQUIPMENT_POOL = [
     ...buildArmorSet('set_chaos_arm', '混沌', 'legendary', 18),
     // 无尽模式神器套装
     ...buildArmorSet('set_endless_conqueror', '无尽征服者', 'divine', 30),
-    ...buildArmorSet('set_endless_guardian', '永恒守护者', 'divine', 30)
+    ...buildArmorSet('set_endless_guardian', '永恒守护者', 'divine', 30),
+    // 无尽模式超脱级套装（超越神器）
+    // 虚空湮灭者 - 战甲5件套
+    { id: 'set_void_annihilator_weapon', setId: 'set_void_annihilator', name: '湮灭之刃', emoji: '⚔️', slot: 'weapon', rarity: 'divine', atk: 125, sellPrice: 1500 },
+    { id: 'set_void_annihilator_helmet', setId: 'set_void_annihilator', name: '湮灭之盔', emoji: '🪖', slot: 'helmet', rarity: 'divine', def: 75, maxHp: 250, sellPrice: 1200 },
+    { id: 'set_void_annihilator_armor', setId: 'set_void_annihilator', name: '湮灭之甲', emoji: '👕', slot: 'armor', rarity: 'divine', def: 125, maxHp: 500, sellPrice: 1500 },
+    { id: 'set_void_annihilator_boots', setId: 'set_void_annihilator', name: '湮灭之靴', emoji: '👢', slot: 'boots', rarity: 'divine', def: 50, aspd: 1250, sellPrice: 1200 },
+    { id: 'set_void_annihilator_belt', setId: 'set_void_annihilator', name: '湮灭之带', emoji: '🎗️', slot: 'belt', rarity: 'divine', maxHp: 375, atk: 50, sellPrice: 1200 },
+    // 永恒圣座 - 饰品4件套
+    { id: 'set_eternal_throne_bracelet', setId: 'set_eternal_throne', name: '圣座之镯', emoji: '💎', slot: 'bracelet', rarity: 'divine', critDmg: 2.50, sellPrice: 1200 },
+    { id: 'set_eternal_throne_bracelet2', setId: 'set_eternal_throne', name: '圣座之镯', emoji: '💎', slot: 'bracelet', rarity: 'divine', critDmg: 2.50, sellPrice: 1200 },
+    { id: 'set_eternal_throne_necklace', setId: 'set_eternal_throne', name: '圣座之链', emoji: '📿', slot: 'necklace', rarity: 'divine', vamp: 0.25, expBonus: 0.75, sellPrice: 1200 },
+    { id: 'set_eternal_throne_jade', setId: 'set_eternal_throne', name: '圣座之玉', emoji: '🏵️', slot: 'jade', rarity: 'divine', def: 75, spi: 25, sellPrice: 1200 }
 ];
 
 const EQUIPMENT_DROP_RATES = [0.08, 0.12, 0.15, 0.18, 0.22, 0.26, 0.30, 0.33, 0.36, 0.38, 0.40, 0.42, 0.45, 0.48, 0.52];
@@ -202,6 +224,10 @@ const SHOP_ITEMS = [
     // 无尽模式特有道具
     { id: 'endless_core', name: '无尽核心', emoji: '💎', desc: '蕴含无尽虚空之力的核心，使用后永久攻击力+5、防御力+3、最大生命+30', basePrice: 2000, type: 'permanent_all', value: { atk: 5, def: 3, maxHp: 30 }, dropOnly: true },
     { id: 'divine_blessing', name: '神之恩赐', emoji: '🌟', desc: '神明的祝福，经验加成+50%、金币加成+50%，持续30分钟', basePrice: 1500, type: 'buff_exp_gold', value: { expBonus: 0.50, goldBonus: 0.50 }, duration: 1800000, dropOnly: true },
+    // 无尽模式超脱级道具（超越现有）
+    { id: 'chaos_core', name: '混沌核心', emoji: '🔴', desc: '蕴含混沌之力的核心，使用后永久攻击力+15、防御力+10、最大生命+100、精神+5', basePrice: 5000, type: 'permanent_all', value: { atk: 15, def: 10, maxHp: 100, spi: 5 }, dropOnly: true },
+    { id: 'void_essence', name: '虚空精华', emoji: '💜', desc: '虚空凝聚的精华，使用后永久暴击率+5%、暴击伤害+30%', basePrice: 4000, type: 'permanent_crit', value: { crit: 0.05, critDmg: 0.30 }, dropOnly: true },
+    { id: 'annihilation_potion', name: '湮灭药水', emoji: '⚗️', desc: '传说中的禁药，攻击力+80%、攻速+80%，持续20分钟', basePrice: 3000, type: 'buff_atk_aspd', value: { atkMult: 0.80, aspdMult: 0.80 }, duration: 1200000, dropOnly: true },
 ];
 
 // 铁匠打造价格配置
@@ -787,7 +813,7 @@ function getTreasureBonuses() {
 }
 
 function getEquipmentBonuses() {
-    const bonuses = { atk: 0, def: 0, maxHp: 0, aspd: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, spi: 0, atkMult: 0, defMult: 0, hpMult: 0, aspdMult: 0, critMult: 0, critDmgMult: 0, vampMult: 0, expMult: 0, activeSets: [], activeSetDescs: [] };
+    const bonuses = { atk: 0, def: 0, maxHp: 0, aspd: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, spi: 0, armorPenFlat: 0, armorPenPercent: 0, atkMult: 0, defMult: 0, hpMult: 0, aspdMult: 0, critMult: 0, critDmgMult: 0, vampMult: 0, expMult: 0, activeSets: [], activeSetDescs: [] };
     const eqs = game.player.equipments || {};
     const setCount = {};
     for (const [slotKey, data] of Object.entries(eqs)) {
@@ -810,6 +836,8 @@ function getEquipmentBonuses() {
         if (eqDef.vamp) bonuses.vamp += eqDef.vamp * levelMult;
         if (eqDef.expBonus) bonuses.expBonus += eqDef.expBonus * levelMult;
         if (eqDef.spi) bonuses.spi += eqDef.spi * levelMult;
+        if (eqDef.armorPenFlat) bonuses.armorPenFlat += eqDef.armorPenFlat * levelMult;
+        if (eqDef.armorPenPercent) bonuses.armorPenPercent += eqDef.armorPenPercent * levelMult;
     }
     for (const [setId, count] of Object.entries(setCount)) {
         const set = ALL_SETS[setId];
@@ -1196,6 +1224,7 @@ function getPlayerStats() {
     let buffAtkMult = 1.0;
     let buffDefMult = 1.0;
     let buffExpMult = 0;
+    let buffAspdMult = 0;
     const now = Date.now();
     if (p.buffs) {
         if (p.buffs.shield && p.buffs.shield.endTime > now) {
@@ -1210,19 +1239,22 @@ function getPlayerStats() {
         if (p.buffs.expBonus && p.buffs.expBonus.endTime > now) {
             buffExpMult = p.buffs.expBonus.value;
         }
+        if (p.buffs.aspdMultBuff && p.buffs.aspdMultBuff.endTime > now) {
+            buffAspdMult = p.buffs.aspdMultBuff.value;
+        }
     }
     const ach = getAchievementBonuses();
     const baseAtk = (p.atk + b.atk + eq.atk + ach.atk) * (1 + eq.atkMult);
     let baseDef = (p.def + b.def + buffDef + eq.def + ach.def) * (1 + eq.defMult);
     if (game.player.armorPenDebuff) baseDef = Math.floor(baseDef * 0.8);
     const baseHp = (p.maxHp + b.maxHp + eq.maxHp + ach.maxHp) * (1 + eq.hpMult);
-    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult)));
+    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult + buffAspdMult)));
     return {
         atk: Math.floor(baseAtk * buffAtkMult), def: Math.floor(baseDef * buffDefMult), maxHp: Math.floor(baseHp),
         aspd: realAspd, speedMultiplier,
         crit: Math.min(1.0, p.crit + b.crit + eq.crit + eq.critMult + ach.crit), critDmg: p.critDmg + b.critDmg + eq.critDmg + eq.critDmgMult,
         vamp: p.vamp + b.vamp + eq.vamp + eq.vampMult + ach.vamp, expBonus: b.expBonus + eq.expBonus + buffExpMult + eq.expMult, goldBonus: b.goldBonus,
-        armorPenFlat: b.armorPenFlat, armorPenPercent: Math.min(0.35, b.armorPenPercent),
+        armorPenFlat: b.armorPenFlat + eq.armorPenFlat, armorPenPercent: Math.min(0.35, b.armorPenPercent + eq.armorPenPercent),
         spi: p.spi + eq.spi + ach.spi, maxMp: p.maxMp, mp: p.mp,
         activeSets: eq.activeSets, activeSetDescs: eq.activeSetDescs, ach: ach
     };
@@ -1617,10 +1649,27 @@ function enemyDefeated() {
             }
         }
 
-        // 无尽模式特有道具掉落
+        // 超脱级套装掉落（独立概率，超越现有神器）
+        const transcendentRate = Math.min(0.03, 0.005 + layer * 0.001);
+        if (Math.random() < transcendentRate) {
+            const newSets = ['set_void_annihilator', 'set_eternal_throne'];
+            const setId = newSets[Math.floor(Math.random() * newSets.length)];
+            const setItems = EQUIPMENT_POOL.filter(e => e.setId === setId);
+            if (setItems.length > 0) {
+                const item = setItems[Math.floor(Math.random() * setItems.length)];
+                addEquipmentToBag(item);
+                const rc = RARITY_CONFIG['divine'];
+                log(`🛡️ 掉落了 [${rc.label}] 装备：${item.emoji} ${item.name}！`, 'log-legendary');
+                dropLog(`🛡️ [${rc.label}] ${item.emoji} ${item.name}`);
+                showNotification(`🎉 获得${rc.label}装备：${item.name}！`);
+            }
+        }
+
+        // 无尽模式特有道具掉落（包含超脱级道具）
         const endlessItemRate = 0.015;
         if (Math.random() < endlessItemRate) {
-            const endlessItems = SHOP_ITEMS.filter(i => i.id === 'endless_core' || i.id === 'divine_blessing');
+            const endlessItemIds = ['endless_core', 'divine_blessing', 'chaos_core', 'void_essence', 'annihilation_potion'];
+            const endlessItems = SHOP_ITEMS.filter(i => endlessItemIds.includes(i.id));
             const item = endlessItems[Math.floor(Math.random() * endlessItems.length)];
             if (item) {
                 game.player.items = game.player.items || {};
@@ -2762,6 +2811,33 @@ function _applyItemEffect(item, now) {
                 log(`🌟 使用了${item.name}，经验加成+${Math.round(v.expBonus * 100)}%、金币加成+${Math.round(v.goldBonus * 100)}%，持续${mins}分钟！`, 'log-epic');
             }
             showNotification(`🌟 经验+${Math.round(v.expBonus * 100)}%、金币+${Math.round(v.goldBonus * 100)}%，剩余${mins}分钟！`);
+            break;
+        }
+        case 'permanent_crit': {
+            const v = item.value;
+            game.player.crit += v.crit;
+            game.player.critDmg += v.critDmg;
+            log(`💠 使用了${item.name}，永久暴击率+${Math.round(v.crit * 100)}%、暴击伤害+${Math.round(v.critDmg * 100)}%！`, 'log-skill');
+            break;
+        }
+        case 'buff_atk_aspd': {
+            game.player.buffs = game.player.buffs || {};
+            const v = item.value;
+            const existingAtk = game.player.buffs.atkBonus;
+            const existingAspd = game.player.buffs.aspdMultBuff;
+            let mins;
+            if (existingAtk && existingAtk.endTime > now) {
+                existingAtk.endTime += item.duration;
+                existingAspd.endTime += item.duration;
+                mins = Math.floor((existingAtk.endTime - now) / 60000);
+                log(`⚗️ 使用了${item.name}，攻击与攻速加成持续时间延长，剩余${mins}分钟！`, 'log-epic');
+            } else {
+                game.player.buffs.atkBonus = { value: v.atkMult, endTime: now + item.duration };
+                game.player.buffs.aspdMultBuff = { value: v.aspdMult, endTime: now + item.duration };
+                mins = Math.floor(item.duration / 60000);
+                log(`⚗️ 使用了${item.name}，攻击力+${Math.round(v.atkMult * 100)}%、攻速+${Math.round(v.aspdMult * 100)}%，持续${mins}分钟！`, 'log-epic');
+            }
+            showNotification(`⚗️ 攻击+${Math.round(v.atkMult * 100)}%、攻速+${Math.round(v.aspdMult * 100)}%，剩余${mins}分钟！`);
             break;
         }
     }

@@ -79,7 +79,7 @@ const ARMOR_SETS = {
     set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.00, crit: 0.10 }, desc: '攻击力+35%、暴击伤害+100%、暴击率+10%', rarity: 'divine' },
     set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%', rarity: 'divine' },
     // 无尽模式超脱级战甲套装（超越神器）
-    set_void_annihilator: { id: 'set_void_annihilator', name: '虚空湮灭者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.60, critDmg: 1.50, crit: 0.20, armorPenFlat: 50 }, desc: '攻击力+60%、暴击伤害+150%、暴击率+20%、破甲+50', rarity: 'divine' }
+    set_void_annihilator: { id: 'set_void_annihilator', name: '虚空湮灭者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.60, critDmg: 2.00, armorPenFlat: 50 }, desc: '攻击力+60%、暴击伤害+200%、破甲+50', rarity: 'divine' }
 };
 const ACCESSORY_SETS = {
     set_novice_acc: { id: 'set_novice_acc', name: '学徒饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.10, vamp: 0.02, expBonus: 0.10 }, desc: '攻速+10%、吸血+2%、经验+10%', rarity: 'common' },

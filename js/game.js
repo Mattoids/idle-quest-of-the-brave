@@ -1110,9 +1110,9 @@ function toggleTreasureLock(tid) {
     data.locked = !data.locked;
     const t = TREASURE_POOL.find(x => x.id === tid);
     if (data.locked) {
-        log(`🔒 ${t.emoji} ${t.name} 已锁定`, 'log-loot');
+        log(`🔒 ${t.emoji} ${t.name} 已锁定（红色标签）`, 'log-loot');
     } else {
-        log(`🔓 ${t.emoji} ${t.name} 已解锁`, 'log-loot');
+        log(`🔓 ${t.emoji} ${t.name} 已解锁（灰色标签）`, 'log-loot');
     }
     renderBag();
 }
@@ -1145,7 +1145,7 @@ function sellTreasure(tid) {
     const data = game.player.treasures?.[tid];
     const t = TREASURE_POOL.find(x => x.id === tid);
     if (!data || !t || data.count <= 0) return;
-    if (data.locked) { log('🔒 该宝物已锁定，无法出售！', 'log-death'); return; }
+    if (data.locked) { log('❌ 该宝物已锁定（红色标签），无法出售！请先点击解锁', 'log-death'); return; }
     data.count--;
     if (data.count <= 0) delete game.player.treasures[tid];
     game.player.gold += t.sellPrice;
@@ -2773,9 +2773,13 @@ function renderBagTreasures(container) {
             grid.appendChild(card);
         }
         card.className = `treasure-item ${t.rarity}`;
-        card.style.borderColor = isLocked ? 'rgba(233,69,96,0.6)' : '';
+        card.style.borderColor = isLocked ? '#e94560' : '';
+        card.style.borderWidth = isLocked ? '2px' : '';
+        const lockBadge = isLocked
+            ? `<div style="position: absolute; top: 5px; left: 8px; cursor: pointer; background: rgba(233,69,96,0.9); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: bold; letter-spacing: 0.5px; z-index: 2;" onclick="toggleTreasureLock('${tid}')" title="点击解锁">🔒 已锁</div>`
+            : `<div style="position: absolute; top: 5px; left: 8px; cursor: pointer; background: rgba(255,255,255,0.1); color: #888; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: bold; letter-spacing: 0.5px; z-index: 2; border: 1px solid rgba(255,255,255,0.15);" onclick="toggleTreasureLock('${tid}')" title="点击锁定">🔓 锁定</div>`;
         card.innerHTML = `
-            <div style="position: absolute; top: 5px; left: 8px; font-size: 1em; cursor: pointer;" onclick="toggleTreasureLock('${tid}')" title="${isLocked ? '点击解锁' : '点击锁定'}">${isLocked ? '🔒' : '🔓'}</div>
+            ${lockBadge}
             <div class="treasure-count">×${data.count}</div>
             <div class="treasure-emoji">${t.emoji}</div>
             <div class="rarity-label ${t.rarity}">${rc.label}</div>

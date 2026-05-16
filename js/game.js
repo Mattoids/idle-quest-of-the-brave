@@ -1770,9 +1770,14 @@ function enemyDefeated() {
         exp = Math.floor(exp * extraMult);
         gold = Math.floor(gold * extraMult);
     }
-    // 无尽模式金币整体翻倍
+    // 无尽模式精英/Boss额外金币加成
+    if (game.currentArea >= 15 && (game.enemy.isElite || game.enemy.isBoss)) {
+        const eliteGoldMult = 1.5 + (game.currentArea - 14) * 0.03;
+        gold = Math.floor(gold * eliteGoldMult);
+    }
+    // 无尽模式金币整体翻三倍
     if (game.currentArea >= 15) {
-        gold = Math.floor(gold * 2);
+        gold = Math.floor(gold * 3);
     }
 
     game.player.exp += exp;

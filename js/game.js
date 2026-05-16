@@ -967,8 +967,8 @@ function getAchievementBonuses() {
 function getAreaDropRate() {
     const rate = AREA_DROP_RATES[game.currentArea];
     if (rate !== undefined) return rate;
-    // 无尽模式沿用最后一个区域的掉率
-    return AREA_DROP_RATES[AREA_DROP_RATES.length - 1] || 0;
+    // 无尽模式基础掉率高于最后一个区域
+    return 0.25;
 }
 
 function getAreaRarityWeights() {
@@ -978,6 +978,19 @@ function getAreaRarityWeights() {
     if (area <= 8) return { common: 25, rare: 35, epic: 30, legendary: 10 };
     if (area <= 11) return { common: 15, rare: 30, epic: 35, legendary: 20 };
     return { common: 5, rare: 20, epic: 40, legendary: 35 };
+}
+
+// 无尽模式宝物稀有度权重（大幅偏向高稀有度）
+function getEndlessRarityWeights(layer) {
+    // 层数越高，高稀有度概率越大
+    const l = Math.max(1, layer);
+    return {
+        common: Math.max(5, 25 - l * 2),
+        rare: Math.max(15, 30 - l),
+        epic: Math.min(45, 20 + l * 2),
+        legendary: Math.min(35, 10 + l * 2),
+        divine: Math.min(15, 2 + l)
+    };
 }
 
 function rollEquipmentDrop(minRarity) {
@@ -1054,7 +1067,15 @@ function rollTreasureDrop(minRarity, customRate, allowDivine) {
     if (game.currentArea < 15 || !allowDivine) {
         rarities = rarities.filter(r => r !== 'divine');
     }
-    const weights = rarities.map(r => RARITY_CONFIG[r].weight);
+    // 无尽模式使用动态稀有度权重
+    let weights;
+    if (game.currentArea >= 15) {
+        const layer = game.currentArea - 14;
+        const w = getEndlessRarityWeights(layer);
+        weights = rarities.map(r => w[r] || RARITY_CONFIG[r].weight);
+    } else {
+        weights = rarities.map(r => RARITY_CONFIG[r].weight);
+    }
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     let roll = Math.random() * totalWeight;
     let selectedRarity = 'common';
@@ -1905,8 +1926,9 @@ function enemyDefeated() {
         log(`击败了 ${enemyName}！获得 ${formatNumber(exp)} 经验值和 ${formatNumber(gold)} 金币！`, 'log-exp');
         addClue();
 
-        // 普通怪物装备：基础概率（无尽模式沿用最后一个区域）
-        const eqDropRate = EQUIPMENT_DROP_RATES[game.currentArea] || EQUIPMENT_DROP_RATES[EQUIPMENT_DROP_RATES.length - 1] || 0;
+        // 普通怪物装备：基础概率（无尽模式大幅提高）
+        let eqDropRate = EQUIPMENT_DROP_RATES[game.currentArea] || EQUIPMENT_DROP_RATES[EQUIPMENT_DROP_RATES.length - 1] || 0;
+        if (game.currentArea >= 15) eqDropRate = Math.min(0.50, eqDropRate * 1.5);
         if (eqDropRate > 0 && Math.random() < eqDropRate) {
             const equipment = rollEquipmentDrop();
             if (equipment) {
@@ -1918,8 +1940,9 @@ function enemyDefeated() {
             }
         }
 
-        // 普通怪物技能书：基础概率（无尽模式沿用最后一个区域）
-        const bookDropRate = SKILL_BOOK_DROP_RATES[game.currentArea] || SKILL_BOOK_DROP_RATES[SKILL_BOOK_DROP_RATES.length - 1] || 0;
+        // 普通怪物技能书：基础概率（无尽模式大幅提高）
+        let bookDropRate = SKILL_BOOK_DROP_RATES[game.currentArea] || SKILL_BOOK_DROP_RATES[SKILL_BOOK_DROP_RATES.length - 1] || 0;
+        if (game.currentArea >= 15) bookDropRate = Math.min(0.20, bookDropRate * 2.0);
         if (bookDropRate > 0 && Math.random() < bookDropRate) {
             // 非无尽模式过滤禁咒技能书
             const eligibleBooks = game.currentArea >= 15 ? SKILL_BOOKS : SKILL_BOOKS.filter(b => b.id !== 'book_void_annihilation');
@@ -1931,7 +1954,7 @@ function enemyDefeated() {
             showNotification(`📕 获得${rc.label}技能书：${book.name}！`);
         }
 
-        // 普通怪物宝物：基础概率
+        // 普通怪物宝物：基础概率（无尽模式已通过 getAreaDropRate 提高）
         const treasure = rollTreasureDrop();
         if (treasure) {
             addTreasure(treasure);
@@ -1943,8 +1966,8 @@ function enemyDefeated() {
                 showNotification(`🎉 获得${rc.label}宝物：${treasure.name}！`);
             }
         }
-        // 无尽模式普通怪：千分之一概率掉落神器/超脱级宝物
-        if (game.currentArea >= 15 && Math.random() < 0.001) {
+        // 无尽模式普通怪：1% 概率掉落神器/超脱级宝物（原 0.1%）
+        if (game.currentArea >= 15 && Math.random() < 0.01) {
             const divinePool = TREASURE_POOL.filter(t => t.rarity === 'divine');
             const dTreasure = divinePool[Math.floor(Math.random() * divinePool.length)];
             if (dTreasure) {
@@ -1955,8 +1978,8 @@ function enemyDefeated() {
                 showNotification(`🎉 无尽模式奇迹掉落${rc.label}宝物：${dTreasure.name}！`);
             }
         }
-        // 无尽模式普通怪：千分之一概率掉落神器级装备
-        if (game.currentArea >= 15 && Math.random() < 0.001) {
+        // 无尽模式普通怪：1% 概率掉落神器级装备（原 0.1%）
+        if (game.currentArea >= 15 && Math.random() < 0.01) {
             const divineEqPool = EQUIPMENT_POOL.filter(e => e.rarity === 'divine');
             if (divineEqPool.length > 0) {
                 const equipment = divineEqPool[Math.floor(Math.random() * divineEqPool.length)];
@@ -1967,10 +1990,10 @@ function enemyDefeated() {
                 showNotification(`🎉 无尽模式奇迹掉落${rc.label}装备：${equipment.name}！`);
             }
         }
-        // 无尽模式普通怪：恢复类/加成型道具掉落（随层数小幅提升）
+        // 无尽模式普通怪：恢复类/加成型道具掉落（大幅提高）
         if (game.currentArea >= 15) {
             const layer = game.currentArea - 14;
-            const normalItemRate = Math.min(0.05, 0.015 + layer * 0.0003);
+            const normalItemRate = Math.min(0.15, 0.05 + layer * 0.002);
             if (Math.random() < normalItemRate) {
                 const normalItemIds = ENDLESS_NORMAL_DROP_ITEMS;
                 const pool = SHOP_ITEMS.filter(i => normalItemIds.includes(i.id));
@@ -1993,8 +2016,8 @@ function enemyDefeated() {
 
         // 无尽模式特有掉落仅限精英及以上怪物
         if (game.enemy.isElite || game.enemy.isBoss) {
-            // 神器装备掉落（最高10%）
-            const divineRate = Math.min(0.10, 0.02 + layer * 0.001);
+            // 神器装备掉落（最高25%）
+            const divineRate = Math.min(0.25, 0.08 + layer * 0.003);
             if (Math.random() < divineRate) {
                 const divinePool = EQUIPMENT_POOL.filter(e => e.rarity === 'divine');
                 if (divinePool.length > 0) {
@@ -2007,8 +2030,8 @@ function enemyDefeated() {
                 }
             }
 
-            // 超脱级套装掉落（独立概率，最高10%）
-            const transcendentRate = Math.min(0.10, 0.005 + layer * 0.001);
+            // 超脱级套装掉落（独立概率，最高20%）
+            const transcendentRate = Math.min(0.20, 0.03 + layer * 0.002);
             if (Math.random() < transcendentRate) {
                 const newSets = ['set_void_annihilator', 'set_eternal_throne'];
                 const setId = newSets[Math.floor(Math.random() * newSets.length)];
@@ -2023,8 +2046,8 @@ function enemyDefeated() {
                 }
             }
 
-            // 无尽模式特有道具掉落（最高10%）
-            const endlessItemRate = Math.min(0.10, 0.01 + layer * 0.0005);
+            // 无尽模式特有道具掉落（最高20%）
+            const endlessItemRate = Math.min(0.20, 0.05 + layer * 0.002);
             if (Math.random() < endlessItemRate) {
                 const endlessItemIds = ['endless_core', 'divine_blessing', 'chaos_core', 'void_essence', 'annihilation_potion'];
                 const endlessItems = SHOP_ITEMS.filter(i => endlessItemIds.includes(i.id));
@@ -2039,8 +2062,8 @@ function enemyDefeated() {
                 }
             }
 
-            // 禁咒技能书掉落（最高10%）
-            const forbiddenBookRate = Math.min(0.10, 0.005 + layer * 0.001);
+            // 禁咒技能书掉落（最高20%）
+            const forbiddenBookRate = Math.min(0.20, 0.03 + layer * 0.002);
             if (Math.random() < forbiddenBookRate) {
                 const forbiddenBook = SKILL_BOOKS.find(b => b.id === 'book_void_annihilation');
                 if (forbiddenBook) {
@@ -4933,6 +4956,7 @@ function buyShopItem(itemId, count = 1) {
     log(`🏪 购买了 ${item.emoji} ${item.name} ×${count}`, 'log-loot');
     showNotification(`🏪 购买成功！${item.name} ×${count}`);
     renderShopContent();
+    renderBag();
     updateUI();
 }
 

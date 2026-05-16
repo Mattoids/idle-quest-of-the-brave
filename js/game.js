@@ -235,6 +235,19 @@ const SHOP_ITEMS = [
     { id: 'chaos_core', name: '混沌核心', emoji: '🔴', desc: '蕴含混沌之力的核心，使用后永久攻击力+15、防御力+10、最大生命+100、精神+5', basePrice: 5000, type: 'permanent_all', value: { atk: 15, def: 10, maxHp: 100, spi: 5 }, dropOnly: true },
     { id: 'void_essence', name: '虚空精华', emoji: '💜', desc: '虚空凝聚的精华，使用后永久暴击伤害+35%', basePrice: 4000, type: 'permanent_crit', value: { critDmg: 0.35 }, dropOnly: true },
     { id: 'annihilation_potion', name: '湮灭药水', emoji: '⚗️', desc: '传说中的禁药，攻击力+80%、攻速+80%，持续20分钟', basePrice: 3000, type: 'buff_atk_aspd', value: { atkMult: 0.80, aspdMult: 0.80 }, duration: 1200000, dropOnly: true },
+    // 无尽模式普通怪掉落的恢复/加成型道具
+    { id: 'endless_hp_potion', name: '无尽生命药剂', emoji: '🍷', desc: '蕴含无尽生命力的药剂，使用后完全恢复生命值', basePrice: 400, type: 'heal', value: 1.0, dropOnly: true },
+    { id: 'endless_mp_potion', name: '无尽魔力药剂', emoji: '🧴', desc: '蕴含无尽魔力的药剂，使用后完全恢复魔力值', basePrice: 350, type: 'mp', value: 1.0, dropOnly: true },
+    { id: 'phoenix_feather', name: '凤凰之羽', emoji: '🪶', desc: '神鸟的羽毛，使用后完全恢复生命与魔力', basePrice: 800, type: 'heal_full', dropOnly: true },
+    { id: 'battle_scroll', name: '战吼卷轴', emoji: '📯', desc: '激发战意的卷轴，攻击力+30%，持续15分钟', basePrice: 700, type: 'buff_atk', value: 0.30, duration: 900000, dropOnly: true },
+    { id: 'guardian_scroll', name: '守护卷轴', emoji: '📜', desc: '守护之力的卷轴，防御力+30%，持续15分钟', basePrice: 700, type: 'buff_def', value: 0.30, duration: 900000, dropOnly: true },
+    { id: 'haste_scroll', name: '疾速卷轴', emoji: '💨', desc: '蕴含风之神力的卷轴，攻速+30%，持续15分钟', basePrice: 800, type: 'buff_aspd', value: 0.30, duration: 900000, dropOnly: true },
+];
+
+// 无尽模式普通小怪可掉落的恢复/加成型道具池
+const ENDLESS_NORMAL_DROP_ITEMS = [
+    'endless_hp_potion', 'endless_mp_potion', 'phoenix_feather',
+    'battle_scroll', 'guardian_scroll', 'haste_scroll'
 ];
 
 // 铁匠打造价格配置
@@ -256,11 +269,13 @@ const ELEMENTS = {
 
 const SKILLS = [
     { id: 'fireball', name: '火球术', emoji: '🔥', element: 'fire', type: 'damage',
-      desc: '发射火球造成单体魔法伤害', baseDmg: 20, mpCost: 15, cooldown: 3000,
-      learnCost: 100, upgradeCost: 80, maxLevel: 10, isBasic: true },
+      desc: '发射火球造成单体魔法伤害，有概率灼烧敌人', baseDmg: 20, mpCost: 15, cooldown: 3000,
+      learnCost: 100, upgradeCost: 80, maxLevel: 10, isBasic: true,
+      debuff: { type: 'burn', duration: 5000, value: 0.03, chance: 0.50 } },
     { id: 'ice_arrow', name: '冰箭', emoji: '❄️', element: 'ice', type: 'damage',
-      desc: '射出冰箭造成单体伤害', baseDmg: 18, mpCost: 12, cooldown: 2500,
-      learnCost: 100, upgradeCost: 80, maxLevel: 10, isBasic: true },
+      desc: '射出冰箭造成单体伤害，有概率冰冻减速', baseDmg: 18, mpCost: 12, cooldown: 2500,
+      learnCost: 100, upgradeCost: 80, maxLevel: 10, isBasic: true,
+      debuff: { type: 'freeze', duration: 4000, value: 0.25, chance: 0.55 } },
     { id: 'heal', name: '治疗术', emoji: '💚', element: 'holy', type: 'heal',
       desc: '恢复自身生命值', baseDmg: 30, mpCost: 20, cooldown: 5000,
       learnCost: 100, upgradeCost: 80, maxLevel: 10, isBasic: true },
@@ -268,23 +283,29 @@ const SKILLS = [
       desc: '获得临时防御加成（持续10秒）', baseDmg: 15, mpCost: 15, cooldown: 8000, buffDuration: 10000,
       learnCost: 120, upgradeCost: 90, maxLevel: 10, isBasic: true },
     { id: 'flame_storm', name: '烈焰风暴', emoji: '🌋', element: 'fire', type: 'damage',
-      desc: '召唤烈焰风暴造成大量伤害', baseDmg: 60, mpCost: 40, cooldown: 6000,
-      learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false },
+      desc: '召唤烈焰风暴造成大量伤害，高概率灼烧', baseDmg: 60, mpCost: 40, cooldown: 6000,
+      learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false,
+      debuff: { type: 'burn', duration: 6000, value: 0.04, chance: 0.70 } },
     { id: 'thunder_strike', name: '雷霆一击', emoji: '⚡', element: 'lightning', type: 'damage',
-      desc: '召唤雷电造成巨大伤害', baseDmg: 70, mpCost: 45, cooldown: 7000,
-      learnCost: 0, upgradeCost: 220, maxLevel: 5, isBasic: false },
+      desc: '召唤雷电造成巨大伤害，有概率麻痹减速', baseDmg: 70, mpCost: 45, cooldown: 7000,
+      learnCost: 0, upgradeCost: 220, maxLevel: 5, isBasic: false,
+      debuff: { type: 'freeze', duration: 3000, value: 0.35, chance: 0.50 } },
     { id: 'shadow_bolt', name: '暗影箭', emoji: '🌑', element: 'dark', type: 'damage_lifesteal',
-      desc: '暗影箭造成伤害并吸血30%', baseDmg: 45, mpCost: 30, cooldown: 5000,
-      learnCost: 0, upgradeCost: 180, maxLevel: 5, isBasic: false },
+      desc: '暗影箭造成伤害并吸血30%，有概率诅咒削弱攻击', baseDmg: 45, mpCost: 30, cooldown: 5000,
+      learnCost: 0, upgradeCost: 180, maxLevel: 5, isBasic: false,
+      debuff: { type: 'curse', duration: 5000, value: 0.25, chance: 0.50 } },
     { id: 'holy_judgment', name: '圣光审判', emoji: '✨', element: 'holy', type: 'damage',
-      desc: '圣光对邪恶生物造成额外50%伤害', baseDmg: 50, mpCost: 35, cooldown: 6000,
-      learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false },
+      desc: '圣光对邪恶生物造成额外50%伤害，有概率虚弱防御', baseDmg: 50, mpCost: 35, cooldown: 6000,
+      learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false,
+      debuff: { type: 'weaken', duration: 5000, value: 0.25, chance: 0.45 } },
     { id: 'frost_nova', name: '冰冻新星', emoji: '❄️', element: 'ice', type: 'damage',
-      desc: '释放冰冻新星造成高额伤害', baseDmg: 55, mpCost: 38, cooldown: 6500,
-      learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false },
+      desc: '释放冰冻新星造成高额伤害，高概率冰冻减速', baseDmg: 55, mpCost: 38, cooldown: 6500,
+      learnCost: 0, upgradeCost: 200, maxLevel: 5, isBasic: false,
+      debuff: { type: 'freeze', duration: 5000, value: 0.40, chance: 0.65 } },
     { id: 'poison_mist', name: '毒雾', emoji: '💀', element: 'nature', type: 'dot',
-      desc: '释放毒雾持续造成伤害（5秒内每秒一次）', baseDmg: 12, mpCost: 25, cooldown: 10000,
-      learnCost: 0, upgradeCost: 180, maxLevel: 5, isBasic: false, dotDuration: 5000, dotInterval: 1000 },
+      desc: '释放毒雾持续造成伤害（5秒内每秒一次），高概率中毒', baseDmg: 12, mpCost: 25, cooldown: 10000,
+      learnCost: 0, upgradeCost: 180, maxLevel: 5, isBasic: false, dotDuration: 5000, dotInterval: 1000,
+      debuff: { type: 'poison', duration: 5000, value: 0.02, chance: 0.70 } },
     // 禁咒级技能（无尽模式专属）
     { id: 'void_annihilation', name: '虚空湮灭', emoji: '☠️', element: 'dark', type: 'damage',
       desc: '召唤虚空之力对敌人造成毁灭性打击，伤害无视防御', baseDmg: 180, mpCost: 100, cooldown: 18000,
@@ -351,7 +372,11 @@ function createDefaultSave() {
             voidRes: 0, chaosRes: 0, fireRes: 0,
             tenacity: 0,
             // 反制状态
-            counterState: { voidShield: false, chaosReflux: false, stunImmune: 0 }
+            counterState: { voidShield: false, chaosReflux: false, stunImmune: 0 },
+            // 说定状态：开启后不掉落物品，改为扣除金币
+            settledMode: false,
+            // 负面状态（怪物施加的限时debuff）
+            debuffs: {}
         },
         currentArea: 0,
         bossDefeated: Array(15).fill(false),
@@ -693,6 +718,8 @@ function migrateOldSave() {
     if (game.player.tenacity === undefined) game.player.tenacity = 0;
     if (game.player.passives === undefined) game.player.passives = {};
     if (game.player.counterState === undefined) game.player.counterState = { voidShield: false, chaosReflux: false, stunImmune: 0 };
+    if (game.player.settledMode === undefined) game.player.settledMode = false;
+    if (game.player.debuffs === undefined) game.player.debuffs = {};
     // 旧存档装备默认已鉴定（兼容）
     for (const eq of game.player.equipmentBag) { if (eq.appraised === undefined) eq.appraised = true; }
     if (game.player.items === undefined) game.player.items = {};
@@ -737,11 +764,29 @@ function migrateOldSave() {
 
 // 定期检查buff过期
 setInterval(() => {
-    if (game.player && cleanExpiredBuffs()) {
+    let changed = false;
+    if (game.player) {
+        if (cleanExpiredBuffs()) changed = true;
+        if (cleanExpiredDebuffs()) changed = true;
+    }
+    if (cleanExpiredEnemyDebuffs()) changed = true;
+    if (changed) {
         updateUI();
+        updateEnemyUI();
         renderBag();
     }
 }, 5000);
+
+// BUFF/DEBUFF 倒计时独立刷新（不依赖自动战斗）
+setInterval(() => {
+    if (!game.player) return;
+    const hasPlayerBuffs = getActiveBuffs().length > 0 || getActiveDebuffs().length > 0;
+    const hasEnemyDebuffs = game.enemy && getActiveEnemyDebuffs().length > 0;
+    if (hasPlayerBuffs || hasEnemyDebuffs) {
+        updateUI();
+        updateEnemyUI();
+    }
+}, 1000);
 
 // 技能冷却进度条持续刷新（无论是否战斗）
 setInterval(() => {
@@ -960,7 +1005,42 @@ function rollEquipmentDrop(minRarity) {
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// 说定状态：不掉落物品，改为扣除金币
+// 金币消耗按"角色等级 + 当前地图典型怪物金币掉落 + 剩余金币比例"综合评定，
+// 而非按宝物价值；宝物价值仅作为最低下限（3 倍）兜底。
+function handleSettledDrop(itemValue, itemName, itemEmoji) {
+    if (!game.player) return;
+    const playerLevel = Math.max(1, game.player.level || 1);
+    const areaIndex = game.currentArea;
+    const isEndless = areaIndex >= 15;
+    const baseMult = isEndless
+        ? getEndlessMultiplier(Math.max(1, areaIndex - 14))
+        : (game.areas[areaIndex]?.multiplier || 1);
+    // 估算当前地图典型小怪金币掉落（参考 spawnEnemy + enemyDefeated 中的乘数）
+    const endlessExtra = isEndless ? (1.5 + (areaIndex - 14) * 0.02) * 2 : 1;
+    const monsterGoldEstimate = Math.max(1, Math.floor(15 * playerLevel * baseMult * endlessExtra));
+
+    const minCost = Math.max(Math.floor((itemValue || 0) * 3), 10);
+    // 综合上限：等级×80 + 地图怪物典型金币×20 + 剩余金币×15%
+    const levelPart = playerLevel * 80;
+    const mapPart = monsterGoldEstimate * 20;
+    const goldPart = Math.floor((game.player.gold || 0) * 0.15);
+    const upperBound = Math.max(minCost, levelPart + mapPart + goldPart);
+    // 在 [最低, 上限] 区间内随机取值，偏向上限以体现"说定"的代价
+    const rand = 0.65 + Math.random() * 0.35;
+    let cost = Math.floor(minCost + (upperBound - minCost) * rand);
+    cost = Math.max(minCost, Math.min(cost, game.player.gold || 0));
+    if (cost <= 0) return;
+    game.player.gold -= cost;
+    log(`🧘 说定状态：未获得 ${itemEmoji} ${itemName}，扣除 ${formatNumber(cost)} 金币（最低${formatNumber(minCost)}）`, 'log-damage');
+}
+
 function addEquipmentToBag(equipment) {
+    if (game.player.settledMode) {
+        const eqDef = EQUIPMENT_POOL.find(e => e.id === equipment.id);
+        handleSettledDrop(eqDef?.sellPrice || 0, eqDef?.name || '装备', eqDef?.emoji || '🛡️');
+        return;
+    }
     game.player.equipmentBag = game.player.equipmentBag || [];
     game.player.equipmentBag.push({ id: equipment.id, level: 1, appraised: false });
 }
@@ -993,6 +1073,10 @@ function rollTreasureDrop(minRarity, customRate, allowDivine) {
 }
 
 function addTreasure(treasure) {
+    if (game.player.settledMode) {
+        handleSettledDrop(treasure.sellPrice || 0, treasure.name, treasure.emoji);
+        return;
+    }
     game.player.treasures = game.player.treasures || {};
     if (!game.player.treasures[treasure.id]) game.player.treasures[treasure.id] = { count: 0, level: 1, locked: false };
     game.player.treasures[treasure.id].count++;
@@ -1144,7 +1228,8 @@ function spawnBoss(index) {
         def: Math.floor(4 * baseLevel * mult * defMult),
         exp: Math.floor(30 * baseLevel * mult * 2),
         gold: Math.floor(15 * baseLevel * mult * 5),
-        bossSkills: bossSkills
+        bossSkills: bossSkills,
+        debuffs: {}
     };
     game.enemy.hp = game.enemy.maxHp;
     updateEnemyUI();
@@ -1220,7 +1305,8 @@ function spawnEnemy() {
         gold: gold,
         enemyType: template.type,
         aspd: template.type === 'pack' ? 750 : 900,
-        endlessLayer: endlessLayer
+        endlessLayer: endlessLayer,
+        debuffs: {}
     };
     // 区域被动技能（逐层递进，更平滑）
     if (areaIndex >= 5) game.enemy.burn = true;
@@ -1256,7 +1342,20 @@ function init() {
     const defaults = createDefaultSave();
     if (raw) {
         try {
-            const data = JSON.parse(raw);
+            const parsed = JSON.parse(raw);
+            // 兼容两种存档格式：wrapSaveData 包装格式 vs 裸格式
+            let data;
+            if (parsed.signature !== undefined && parsed.data !== undefined) {
+                const result = unwrapSaveData(parsed);
+                if (!result.valid) {
+                    log('⚠️ 存档签名验证失败，尝试裸格式读取...', 'log-death');
+                    data = parsed.data || parsed;
+                } else {
+                    data = result.data;
+                }
+            } else {
+                data = parsed;
+            }
             game.player = data.player || defaults.player;
             game.currentArea = data.currentArea ?? defaults.currentArea;
             game.bossDefeated = data.bossDefeated || defaults.bossDefeated;
@@ -1293,7 +1392,12 @@ function getPlayerStats(includeBuffs = true) {
     let buffAtkMult = 1.0;
     let buffDefMult = 1.0;
     let buffExpMult = 0;
+    let buffGoldMult = 0;
     let buffAspdMult = 0;
+    let debuffAtkMult = 0;
+    let debuffDefMult = 0;
+    let debuffAspdMult = 0;
+    let isSilenced = false;
     if (includeBuffs) {
         const now = Date.now();
         if (p.buffs) {
@@ -1309,9 +1413,26 @@ function getPlayerStats(includeBuffs = true) {
             if (p.buffs.expBonus && p.buffs.expBonus.endTime > now) {
                 buffExpMult = p.buffs.expBonus.value;
             }
+            if (p.buffs.goldBonus && p.buffs.goldBonus.endTime > now) {
+                buffGoldMult = p.buffs.goldBonus.value;
+            }
             if (p.buffs.aspdMultBuff && p.buffs.aspdMultBuff.endTime > now) {
                 buffAspdMult = p.buffs.aspdMultBuff.value;
             }
+        }
+        // 负面状态debuff
+        const debuffs = p.debuffs || {};
+        if (debuffs.weakness && debuffs.weakness.endTime > now) {
+            debuffAtkMult = debuffs.weakness.value;
+        }
+        if (debuffs.fragile && debuffs.fragile.endTime > now) {
+            debuffDefMult = debuffs.fragile.value;
+        }
+        if (debuffs.slow && debuffs.slow.endTime > now) {
+            debuffAspdMult = debuffs.slow.value;
+        }
+        if (debuffs.silence && debuffs.silence.endTime > now) {
+            isSilenced = true;
         }
     }
     const ach = getAchievementBonuses();
@@ -1319,7 +1440,7 @@ function getPlayerStats(includeBuffs = true) {
     let baseDef = (p.def + b.def + (includeBuffs ? buffDef : 0) + eq.def + ach.def) * (1 + eq.defMult);
     if (includeBuffs && game.player.armorPenDebuff) baseDef = Math.floor(baseDef * 0.8);
     const baseHp = (p.maxHp + b.maxHp + eq.maxHp + ach.maxHp) * (1 + eq.hpMult);
-    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult + (includeBuffs ? buffAspdMult : 0))));
+    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult + (includeBuffs ? buffAspdMult : 0) + (includeBuffs ? debuffAspdMult : 0))));
     // 抗性计算：基础 + 宝物 + 装备 + 被动技能，上限40%
     const capRes = (v) => Math.min(0.40, v);
     let passiveRes = { earthRes: 0, poisonRes: 0, lightningRes: 0, voidRes: 0, chaosRes: 0, fireRes: 0, tenacity: 0 };
@@ -1340,20 +1461,23 @@ function getPlayerStats(includeBuffs = true) {
     const fireRes = capRes((p.fireRes || 0) + b.fireRes + eq.fireRes + passiveRes.fireRes);
     const tenacity = capRes((p.tenacity || 0) + passiveRes.tenacity);
     return {
-        atk: Math.floor(baseAtk * (includeBuffs ? buffAtkMult : 1.0)), def: Math.floor(baseDef * (includeBuffs ? buffDefMult : 1.0)), maxHp: Math.floor(baseHp),
+        atk: Math.floor(baseAtk * (includeBuffs ? buffAtkMult : 1.0) * (includeBuffs ? (1 - debuffAtkMult) : 1.0)),
+        def: Math.floor(baseDef * (includeBuffs ? buffDefMult : 1.0) * (includeBuffs ? (1 - debuffDefMult) : 1.0)),
+        maxHp: Math.floor(baseHp),
         aspd: realAspd, speedMultiplier,
         crit: Math.min(1.0, p.crit + b.crit + eq.crit + eq.critMult + ach.crit), critDmg: p.critDmg + b.critDmg + eq.critDmg + eq.critDmgMult,
-        vamp: p.vamp + b.vamp + eq.vamp + eq.vampMult + ach.vamp, expBonus: b.expBonus + eq.expBonus + (includeBuffs ? buffExpMult : 0) + eq.expMult, goldBonus: b.goldBonus,
+        vamp: p.vamp + b.vamp + eq.vamp + eq.vampMult + ach.vamp, expBonus: b.expBonus + eq.expBonus + (includeBuffs ? buffExpMult : 0) + eq.expMult, goldBonus: b.goldBonus + (includeBuffs ? buffGoldMult : 0),
         armorPenFlat: b.armorPenFlat + eq.armorPenFlat, armorPenPercent: Math.min(0.35, b.armorPenPercent + eq.armorPenPercent),
         spi: p.spi + eq.spi + ach.spi, maxMp: p.maxMp, mp: p.mp,
         activeSets: eq.activeSets, activeSetDescs: eq.activeSetDescs, ach: ach,
-        earthRes, poisonRes, lightningRes, voidRes, chaosRes, fireRes, tenacity
+        earthRes, poisonRes, lightningRes, voidRes, chaosRes, fireRes, tenacity,
+        isSilenced
     };
 }
 
 function attack(attacker, defender, isPlayer) {
     const stats = isPlayer ? getPlayerStats() : attacker;
-    let effectiveDef = defender.def;
+    let effectiveDef = isPlayer ? getEnemyEffectiveDef() : defender.def;
     if (defender.buffs && defender.buffs.shield) {
         const now = Date.now();
         if (defender.buffs.shield.endTime > now) {
@@ -1366,7 +1490,8 @@ function attack(attacker, defender, isPlayer) {
     if (isPlayer && stats.armorPenPercent > 0) {
         effectiveDef = Math.max(0, effectiveDef * (1 - stats.armorPenPercent));
     }
-    const baseDmg = Math.max(1, (stats.atk * stats.atk) / (stats.atk + effectiveDef));
+    const atk = isPlayer ? stats.atk : getEnemyEffectiveAtk();
+    const baseDmg = Math.max(1, (atk * atk) / (atk + effectiveDef));
     const isCrit = isPlayer && Math.random() < (stats.crit || 0);
     const critMultiplier = isCrit ? (stats.critDmg || 2) : 1;
     const speedMultiplier = isPlayer ? (stats.speedMultiplier || 1.0) : 1.0;
@@ -1556,6 +1681,45 @@ function enemyAttack(skipUI = false) {
         game.player.armorPenDebuff = true;
         log(`💥 ${game.enemy.name} 的攻击破开了你的防御！`, 'log-damage');
     }
+    // 怪物类型debuff施加（基础概率，受韧性影响）
+    const playerResForDebuff = getPlayerStats(false);
+    const debuffResist = playerResForDebuff.tenacity || 0;
+    const type = game.enemy.enemyType;
+    const debuffChance = 0.25 * (1 - debuffResist);
+    if (type === 'poison' && Math.random() < debuffChance) {
+        applyDebuff('poison', 8000, 0.015, game.enemy.name);
+    }
+    if (type === 'vampiric' && Math.random() < debuffChance) {
+        applyDebuff('bleed', 6000, 0.02, game.enemy.name);
+    }
+    if (type === 'mage' && Math.random() < debuffChance) {
+        applyDebuff('weakness', 6000, 0.20, game.enemy.name);
+    }
+    if (type === 'ethereal' && Math.random() < debuffChance) {
+        applyDebuff('slow', 5000, 0.25, game.enemy.name);
+    }
+    if (type === 'undead' && Math.random() < debuffChance) {
+        applyDebuff('fragile', 7000, 0.20, game.enemy.name);
+    }
+    if (type === 'berserker' && game.enemy.berserkActive && Math.random() < debuffChance * 1.5) {
+        applyDebuff('weakness', 5000, 0.30, game.enemy.name);
+    }
+    // 精英/Boss额外debuff
+    if (game.enemy.isElite && Math.random() < 0.15 * (1 - debuffResist)) {
+        const eliteDebuffs = ['weakness', 'slow', 'fragile'];
+        const dKey = eliteDebuffs[Math.floor(Math.random() * eliteDebuffs.length)];
+        const dVals = { weakness: 0.25, slow: 0.30, fragile: 0.25 };
+        applyDebuff(dKey, 8000, dVals[dKey], `【精英】${game.enemy.name}`);
+    }
+    if (game.enemy.isBoss && Math.random() < 0.20 * (1 - debuffResist)) {
+        const bossDebuffs = ['weakness', 'slow', 'fragile', 'silence'];
+        const dKey = bossDebuffs[Math.floor(Math.random() * bossDebuffs.length)];
+        const dVals = { weakness: 0.35, slow: 0.40, fragile: 0.35, silence: 0 };
+        const dDurs = { weakness: 10000, slow: 8000, fragile: 10000, silence: 5000 };
+        applyDebuff(dKey, dDurs[dKey], dVals[dKey], `【BOSS】${game.enemy.name}`);
+    }
+    // debuff持续伤害结算
+    processDebuffDamage();
     const enemyName = game.enemy.isBoss ? `【BOSS】${game.enemy.name}` : game.enemy.isElite ? `【精英】${game.enemy.name}` : game.enemy.name;
     log(`${enemyName}对你造成了 ${formatNumber(enemyDmg)} 点伤害`, 'log-damage');
     if (game.player.hp <= 0) playerDeath();
@@ -1581,6 +1745,10 @@ function enemyDefeated() {
         const extraMult = 1.5 + (game.currentArea - 14) * 0.02;
         exp = Math.floor(exp * extraMult);
         gold = Math.floor(gold * extraMult);
+    }
+    // 无尽模式金币整体翻倍
+    if (game.currentArea >= 15) {
+        gold = Math.floor(gold * 2);
     }
 
     game.player.exp += exp;
@@ -1772,6 +1940,48 @@ function enemyDefeated() {
                 showNotification(`🎉 获得${rc.label}宝物：${treasure.name}！`);
             }
         }
+        // 无尽模式普通怪：千分之一概率掉落神器/超脱级宝物
+        if (game.currentArea >= 15 && Math.random() < 0.001) {
+            const divinePool = TREASURE_POOL.filter(t => t.rarity === 'divine');
+            const dTreasure = divinePool[Math.floor(Math.random() * divinePool.length)];
+            if (dTreasure) {
+                addTreasure(dTreasure);
+                const rc = RARITY_CONFIG['divine'];
+                log(`🎁 无尽模式奇迹掉落！${dTreasure.emoji} ${dTreasure.name}！`, 'log-legendary');
+                dropLog(`🎁 无尽奇迹：[${rc.label}] ${dTreasure.emoji} ${dTreasure.name}`);
+                showNotification(`🎉 无尽模式奇迹掉落${rc.label}宝物：${dTreasure.name}！`);
+            }
+        }
+        // 无尽模式普通怪：千分之一概率掉落神器级装备
+        if (game.currentArea >= 15 && Math.random() < 0.001) {
+            const divineEqPool = EQUIPMENT_POOL.filter(e => e.rarity === 'divine');
+            if (divineEqPool.length > 0) {
+                const equipment = divineEqPool[Math.floor(Math.random() * divineEqPool.length)];
+                addEquipmentToBag(equipment);
+                const rc = RARITY_CONFIG['divine'];
+                log(`🛡️ 无尽模式奇迹掉落！[${rc.label}] 装备：${equipment.emoji} ${equipment.name}！`, 'log-legendary');
+                dropLog(`🛡️ 无尽奇迹：[${rc.label}] ${equipment.emoji} ${equipment.name}`);
+                showNotification(`🎉 无尽模式奇迹掉落${rc.label}装备：${equipment.name}！`);
+            }
+        }
+        // 无尽模式普通怪：恢复类/加成型道具掉落（随层数小幅提升）
+        if (game.currentArea >= 15) {
+            const layer = game.currentArea - 14;
+            const normalItemRate = Math.min(0.05, 0.015 + layer * 0.0003);
+            if (Math.random() < normalItemRate) {
+                const normalItemIds = ENDLESS_NORMAL_DROP_ITEMS;
+                const pool = SHOP_ITEMS.filter(i => normalItemIds.includes(i.id));
+                const item = pool[Math.floor(Math.random() * pool.length)];
+                if (item) {
+                    game.player.items = game.player.items || {};
+                    if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
+                    game.player.items[item.id].count++;
+                    log(`🧪 无尽小怪掉落了 ${item.emoji} ${item.name}！`, 'log-epic');
+                    dropLog(`🧪 无尽掉落：${item.emoji} ${item.name}`);
+                    showNotification(`🧪 获得无尽掉落：${item.name}！`);
+                }
+            }
+        }
     }
 
     // 无尽模式：所有敌人击败后都进入下一层 + 特有掉落
@@ -1955,11 +2165,16 @@ function autoBattleLoop() {
     }
     if (playerAttacks > 0) game.lastPlayerAttack += playerAttacks * stats.aspd;
 
+    // 敌人debuff持续伤害结算
+    if (game.enemy && game.enemy.hp > 0) {
+        processEnemyDebuffDamage();
+    }
+
     // 玩家眩晕时跳过攻击
     if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
         game.lastPlayerAttack = now;
     }
-    const enemyInterval = game.enemy ? (game.enemy.aspd || 900) : 900;
+    const enemyInterval = game.enemy ? getEnemyEffectiveAspd() : 900;
     const enemyElapsed = now - game.lastEnemyAttack;
     const enemyAttacks = Math.min(Math.floor(enemyElapsed / enemyInterval), maxBatch);
     for (let i = 0; i < enemyAttacks; i++) {
@@ -2099,6 +2314,11 @@ function buyUpgrade(upgradeId) {
     if (!upgrade) return;
     const levelKey = upgradeId + 'Level';
     const level = game.player[levelKey] || 0;
+    if (level >= game.player.level) {
+        log('⛔ 能力等级不能超过角色等级！', 'log-damage');
+        showNotification('⛔ 能力等级已达上限');
+        return;
+    }
     const cost = Math.floor(upgrade.cost * Math.pow(1.18, level));
     if (game.player.gold >= cost) {
         game.player.gold -= cost;
@@ -2341,10 +2561,17 @@ function renderUpgrades() {
             item.innerHTML = `<div class="upgrade-info"><div class="upgrade-name"></div><div class="upgrade-desc"></div></div><div style="display:flex;align-items:center;"><span class="upgrade-cost"></span><button class="btn btn-primary" onclick="buyUpgrade('${upgrade.id}')">升级</button></div>`;
             container.appendChild(item);
         }
+        const levelCapped = level >= game.player.level;
         item.querySelector('.upgrade-name').textContent = `${upgrade.name} Lv.${level}`;
         item.querySelector('.upgrade-desc').textContent = nextDesc;
-        item.querySelector('.upgrade-cost').textContent = aspdCapped ? '⚡ 已满级' : `💰 ${formatNumber(cost)}`;
-        item.querySelector('button').disabled = !canAfford || aspdCapped;
+        if (aspdCapped) {
+            item.querySelector('.upgrade-cost').textContent = '⚡ 已满级';
+        } else if (levelCapped) {
+            item.querySelector('.upgrade-cost').textContent = '⛔ 已达等级上限';
+        } else {
+            item.querySelector('.upgrade-cost').textContent = `💰 ${formatNumber(cost)}`;
+        }
+        item.querySelector('button').disabled = !canAfford || aspdCapped || levelCapped;
     });
 }
 
@@ -3000,6 +3227,32 @@ function _applyItemEffect(item, now) {
             showNotification(`⚗️ 攻击+${Math.round(v.atkMult * 100)}%、攻速+${Math.round(v.aspdMult * 100)}%，剩余${mins}分钟！`);
             break;
         }
+        case 'heal_full': {
+            const stats = getPlayerStats();
+            const hpAmount = stats.maxHp - game.player.hp;
+            const mpAmount = stats.maxMp - game.player.mp;
+            game.player.hp = stats.maxHp;
+            game.player.mp = stats.maxMp;
+            log(`🪶 使用了${item.name}，恢复 ${formatNumber(hpAmount)} 点生命、${formatNumber(mpAmount)} 点魔力`, 'log-heal');
+            showNotification(`🪶 ${item.name}生效！`);
+            break;
+        }
+        case 'buff_aspd': {
+            game.player.buffs = game.player.buffs || {};
+            const existing = game.player.buffs.aspdMultBuff;
+            let mins;
+            if (existing && existing.endTime > now) {
+                existing.endTime += item.duration;
+                mins = Math.floor((existing.endTime - now) / 60000);
+                log(`💨 使用了${item.name}，攻速加成持续时间延长，剩余${mins}分钟！`, 'log-epic');
+            } else {
+                game.player.buffs.aspdMultBuff = { value: item.value, endTime: now + item.duration };
+                mins = Math.floor(item.duration / 60000);
+                log(`💨 使用了${item.name}，攻速+${Math.round(item.value * 100)}%，持续${mins}分钟！`, 'log-epic');
+            }
+            showNotification(`💨 攻速+${Math.round(item.value * 100)}%，剩余${mins}分钟！`);
+            break;
+        }
     }
 }
 
@@ -3068,6 +3321,7 @@ function getActiveBuffs() {
     if (buffs.atkBonus && buffs.atkBonus.endTime > now) active.push({ name: '攻击加成', emoji: '⚔️', value: buffs.atkBonus.value, endTime: buffs.atkBonus.endTime });
     if (buffs.defBonus && buffs.defBonus.endTime > now) active.push({ name: '防御加成', emoji: '🛡️', value: buffs.defBonus.value, endTime: buffs.defBonus.endTime });
     if (buffs.shield && buffs.shield.endTime > now) active.push({ name: '护盾', emoji: '🛡️', value: buffs.shield.defBonus, endTime: buffs.shield.endTime });
+    if (buffs.aspdMultBuff && buffs.aspdMultBuff.endTime > now) active.push({ name: '攻速加成', emoji: '💨', value: buffs.aspdMultBuff.value, endTime: buffs.aspdMultBuff.endTime });
     return active;
 }
 
@@ -3079,8 +3333,227 @@ function cleanExpiredBuffs() {
         if (buff.endTime && buff.endTime <= now) {
             delete buffs[key];
             expired = true;
-            const names = { expBonus: '📜 经验加成', goldBonus: '💰 金币加成', atkBonus: '⚔️ 攻击加成', defBonus: '🛡️ 防御加成', shield: '🛡️ 护盾' };
+            const names = { expBonus: '📜 经验加成', goldBonus: '💰 金币加成', atkBonus: '⚔️ 攻击加成', defBonus: '🛡️ 防御加成', shield: '🛡️ 护盾', aspdMultBuff: '💨 攻速加成' };
             log(`${names[key] || key} 效果已消失`, 'log-death');
+        }
+    }
+    return expired;
+}
+
+function cleanExpiredDebuffs() {
+    const debuffs = game.player.debuffs || {};
+    const now = Date.now();
+    let expired = false;
+    const names = { bleed: '🩸 流血', poison: '☠️ 中毒', weakness: '💔 虚弱', slow: '🐢 迟缓', fragile: '💥 脆弱', silence: '🔇 沉默' };
+    for (const [key, debuff] of Object.entries(debuffs)) {
+        if (debuff.endTime && debuff.endTime <= now) {
+            delete debuffs[key];
+            expired = true;
+            log(`${names[key] || key} 效果已解除`, 'log-heal');
+        }
+    }
+    return expired;
+}
+
+function getActiveDebuffs() {
+    const debuffs = game.player.debuffs || {};
+    const now = Date.now();
+    const active = [];
+    const meta = {
+        bleed: { name: '流血', emoji: '🩸', isPercent: true },
+        poison: { name: '中毒', emoji: '☠️', isPercent: true },
+        weakness: { name: '虚弱', emoji: '💔', isPercent: true },
+        slow: { name: '迟缓', emoji: '🐢', isPercent: true },
+        fragile: { name: '脆弱', emoji: '💥', isPercent: true },
+        silence: { name: '沉默', emoji: '🔇', isPercent: false }
+    };
+    for (const [key, debuff] of Object.entries(debuffs)) {
+        if (debuff.endTime && debuff.endTime > now) {
+            const m = meta[key] || { name: key, emoji: '⚠️', isPercent: true };
+            active.push({ key, name: m.name, emoji: m.emoji, value: debuff.value || 0, endTime: debuff.endTime, isPercent: m.isPercent });
+        }
+    }
+    return active;
+}
+
+function applyDebuff(key, duration, value, source) {
+    game.player.debuffs = game.player.debuffs || {};
+    const now = Date.now();
+    const existing = game.player.debuffs[key];
+    const debuffNames = { bleed: '流血', poison: '中毒', weakness: '虚弱', slow: '迟缓', fragile: '脆弱', silence: '沉默' };
+    const debuffEmojis = { bleed: '🩸', poison: '☠️', weakness: '💔', slow: '🐢', fragile: '💥', silence: '🔇' };
+    if (existing && existing.endTime > now) {
+        existing.endTime = Math.max(existing.endTime, now + duration);
+    } else {
+        const base = { endTime: now + duration, value: value || 0, source: source || '' };
+        if (key === 'bleed' || key === 'poison') {
+            base.tickInterval = 3000;
+            base.nextTick = now + 3000;
+        }
+        game.player.debuffs[key] = base;
+    }
+    const name = debuffNames[key] || key;
+    const emoji = debuffEmojis[key] || '⚠️';
+    log(`${emoji} ${source} 使你陷入【${name}】状态！`, 'log-damage');
+}
+
+function processDebuffDamage() {
+    const debuffs = game.player.debuffs || {};
+    const now = Date.now();
+    const stats = getPlayerStats(false);
+    let totalDmg = 0;
+    const playerRes = getPlayerStats(false);
+    if (debuffs.bleed && debuffs.bleed.endTime > now && debuffs.bleed.nextTick <= now) {
+        const dmg = Math.max(1, Math.floor(stats.maxHp * (debuffs.bleed.value || 0.02)));
+        totalDmg += dmg;
+        debuffs.bleed.nextTick = now + debuffs.bleed.tickInterval;
+        log(`🩸 流血造成了 ${formatNumber(dmg)} 点伤害！`, 'log-damage');
+    }
+    if (debuffs.poison && debuffs.poison.endTime > now && debuffs.poison.nextTick <= now) {
+        const dmg = Math.max(1, Math.floor(stats.maxHp * (debuffs.poison.value || 0.015) * (1 - playerRes.poisonRes)));
+        totalDmg += dmg;
+        debuffs.poison.nextTick = now + debuffs.poison.tickInterval;
+        log(`☠️ 中毒造成了 ${formatNumber(dmg)} 点伤害！${playerRes.poisonRes > 0 ? '【毒抗减免】' : ''}`, 'log-damage');
+    }
+    if (totalDmg > 0) {
+        game.player.hp = Math.max(0, game.player.hp - totalDmg);
+        if (game.player.hp <= 0) playerDeath();
+    }
+}
+
+// ========== 敌人debuff系统 ==========
+function getEnemyDebuffResist() {
+    if (!game.enemy) return 0;
+    const areaIndex = game.currentArea;
+    let baseResist = Math.min(0.25, areaIndex * 0.012);
+    if (areaIndex >= 15) {
+        const layer = areaIndex - 14;
+        baseResist = Math.min(0.40, 0.20 + layer * 0.008);
+    }
+    if (game.enemy.isBoss) baseResist += 0.10;
+    else if (game.enemy.isElite) baseResist += 0.05;
+    return Math.min(0.60, baseResist);
+}
+
+function calculateDebuffSuccess(baseChance) {
+    if (!game.enemy) return false;
+    const levelDiff = (game.player.level || 1) - (game.enemy.level || 1);
+    const levelBonus = Math.min(0.30, Math.max(-0.20, levelDiff * 0.02));
+    const enemyResist = getEnemyDebuffResist();
+    const successRate = Math.max(0.05, Math.min(0.95, baseChance + levelBonus - enemyResist));
+    return Math.random() < successRate;
+}
+
+function applyEnemyDebuff(key, duration, value, source) {
+    if (!game.enemy) return;
+    game.enemy.debuffs = game.enemy.debuffs || {};
+    const now = Date.now();
+    const existing = game.enemy.debuffs[key];
+    const names = { burn: '灼烧', freeze: '冰冻', curse: '诅咒', weaken: '虚弱', poison: '中毒' };
+    const emojis = { burn: '🔥', freeze: '❄️', curse: '🌑', weaken: '✨', poison: '💀' };
+    if (existing && existing.endTime > now) {
+        existing.endTime = Math.max(existing.endTime, now + duration);
+    } else {
+        const base = { endTime: now + duration, value: value || 0, source: source || '' };
+        if (key === 'burn' || key === 'poison') {
+            base.tickInterval = 3000;
+            base.nextTick = now + 3000;
+        }
+        game.enemy.debuffs[key] = base;
+    }
+    const name = names[key] || key;
+    const emoji = emojis[key] || '⚠️';
+    log(`${emoji} ${source} 使敌人陷入【${name}】状态！`, 'log-skill');
+}
+
+function processEnemyDebuffDamage() {
+    if (!game.enemy || !game.enemy.debuffs) return;
+    const debuffs = game.enemy.debuffs;
+    const now = Date.now();
+    let totalDmg = 0;
+    if (debuffs.burn && debuffs.burn.endTime > now && debuffs.burn.nextTick <= now) {
+        const dmg = Math.max(1, Math.floor(game.enemy.maxHp * (debuffs.burn.value || 0.03)));
+        totalDmg += dmg;
+        debuffs.burn.nextTick = now + debuffs.burn.tickInterval;
+        log(`🔥 灼烧对敌人造成了 ${formatNumber(dmg)} 点伤害！`, 'log-skill');
+    }
+    if (debuffs.poison && debuffs.poison.endTime > now && debuffs.poison.nextTick <= now) {
+        const dmg = Math.max(1, Math.floor(game.enemy.maxHp * (debuffs.poison.value || 0.02)));
+        totalDmg += dmg;
+        debuffs.poison.nextTick = now + debuffs.poison.tickInterval;
+        log(`💀 中毒对敌人造成了 ${formatNumber(dmg)} 点伤害！`, 'log-skill');
+    }
+    if (totalDmg > 0) {
+        game.enemy.hp = Math.max(0, game.enemy.hp - totalDmg);
+        if (game.enemy.hp <= 0) {
+            enemyDefeated();
+        }
+    }
+}
+
+function getEnemyEffectiveAtk() {
+    if (!game.enemy) return 0;
+    let atk = game.enemy.atk;
+    const debuffs = game.enemy.debuffs || {};
+    const now = Date.now();
+    if (debuffs.curse && debuffs.curse.endTime > now) {
+        atk = Math.floor(atk * (1 - debuffs.curse.value));
+    }
+    return atk;
+}
+
+function getEnemyEffectiveDef() {
+    if (!game.enemy) return 0;
+    let def = game.enemy.def;
+    const debuffs = game.enemy.debuffs || {};
+    const now = Date.now();
+    if (debuffs.weaken && debuffs.weaken.endTime > now) {
+        def = Math.floor(def * (1 - debuffs.weaken.value));
+    }
+    return def;
+}
+
+function getEnemyEffectiveAspd() {
+    if (!game.enemy) return 900;
+    let aspd = game.enemy.aspd || 900;
+    const debuffs = game.enemy.debuffs || {};
+    const now = Date.now();
+    if (debuffs.freeze && debuffs.freeze.endTime > now) {
+        aspd = Math.floor(aspd * (1 + debuffs.freeze.value));
+    }
+    return aspd;
+}
+
+function getActiveEnemyDebuffs() {
+    if (!game.enemy || !game.enemy.debuffs) return [];
+    const debuffs = game.enemy.debuffs;
+    const now = Date.now();
+    const active = [];
+    const meta = {
+        burn: { name: '灼烧', emoji: '🔥', isPercent: true },
+        freeze: { name: '冰冻', emoji: '❄️', isPercent: true },
+        curse: { name: '诅咒', emoji: '🌑', isPercent: true },
+        weaken: { name: '虚弱', emoji: '✨', isPercent: true },
+        poison: { name: '中毒', emoji: '💀', isPercent: true }
+    };
+    for (const [key, debuff] of Object.entries(debuffs)) {
+        if (debuff.endTime && debuff.endTime > now) {
+            const m = meta[key] || { name: key, emoji: '⚠️', isPercent: true };
+            active.push({ key, name: m.name, emoji: m.emoji, value: debuff.value || 0, endTime: debuff.endTime, isPercent: m.isPercent });
+        }
+    }
+    return active;
+}
+
+function cleanExpiredEnemyDebuffs() {
+    if (!game.enemy || !game.enemy.debuffs) return false;
+    const debuffs = game.enemy.debuffs;
+    const now = Date.now();
+    let expired = false;
+    for (const [key, debuff] of Object.entries(debuffs)) {
+        if (debuff.endTime && debuff.endTime <= now) {
+            delete debuffs[key];
+            expired = true;
         }
     }
     return expired;
@@ -3293,6 +3766,40 @@ function updateUI() {
         buffPanel.style.display = hasAny ? 'block' : 'none';
     }
 
+    // 负面状态（debuff）显示
+    const debuffPanel = document.getElementById('debuffPanel');
+    const activeDebuffs = getActiveDebuffs();
+    if (debuffPanel) {
+        const debuffIds = new Set();
+        let hasDebuff = false;
+        activeDebuffs.forEach(debuff => {
+            const did = `debuff-${debuff.key}`;
+            debuffIds.add(did);
+            let el = debuffPanel.querySelector(`[data-debuff="${did}"]`);
+            if (!el) {
+                el = document.createElement('div');
+                el.setAttribute('data-debuff', did);
+                el.style.cssText = 'display:block;background:rgba(231,76,60,0.15);color:#e74c3c;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px 0;';
+                debuffPanel.appendChild(el);
+            }
+            el.style.display = 'block';
+            const remaining = Math.max(0, Math.ceil((debuff.endTime - Date.now()) / 1000));
+            const mins = Math.floor(remaining / 60);
+            const secs = remaining % 60;
+            const timeStr = mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+            const debuffVal = debuff.isPercent ? `-${Math.round(debuff.value * 100)}%` : '';
+            el.textContent = `${debuff.emoji} ${debuff.name} ${debuffVal} (${timeStr})`;
+            el.style.display = '';
+            hasDebuff = true;
+        });
+        // 移除过期的debuff元素
+        Array.from(debuffPanel.children).forEach(child => {
+            const did = child.getAttribute('data-debuff');
+            if (did && !debuffIds.has(did)) debuffPanel.removeChild(child);
+        });
+        debuffPanel.style.display = hasDebuff ? 'block' : 'none';
+    }
+
     // 抗性面板更新
     const resistPanel = document.getElementById('resistPanel');
     if (resistPanel) {
@@ -3357,6 +3864,35 @@ function updateEnemyUI() {
     document.getElementById('enemyHpBar').style.width = (game.enemy.hp / game.enemy.maxHp * 100) + '%';
     document.getElementById('enemyHpText').textContent = `${formatNumber(game.enemy.hp)}/${formatNumber(game.enemy.maxHp)}`;
     document.title = `勇者挂机传说 - ${game.enemy.emoji} ${nameText}`;
+
+    // 敌人debuff显示
+    const enemyDebuffPanel = document.getElementById('enemyDebuffPanel');
+    if (enemyDebuffPanel) {
+        const activeDebuffs = getActiveEnemyDebuffs();
+        const debuffIds = new Set();
+        let hasDebuff = false;
+        activeDebuffs.forEach(debuff => {
+            const did = `enemy-debuff-${debuff.key}`;
+            debuffIds.add(did);
+            let el = enemyDebuffPanel.querySelector(`[data-enemy-debuff="${did}"]`);
+            if (!el) {
+                el = document.createElement('span');
+                el.setAttribute('data-enemy-debuff', did);
+                el.style.cssText = 'display:inline-block;background:rgba(231,76,60,0.2);color:#e74c3c;padding:1px 6px;border-radius:8px;font-size:0.65em;margin:1px 3px 1px 0;';
+                enemyDebuffPanel.appendChild(el);
+            }
+            el.style.display = 'inline-block';
+            const remaining = Math.max(0, Math.ceil((debuff.endTime - Date.now()) / 1000));
+            const debuffVal = debuff.isPercent ? `-${Math.round(debuff.value * 100)}%` : '';
+            el.textContent = `${debuff.emoji} ${debuff.name} ${debuffVal}`;
+            hasDebuff = true;
+        });
+        Array.from(enemyDebuffPanel.children).forEach(child => {
+            const did = child.getAttribute('data-enemy-debuff');
+            if (did && !debuffIds.has(did)) enemyDebuffPanel.removeChild(child);
+        });
+        enemyDebuffPanel.style.display = hasDebuff ? 'block' : 'none';
+    }
 }
 
 function log(message, className = '') {
@@ -3404,6 +3940,10 @@ window.addEventListener('beforeunload', () => {
 // ========== 技能系统 ==========
 
 function addSkillBook(book) {
+    if (game.player.settledMode) {
+        handleSettledDrop(book.sellPrice || 0, book.name, book.emoji);
+        return;
+    }
     game.player.skillBooks = game.player.skillBooks || {};
     if (!game.player.skillBooks[book.id]) game.player.skillBooks[book.id] = { count: 0, appraised: false, skillId: null };
     game.player.skillBooks[book.id].count++;
@@ -3434,6 +3974,12 @@ function castSkill(skillId) {
     if (!skillData) return;
 
     const now = Date.now();
+    // 沉默状态无法施放技能
+    const playerStats = getPlayerStats();
+    if (playerStats.isSilenced) {
+        log(`🔇 你被沉默了，无法使用技能！`, 'log-damage');
+        return;
+    }
     if (skillData.cooldownEnd > now) {
         log(`⏳ ${skill.name} 冷却中...`, 'log-skill');
         return;
@@ -3513,6 +4059,16 @@ function castSkill(skillId) {
                     game.player.counterState.chaosReflux = true;
                     log(`🌑 混沌逆流！下一次清buff将反弹给BOSS！`, 'log-skill');
                 }
+            }
+        }
+
+        // 技能debuff施加
+        if (skill.debuff) {
+            if (calculateDebuffSuccess(skill.debuff.chance)) {
+                applyEnemyDebuff(skill.debuff.type, skill.debuff.duration, skill.debuff.value, skill.name);
+            } else {
+                const resistPct = Math.round(getEnemyDebuffResist() * 100);
+                log(`🛡️ ${enemyName} 抵抗了 ${skill.name} 的负面效果！（抗性${resistPct}%）`, 'log-skill-resist');
             }
         }
 
@@ -3654,6 +4210,7 @@ function equipItem(bagIndex) {
     updateUI();
     renderEquipments();
     renderBag();
+    renderBlacksmithContent();
 }
 
 function unequipItem(slotKey) {
@@ -3672,6 +4229,7 @@ function unequipItem(slotKey) {
     updateUI();
     renderEquipments();
     renderBag();
+    renderBlacksmithContent();
 }
 
 function sellEquipment(bagIndex) {
@@ -3685,6 +4243,7 @@ function sellEquipment(bagIndex) {
     log(`💰 出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${formatNumber(eqDef.sellPrice)} 金币`, 'log-loot');
     updateUI();
     renderBag();
+    renderBlacksmithContent();
 }
 
 // ========== 主城/NPC系统 ==========
@@ -4126,6 +4685,7 @@ function forgeEquipment() {
         showNotification(`⚒️ 打造了${rc.label}装备：${eqDef.name}！`);
     }
     renderBlacksmithContent();
+    renderBag();
     updateUI();
 }
 
@@ -4300,6 +4860,7 @@ function refineEquipment(bagIndex) {
     }
 
     renderBlacksmithContent();
+    renderBag();
     updateUI();
 }
 

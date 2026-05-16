@@ -1,6 +1,6 @@
 const SAVE_KEY = 'idleRpgGame_save_v6';
 const MAX_ATK_SPEED = 10;
-const AREA_DROP_RATES = [0.01, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15, 0.17, 0.19, 0.21, 0.23, 0.25, 0.27, 0.30];
+const AREA_DROP_RATES = [0.005, 0.015, 0.025, 0.035, 0.045, 0.055, 0.065, 0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.15];
 const BOSS_AREAS = [3, 6, 9, 14];
 const BOSS_CONFIG = {
     3: { name: '遗迹守卫', emoji: '🗿' },
@@ -54,7 +54,14 @@ const TREASURE_POOL = [
     { id: 't_heart', name: '湮灭之心', emoji: '💀', rarity: 'divine', stat: 'maxHp', value: 500, sellPrice: 1200 },
     { id: 't_source', name: '混沌之源', emoji: '🔥', rarity: 'divine', stat: 'atk', value: 100, sellPrice: 1200 },
     { id: 't_wheel', name: '永恒之轮', emoji: '🌀', rarity: 'divine', stat: 'expBonus', value: 0.80, sellPrice: 1500 },
-    { id: 't_web', name: '命运织网', emoji: '🕸️', rarity: 'divine', stat: 'vamp', value: 0.15, sellPrice: 1200 }
+    { id: 't_web', name: '命运织网', emoji: '🕸️', rarity: 'divine', stat: 'vamp', value: 0.15, sellPrice: 1200 },
+    // 克制属性宝物（少量抗性，稀有度限定史诗/传说）
+    { id: 'r_earth', name: '石化碎片', emoji: '🗿', rarity: 'epic', stat: 'earthRes', value: 0.05, sellPrice: 80 },
+    { id: 'r_poison', name: '解毒草', emoji: '🌿', rarity: 'epic', stat: 'poisonRes', value: 0.05, sellPrice: 80 },
+    { id: 'r_lightning', name: '避雷针', emoji: '⚡', rarity: 'epic', stat: 'lightningRes', value: 0.05, sellPrice: 80 },
+    { id: 'r_void', name: '虚空残渣', emoji: '🌑', rarity: 'epic', stat: 'voidRes', value: 0.05, sellPrice: 80 },
+    { id: 'r_chaos', name: '秩序水晶', emoji: '🔮', rarity: 'epic', stat: 'chaosRes', value: 0.05, sellPrice: 80 },
+    { id: 'r_fire', name: '耐火鳞片', emoji: '🔥', rarity: 'epic', stat: 'fireRes', value: 0.05, sellPrice: 80 }
 ];
 
 const RARITY_CONFIG = {
@@ -67,29 +74,29 @@ const RARITY_CONFIG = {
 
 // ========== 装备系统常量 ==========
 const ARMOR_SETS = {
-    set_novice_arm: { id: 'set_novice_arm', name: '学徒战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.08, critDmg: 0.20 }, desc: '攻击力+8%、暴击伤害+20%', rarity: 'common' },
-    set_miner_arm: { id: 'set_miner_arm', name: '矿工战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.10, critDmg: 0.30 }, desc: '攻击力+10%、暴击伤害+30%', rarity: 'common' },
-    set_guardian_arm: { id: 'set_guardian_arm', name: '守卫战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.12, critDmg: 0.35 }, desc: '攻击力+12%、暴击伤害+35%', rarity: 'rare' },
-    set_frost_arm: { id: 'set_frost_arm', name: '寒冰战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.13, critDmg: 0.40 }, desc: '攻击力+13%、暴击伤害+40%', rarity: 'rare' },
-    set_shadow_arm: { id: 'set_shadow_arm', name: '暗影战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.15, critDmg: 0.45 }, desc: '攻击力+15%、暴击伤害+45%', rarity: 'epic' },
-    set_dragon_arm: { id: 'set_dragon_arm', name: '龙鳞战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.18, critDmg: 0.50 }, desc: '攻击力+18%、暴击伤害+50%', rarity: 'epic' },
-    set_void_arm: { id: 'set_void_arm', name: '虚空战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.20, critDmg: 0.55 }, desc: '攻击力+20%、暴击伤害+55%', rarity: 'epic' },
-    set_demon_arm: { id: 'set_demon_arm', name: '恶魔战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.25, critDmg: 0.65 }, desc: '攻击力+25%、暴击伤害+65%', rarity: 'legendary' },
-    set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80 }, desc: '攻击力+30%、暴击伤害+80%', rarity: 'legendary' },
-    set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.50 }, desc: '攻击力+35%、暴击伤害+150%', rarity: 'divine' },
-    set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%', rarity: 'divine' },
+    set_novice_arm: { id: 'set_novice_arm', name: '学徒战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.08, critDmg: 0.20, earthRes: 0.05 }, desc: '攻击力+8%、暴击伤害+20%、土抗+5%', rarity: 'common' },
+    set_miner_arm: { id: 'set_miner_arm', name: '矿工战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.10, critDmg: 0.30, earthRes: 0.05 }, desc: '攻击力+10%、暴击伤害+30%、土抗+5%', rarity: 'common' },
+    set_guardian_arm: { id: 'set_guardian_arm', name: '守卫战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.12, critDmg: 0.35, earthRes: 0.10 }, desc: '攻击力+12%、暴击伤害+35%、土抗+10%', rarity: 'rare' },
+    set_frost_arm: { id: 'set_frost_arm', name: '寒冰战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.13, critDmg: 0.40, lightningRes: 0.10 }, desc: '攻击力+13%、暴击伤害+40%、雷抗+10%', rarity: 'rare' },
+    set_shadow_arm: { id: 'set_shadow_arm', name: '暗影战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.15, critDmg: 0.45, chaosRes: 0.10 }, desc: '攻击力+15%、暴击伤害+45%、混沌抗+10%', rarity: 'epic' },
+    set_dragon_arm: { id: 'set_dragon_arm', name: '龙鳞战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.18, critDmg: 0.50, voidRes: 0.10 }, desc: '攻击力+18%、暴击伤害+50%、虚空抗+10%', rarity: 'epic' },
+    set_void_arm: { id: 'set_void_arm', name: '虚空战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.20, critDmg: 0.55, voidRes: 0.10 }, desc: '攻击力+20%、暴击伤害+55%、虚空抗+10%', rarity: 'epic' },
+    set_demon_arm: { id: 'set_demon_arm', name: '恶魔战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.25, critDmg: 0.65, fireRes: 0.10 }, desc: '攻击力+25%、暴击伤害+65%、火抗+10%', rarity: 'legendary' },
+    set_chaos_arm: { id: 'set_chaos_arm', name: '混沌战甲', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.30, critDmg: 0.80, chaosRes: 0.15 }, desc: '攻击力+30%、暴击伤害+80%、混沌抗+15%', rarity: 'legendary' },
+    set_endless_conqueror: { id: 'set_endless_conqueror', name: '无尽征服者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.35, critDmg: 1.50, earthRes: 0.10, lightningRes: 0.10, poisonRes: 0.10 }, desc: '攻击力+35%、暴击伤害+150%、全元素抗性+10%', rarity: 'divine' },
+    set_endless_guardian: { id: 'set_endless_guardian', name: '永恒守护者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { defMult: 0.25, hpMult: 0.25, vamp: 0.10, aspdMult: 0.15, voidRes: 0.10, chaosRes: 0.10 }, desc: '防御力+25%、生命+25%、吸血+10%、攻速+15%、虚空抗+10%、混沌抗+10%', rarity: 'divine' },
     // 无尽模式超脱级战甲套装（超越神器）
-    set_void_annihilator: { id: 'set_void_annihilator', name: '虚空湮灭者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.60, critDmg: 2.00, armorPenFlat: 50 }, desc: '攻击力+60%、暴击伤害+200%、破甲+50', rarity: 'divine' }
+    set_void_annihilator: { id: 'set_void_annihilator', name: '虚空湮灭者', slots: ['weapon','helmet','armor','belt','boots'], bonus: { atkMult: 0.60, critDmg: 2.00, armorPenFlat: 50, voidRes: 0.15, chaosRes: 0.15 }, desc: '攻击力+60%、暴击伤害+200%、破甲+50、虚空抗+15%、混沌抗+15%', rarity: 'divine' }
 };
 const ACCESSORY_SETS = {
-    set_novice_acc: { id: 'set_novice_acc', name: '学徒饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.10, vamp: 0.02, expBonus: 0.10 }, desc: '攻速+10%、吸血+2%、经验+10%', rarity: 'common' },
-    set_flame_acc: { id: 'set_flame_acc', name: '烈焰饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.15, vamp: 0.03, expBonus: 0.15 }, desc: '攻速+15%、吸血+3%、经验+15%', rarity: 'rare' },
-    set_swamp_acc: { id: 'set_swamp_acc', name: '沼泽饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.18, vamp: 0.04, expBonus: 0.20 }, desc: '攻速+18%、吸血+4%、经验+20%', rarity: 'epic' },
-    set_sky_acc: { id: 'set_sky_acc', name: '天空饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.22, vamp: 0.05, expBonus: 0.25 }, desc: '攻速+22%、吸血+5%、经验+25%', rarity: 'epic' },
-    set_abyss_acc: { id: 'set_abyss_acc', name: '深渊饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.25, vamp: 0.06, expBonus: 0.30 }, desc: '攻速+25%、吸血+6%、经验+30%', rarity: 'legendary' },
-    set_godfall_acc: { id: 'set_godfall_acc', name: '神陨饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.30, vamp: 0.08, expBonus: 0.35 }, desc: '攻速+30%、吸血+8%、经验+35%', rarity: 'legendary' },
+    set_novice_acc: { id: 'set_novice_acc', name: '学徒饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.10, vamp: 0.02, expBonus: 0.10, earthRes: 0.05 }, desc: '攻速+10%、吸血+2%、经验+10%、土抗+5%', rarity: 'common' },
+    set_flame_acc: { id: 'set_flame_acc', name: '烈焰饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.15, vamp: 0.03, expBonus: 0.15, fireRes: 0.10 }, desc: '攻速+15%、吸血+3%、经验+15%、火抗+10%', rarity: 'rare' },
+    set_swamp_acc: { id: 'set_swamp_acc', name: '沼泽饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.18, vamp: 0.04, expBonus: 0.20, poisonRes: 0.10 }, desc: '攻速+18%、吸血+4%、经验+20%、毒抗+10%', rarity: 'epic' },
+    set_sky_acc: { id: 'set_sky_acc', name: '天空饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.22, vamp: 0.05, expBonus: 0.25, lightningRes: 0.10 }, desc: '攻速+22%、吸血+5%、经验+25%、雷抗+10%', rarity: 'epic' },
+    set_abyss_acc: { id: 'set_abyss_acc', name: '深渊饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.25, vamp: 0.06, expBonus: 0.30, chaosRes: 0.10 }, desc: '攻速+25%、吸血+6%、经验+30%、混沌抗+10%', rarity: 'legendary' },
+    set_godfall_acc: { id: 'set_godfall_acc', name: '神陨饰品', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.30, vamp: 0.08, expBonus: 0.35, lightningRes: 0.10 }, desc: '攻速+30%、吸血+8%、经验+35%、雷抗+10%', rarity: 'legendary' },
     // 无尽模式超脱级饰品套装（超越神器）
-    set_eternal_throne: { id: 'set_eternal_throne', name: '永恒圣座', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.50, vamp: 0.15, expBonus: 0.60, goldBonus: 0.50 }, desc: '攻速+50%、吸血+15%、经验+60%、金币+50%', rarity: 'divine' }
+    set_eternal_throne: { id: 'set_eternal_throne', name: '永恒圣座', slots: ['bracelet','bracelet','necklace','jade'], bonus: { aspdMult: 0.50, vamp: 0.15, expBonus: 0.60, goldBonus: 0.50, earthRes: 0.10, poisonRes: 0.10, lightningRes: 0.10, fireRes: 0.10 }, desc: '攻速+50%、吸血+15%、经验+60%、金币+50%、四元素抗性+10%', rarity: 'divine' }
 };
 const ALL_SETS = { ...ARMOR_SETS, ...ACCESSORY_SETS };
 const AREA_SETS = {
@@ -209,7 +216,7 @@ const EQUIPMENT_POOL = [
     { id: 'set_eternal_throne_jade', setId: 'set_eternal_throne', name: '圣座之玉', emoji: '🏵️', slot: 'jade', rarity: 'divine', def: 75, spi: 25, sellPrice: 1200 }
 ];
 
-const EQUIPMENT_DROP_RATES = [0.08, 0.12, 0.15, 0.18, 0.22, 0.26, 0.30, 0.33, 0.36, 0.38, 0.40, 0.42, 0.45, 0.48, 0.52];
+const EQUIPMENT_DROP_RATES = [0.04, 0.06, 0.075, 0.09, 0.11, 0.13, 0.15, 0.165, 0.18, 0.19, 0.20, 0.21, 0.225, 0.24, 0.26];
 
 // ========== 商店商品 ==========
 const SHOP_ITEMS = [
@@ -295,6 +302,18 @@ const SKILL_BOOKS = [
     { id: 'book_void_annihilation', skillId: 'void_annihilation', name: '虚空湮灭禁咒', emoji: '📕', rarity: 'divine', sellPrice: 2000 }
 ];
 
+// 被动技能书定义（BOSS专属掉落，超低概率）
+const PASSIVE_BOOKS = [
+    { id: 'passive_earth', name: '石化抗性手册', emoji: '📘', rarity: 'epic', desc: '减少石化持续时间20%', effect: { earthRes: 0.20 }, sellPrice: 300 },
+    { id: 'passive_poison', name: '毒物免疫指南', emoji: '📗', rarity: 'epic', desc: '毒伤降低20%', effect: { poisonRes: 0.20 }, sellPrice: 300 },
+    { id: 'passive_lightning', name: '雷霆屏障卷轴', emoji: '📙', rarity: 'epic', desc: '雷伤降低20%', effect: { lightningRes: 0.20 }, sellPrice: 300 },
+    { id: 'passive_void', name: '虚空护盾典籍', emoji: '📕', rarity: 'legendary', desc: '虚空吞噬效果降低20%', effect: { voidRes: 0.20 }, sellPrice: 500 },
+    { id: 'passive_chaos', name: '混沌守护秘典', emoji: '📓', rarity: 'legendary', desc: '混沌领域抵抗率+20%', effect: { chaosRes: 0.20 }, sellPrice: 500 },
+    { id: 'passive_fire', name: '耐火皮肤手册', emoji: '📔', rarity: 'epic', desc: '燃烧伤害降低20%', effect: { fireRes: 0.20 }, sellPrice: 300 },
+    { id: 'passive_tenacity', name: '坚韧之心', emoji: '💎', rarity: 'legendary', desc: '控制减免+20%，每次被控后获得3秒霸体', effect: { tenacity: 0.20 }, sellPrice: 600 }
+];
+const PASSIVE_BOOK_DROP_RATE = 0.005; // BOSS掉落被动技能书的基础概率 0.5%
+
 const ENEMY_ELEMENTS = {
     '小恶魔': { weak: 'holy', resist: 'dark' },
     '史莱姆': { weak: 'ice', resist: 'physical' },
@@ -308,7 +327,7 @@ const ENEMY_ELEMENTS = {
     '兽人': { weak: 'nature', resist: 'fire' }
 };
 
-const SKILL_BOOK_DROP_RATES = [0, 0, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.15];
+const SKILL_BOOK_DROP_RATES = [0, 0, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.075];
 
 function createDefaultSave() {
     return {
@@ -323,9 +342,16 @@ function createDefaultSave() {
             spiLevel: 0,
             skills: {},
             skillBooks: {},
+            passives: {},
             buffs: {},
             equipments: {},
-            equipmentBag: []
+            equipmentBag: [],
+            // 抗性字段（克制体系）
+            earthRes: 0, poisonRes: 0, lightningRes: 0,
+            voidRes: 0, chaosRes: 0, fireRes: 0,
+            tenacity: 0,
+            // 反制状态
+            counterState: { voidShield: false, chaosReflux: false, stunImmune: 0 }
         },
         currentArea: 0,
         bossDefeated: Array(15).fill(false),
@@ -340,7 +366,7 @@ let game = {
     autoBattle: false, autoBattleTimer: null,
     autoStrengthen: false,
     autoRecover: false,
-    autoSell: { equipment: false, skillBooks: false, maxRarity: 'rare' },
+    autoSell: { equipment: false, skillBooks: false, equipMaxRarity: 'rare', bookMaxRarity: 'rare' },
     _renderBagTimeout: null,
     lastPlayerAttack: 0, lastEnemyAttack: 0,
     lastBattleEndTime: null,
@@ -352,20 +378,20 @@ let game = {
     fightingBoss: false,
     areas: [
         { name: '新手村', emoji: '🌲', level: 1, multiplier: 1.0 },
-        { name: '幽暗密林', emoji: '🌿', level: 3, multiplier: 1.3 },
-        { name: '废弃矿坑', emoji: '⛏️', level: 6, multiplier: 1.7 },
-        { name: '古代遗迹', emoji: '🏛️', level: 10, multiplier: 2.2 },
-        { name: '熔岩洞穴', emoji: '🌋', level: 14, multiplier: 2.8 },
-        { name: '冰封雪原', emoji: '❄️', level: 18, multiplier: 3.5 },
-        { name: '毒雾沼泽', emoji: '🐊', level: 22, multiplier: 4.3 },
-        { name: '暗影城堡', emoji: '🏰', level: 26, multiplier: 5.2 },
-        { name: '龙之巢穴', emoji: '🐉', level: 30, multiplier: 6.3 },
-        { name: '天空之城', emoji: '☁️', level: 35, multiplier: 7.5 },
-        { name: '虚空裂隙', emoji: '💠', level: 40, multiplier: 8.8 },
-        { name: '深渊入口', emoji: '🌀', level: 45, multiplier: 10.2 },
-        { name: '恶魔王座', emoji: '👿', level: 50, multiplier: 11.8 },
-        { name: '神陨之地', emoji: '💀', level: 55, multiplier: 13.5 },
-        { name: '混沌核心', emoji: '🔥', level: 60, multiplier: 15.5 }
+        { name: '幽暗密林', emoji: '🌿', level: 8, multiplier: 1.3 },
+        { name: '废弃矿坑', emoji: '⛏️', level: 15, multiplier: 1.7 },
+        { name: '古代遗迹', emoji: '🏛️', level: 22, multiplier: 2.2 },
+        { name: '熔岩洞穴', emoji: '🌋', level: 29, multiplier: 2.8 },
+        { name: '冰封雪原', emoji: '❄️', level: 36, multiplier: 3.5 },
+        { name: '毒雾沼泽', emoji: '🐊', level: 43, multiplier: 4.3 },
+        { name: '暗影城堡', emoji: '🏰', level: 50, multiplier: 5.2 },
+        { name: '龙之巢穴', emoji: '🐉', level: 57, multiplier: 6.3 },
+        { name: '天空之城', emoji: '☁️', level: 64, multiplier: 7.5 },
+        { name: '虚空裂隙', emoji: '💠', level: 71, multiplier: 8.8 },
+        { name: '深渊入口', emoji: '🌀', level: 78, multiplier: 10.2 },
+        { name: '恶魔王座', emoji: '👿', level: 85, multiplier: 11.8 },
+        { name: '神陨之地', emoji: '💀', level: 92, multiplier: 13.5 },
+        { name: '混沌核心', emoji: '🔥', level: 100, multiplier: 15.5 }
     ],
     enemies: [
         { name: '小恶魔', emoji: '👹', type: 'aggressive', desc: '攻击力较高' },
@@ -480,8 +506,13 @@ function toggleAutoSell(type) {
     log(as[type] ? `💰 ${typeLabel}自动出售已开启` : `💰 ${typeLabel}自动出售已关闭`, 'log-loot');
 }
 
-function setAutoSellRarity(rarity) {
-    game.autoSell.maxRarity = rarity;
+function setAutoSellRarity(type, rarity) {
+    const as = game.autoSell;
+    if (type === 'equipment') {
+        as.equipMaxRarity = rarity;
+    } else {
+        as.bookMaxRarity = rarity;
+    }
     renderBag();
 }
 
@@ -489,7 +520,8 @@ function checkAutoSell() {
     if (!game.autoSell || !game.player) return;
     const as = game.autoSell;
     if (!as.equipment && !as.skillBooks) return;
-    const maxRarityOrder = RARITY_ORDER[as.maxRarity] || 2;
+    const equipMaxOrder = RARITY_ORDER[as.equipMaxRarity] || 2;
+    const bookMaxOrder = RARITY_ORDER[as.bookMaxRarity] || 2;
     let soldCount = 0;
     const maxSellPerCheck = 5;
 
@@ -502,7 +534,7 @@ function checkAutoSell() {
             if (!eqDef) continue;
             if (item.refine > 0) continue;
             const rarityOrder = RARITY_ORDER[eqDef.rarity] || 0;
-            if (rarityOrder <= maxRarityOrder) {
+            if (rarityOrder <= equipMaxOrder) {
                 bag.splice(i, 1);
                 game.player.gold += eqDef.sellPrice;
                 log(`💰 自动出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${formatNumber(eqDef.sellPrice)} 金币`, 'log-loot');
@@ -520,7 +552,7 @@ function checkAutoSell() {
             const book = SKILL_BOOKS.find(b => b.id === bookId);
             if (!book) continue;
             const rarityOrder = RARITY_ORDER[book.rarity] || 0;
-            if (rarityOrder <= maxRarityOrder) {
+            if (rarityOrder <= bookMaxOrder) {
                 data.count--;
                 if (data.count <= 0) delete game.player.skillBooks[bookId];
                 game.player.gold += book.sellPrice;
@@ -614,7 +646,16 @@ function loadGame() {
         if (data.clues) game.clues = data.clues;
         if (data.fightingBoss !== undefined) game.fightingBoss = data.fightingBoss;
         if (data.autoStrengthen !== undefined) game.autoStrengthen = data.autoStrengthen;
-        if (data.autoSell !== undefined) game.autoSell = { ...game.autoSell, ...data.autoSell };
+        if (data.autoSell !== undefined) {
+            game.autoSell = { ...game.autoSell, ...data.autoSell };
+            // 兼容旧存档：maxRarity 拆分为 equipMaxRarity / bookMaxRarity
+            if (game.autoSell.maxRarity && !game.autoSell.equipMaxRarity) {
+                game.autoSell.equipMaxRarity = game.autoSell.maxRarity;
+            }
+            if (game.autoSell.maxRarity && !game.autoSell.bookMaxRarity) {
+                game.autoSell.bookMaxRarity = game.autoSell.maxRarity;
+            }
+        }
         migrateOldSave();
         spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
         showNotification('📂 存档读取成功！'); log('游戏进度已读取', 'log-loot');
@@ -642,6 +683,16 @@ function migrateOldSave() {
     if (game.player.buffs === undefined) game.player.buffs = {};
     if (game.player.equipments === undefined) game.player.equipments = {};
     if (game.player.equipmentBag === undefined) game.player.equipmentBag = [];
+    // 克制体系：抗性与被动技能
+    if (game.player.earthRes === undefined) game.player.earthRes = 0;
+    if (game.player.poisonRes === undefined) game.player.poisonRes = 0;
+    if (game.player.lightningRes === undefined) game.player.lightningRes = 0;
+    if (game.player.voidRes === undefined) game.player.voidRes = 0;
+    if (game.player.chaosRes === undefined) game.player.chaosRes = 0;
+    if (game.player.fireRes === undefined) game.player.fireRes = 0;
+    if (game.player.tenacity === undefined) game.player.tenacity = 0;
+    if (game.player.passives === undefined) game.player.passives = {};
+    if (game.player.counterState === undefined) game.player.counterState = { voidShield: false, chaosReflux: false, stunImmune: 0 };
     // 旧存档装备默认已鉴定（兼容）
     for (const eq of game.player.equipmentBag) { if (eq.appraised === undefined) eq.appraised = true; }
     if (game.player.items === undefined) game.player.items = {};
@@ -757,7 +808,16 @@ function importSave() {
         if (data.clues) game.clues = data.clues;
         if (data.fightingBoss !== undefined) game.fightingBoss = data.fightingBoss;
         if (data.autoStrengthen !== undefined) game.autoStrengthen = data.autoStrengthen;
-        if (data.autoSell !== undefined) game.autoSell = { ...game.autoSell, ...data.autoSell };
+        if (data.autoSell !== undefined) {
+            game.autoSell = { ...game.autoSell, ...data.autoSell };
+            // 兼容旧存档：maxRarity 拆分为 equipMaxRarity / bookMaxRarity
+            if (game.autoSell.maxRarity && !game.autoSell.equipMaxRarity) {
+                game.autoSell.equipMaxRarity = game.autoSell.maxRarity;
+            }
+            if (game.autoSell.maxRarity && !game.autoSell.bookMaxRarity) {
+                game.autoSell.bookMaxRarity = game.autoSell.maxRarity;
+            }
+        }
         migrateOldSave();
         spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
         showNotification('📥 存档导入成功！'); log('外部存档已导入', 'log-loot');
@@ -789,7 +849,7 @@ setInterval(() => {
 
 // ========== 宝物系统 ==========
 function getTreasureBonuses() {
-    const bonuses = { atk: 0, def: 0, maxHp: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, goldBonus: 0, armorPenFlat: 0, armorPenPercent: 0 };
+    const bonuses = { atk: 0, def: 0, maxHp: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, goldBonus: 0, armorPenFlat: 0, armorPenPercent: 0, earthRes: 0, poisonRes: 0, lightningRes: 0, voidRes: 0, chaosRes: 0, fireRes: 0 };
     const treasures = game.player.treasures || {};
     for (const [tid, data] of Object.entries(treasures)) {
         if (!data || data.count <= 0) continue;
@@ -798,13 +858,13 @@ function getTreasureBonuses() {
         const level = data.level || 1;
         const bonusPerLevel = t.value * 0.5;
         const totalValue = t.value + (level - 1) * bonusPerLevel;
-        bonuses[t.stat] += totalValue;
+        if (bonuses[t.stat] !== undefined) bonuses[t.stat] += totalValue;
     }
     return bonuses;
 }
 
 function getEquipmentBonuses() {
-    const bonuses = { atk: 0, def: 0, maxHp: 0, aspd: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, spi: 0, armorPenFlat: 0, armorPenPercent: 0, atkMult: 0, defMult: 0, hpMult: 0, aspdMult: 0, critMult: 0, critDmgMult: 0, vampMult: 0, expMult: 0, activeSets: [], activeSetDescs: [] };
+    const bonuses = { atk: 0, def: 0, maxHp: 0, aspd: 0, crit: 0, critDmg: 0, vamp: 0, expBonus: 0, spi: 0, armorPenFlat: 0, armorPenPercent: 0, atkMult: 0, defMult: 0, hpMult: 0, aspdMult: 0, critMult: 0, critDmgMult: 0, vampMult: 0, expMult: 0, earthRes: 0, poisonRes: 0, lightningRes: 0, voidRes: 0, chaosRes: 0, fireRes: 0, activeSets: [], activeSetDescs: [] };
     const eqs = game.player.equipments || {};
     const setCount = {};
     for (const [slotKey, data] of Object.entries(eqs)) {
@@ -858,7 +918,12 @@ function getAchievementBonuses() {
     };
 }
 
-function getAreaDropRate() { return AREA_DROP_RATES[game.currentArea] || 0; }
+function getAreaDropRate() {
+    const rate = AREA_DROP_RATES[game.currentArea];
+    if (rate !== undefined) return rate;
+    // 无尽模式沿用最后一个区域的掉率
+    return AREA_DROP_RATES[AREA_DROP_RATES.length - 1] || 0;
+}
 
 function getAreaRarityWeights() {
     const area = game.currentArea;
@@ -900,12 +965,12 @@ function addEquipmentToBag(equipment) {
     game.player.equipmentBag.push({ id: equipment.id, level: 1, appraised: false });
 }
 
-function rollTreasureDrop(minRarity, customRate) {
+function rollTreasureDrop(minRarity, customRate, allowDivine) {
     const rate = customRate !== undefined ? customRate : getAreaDropRate();
     if (rate <= 0 || Math.random() > rate) return null;
     let rarities = Object.keys(RARITY_CONFIG);
-    // 非无尽模式排除 divine 稀有度
-    if (game.currentArea < 15) {
+    // 只有在明确允许（无尽精英/Boss）时才开放 divine；非无尽模式一律排除
+    if (game.currentArea < 15 || !allowDivine) {
         rarities = rarities.filter(r => r !== 'divine');
     }
     const weights = rarities.map(r => RARITY_CONFIG[r].weight);
@@ -920,8 +985,8 @@ function rollTreasureDrop(minRarity, customRate) {
     }
     const pool = TREASURE_POOL.filter(t => {
         if (t.rarity !== selectedRarity) return false;
-        // 非无尽模式过滤无尽专属宝物
-        if (game.currentArea < 15 && (t.id.startsWith('d_') || t.id.startsWith('t_'))) return false;
+        // 只有无尽精英/Boss 才开放无尽专属宝物 (d_/t_)
+        if (!allowDivine && (t.id.startsWith('d_') || t.id.startsWith('t_'))) return false;
         return true;
     });
     return pool[Math.floor(Math.random() * pool.length)];
@@ -1016,7 +1081,7 @@ function enterEndlessMode() {
 }
 
 function getEndlessMultiplier(layer) {
-    return 15.5 * Math.pow(1.15, layer);
+    return Math.pow(1.08, layer);
 }
 
 function challengeBoss() {
@@ -1038,6 +1103,9 @@ function bossDefeatedByPlayer() {
     game.bossDefeated[game.currentArea] = true;
     game.fightingBoss = false;
     game.clues[game.currentArea] = 0;
+    // 击败BOSS后自动刷新区域按钮（解锁新地图）和线索面板
+    renderAreas();
+    updateClueUI();
 }
 
 function bossEscaped() {
@@ -1074,7 +1142,7 @@ function spawnBoss(index) {
         maxHp: Math.floor(60 * baseLevel * mult * hpMult), hp: 0,
         atk: Math.floor(10 * baseLevel * mult * atkMult),
         def: Math.floor(4 * baseLevel * mult * defMult),
-        exp: Math.floor(30 * baseLevel * mult * 5),
+        exp: Math.floor(30 * baseLevel * mult * 2),
         gold: Math.floor(15 * baseLevel * mult * 5),
         bossSkills: bossSkills
     };
@@ -1096,7 +1164,7 @@ function spawnEnemy() {
     if (areaIndex >= 15) {
         // 无尽模式
         endlessLayer = areaIndex - 14;
-        baseLevel = Math.max(1, 60 + endlessLayer * 5 + Math.floor(Math.random() * 3) - 1);
+        baseLevel = Math.max(1, 100 + endlessLayer * 2 + Math.floor(Math.random() * 3) - 1);
         mult = getEndlessMultiplier(endlessLayer);
     } else {
         baseLevel = Math.max(1, area.level + Math.floor(Math.random() * 3) - 1);
@@ -1123,7 +1191,7 @@ function spawnEnemy() {
     let maxHp = Math.floor(60 * baseLevel * mult * 0.5 * scale);
     let atk = Math.floor(10 * baseLevel * mult * 0.28 * (1 + Math.min(areaIndex, 14) * 0.025));
     let def = Math.floor(4 * baseLevel * mult * 0.22 * (1 + Math.min(areaIndex, 14) * 0.018));
-    let exp = Math.floor(30 * baseLevel * mult * 1.0);
+    let exp = Math.floor(30 * baseLevel * mult * 0.4);
     let gold = Math.floor(15 * baseLevel * mult * 1.0);
     // 怪物类型加成
     if (template.type === 'aggressive') atk = Math.floor(atk * 1.15);
@@ -1133,14 +1201,14 @@ function spawnEnemy() {
         maxHp = Math.floor(60 * baseLevel * mult * 0.9);
         atk = Math.floor(10 * baseLevel * mult * 0.50);
         def = Math.floor(4 * baseLevel * mult * 0.40);
-        exp = Math.floor(30 * baseLevel * mult * 2.5);
+        exp = Math.floor(30 * baseLevel * mult * 1.0);
         gold = Math.floor(15 * baseLevel * mult * 2.5);
     }
     if (isEndlessBoss) {
         maxHp = Math.floor(60 * baseLevel * mult * 1.8);
         atk = Math.floor(10 * baseLevel * mult * 0.80);
         def = Math.floor(4 * baseLevel * mult * 0.60);
-        exp = Math.floor(30 * baseLevel * mult * 5.0);
+        exp = Math.floor(30 * baseLevel * mult * 2.0);
         gold = Math.floor(15 * baseLevel * mult * 5.0);
     }
     game.enemy = {
@@ -1203,7 +1271,7 @@ function init() {
     spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
 }
 
-function getPlayerStats() {
+function getPlayerStats(includeBuffs = true) {
     const b = getTreasureBonuses();
     const eq = getEquipmentBonuses();
     const p = game.player;
@@ -1220,44 +1288,66 @@ function getPlayerStats() {
         const dmgLevel = Math.min(60, aspdLevel - 40);
         speedMultiplier = Math.min(3, 1 + (2 / 60) * dmgLevel);
     }
-    // buff加成
+    // buff加成（战力计算时可忽略）
     let buffDef = 0;
     let buffAtkMult = 1.0;
     let buffDefMult = 1.0;
     let buffExpMult = 0;
     let buffAspdMult = 0;
-    const now = Date.now();
-    if (p.buffs) {
-        if (p.buffs.shield && p.buffs.shield.endTime > now) {
-            buffDef = p.buffs.shield.defBonus || 0;
-        }
-        if (p.buffs.atkBonus && p.buffs.atkBonus.endTime > now) {
-            buffAtkMult = 1 + p.buffs.atkBonus.value;
-        }
-        if (p.buffs.defBonus && p.buffs.defBonus.endTime > now) {
-            buffDefMult = 1 + p.buffs.defBonus.value;
-        }
-        if (p.buffs.expBonus && p.buffs.expBonus.endTime > now) {
-            buffExpMult = p.buffs.expBonus.value;
-        }
-        if (p.buffs.aspdMultBuff && p.buffs.aspdMultBuff.endTime > now) {
-            buffAspdMult = p.buffs.aspdMultBuff.value;
+    if (includeBuffs) {
+        const now = Date.now();
+        if (p.buffs) {
+            if (p.buffs.shield && p.buffs.shield.endTime > now) {
+                buffDef = p.buffs.shield.defBonus || 0;
+            }
+            if (p.buffs.atkBonus && p.buffs.atkBonus.endTime > now) {
+                buffAtkMult = 1 + p.buffs.atkBonus.value;
+            }
+            if (p.buffs.defBonus && p.buffs.defBonus.endTime > now) {
+                buffDefMult = 1 + p.buffs.defBonus.value;
+            }
+            if (p.buffs.expBonus && p.buffs.expBonus.endTime > now) {
+                buffExpMult = p.buffs.expBonus.value;
+            }
+            if (p.buffs.aspdMultBuff && p.buffs.aspdMultBuff.endTime > now) {
+                buffAspdMult = p.buffs.aspdMultBuff.value;
+            }
         }
     }
     const ach = getAchievementBonuses();
     const baseAtk = (p.atk + b.atk + eq.atk + ach.atk) * (1 + eq.atkMult);
-    let baseDef = (p.def + b.def + buffDef + eq.def + ach.def) * (1 + eq.defMult);
-    if (game.player.armorPenDebuff) baseDef = Math.floor(baseDef * 0.8);
+    let baseDef = (p.def + b.def + (includeBuffs ? buffDef : 0) + eq.def + ach.def) * (1 + eq.defMult);
+    if (includeBuffs && game.player.armorPenDebuff) baseDef = Math.floor(baseDef * 0.8);
     const baseHp = (p.maxHp + b.maxHp + eq.maxHp + ach.maxHp) * (1 + eq.hpMult);
-    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult + buffAspdMult)));
+    const realAspd = Math.max(100, Math.floor(Math.max(1, baseInterval - eq.aspd) / (1 + eq.aspdMult + (includeBuffs ? buffAspdMult : 0))));
+    // 抗性计算：基础 + 宝物 + 装备 + 被动技能，上限40%
+    const capRes = (v) => Math.min(0.40, v);
+    let passiveRes = { earthRes: 0, poisonRes: 0, lightningRes: 0, voidRes: 0, chaosRes: 0, fireRes: 0, tenacity: 0 };
+    const passives = p.passives || {};
+    for (const [pid, pdata] of Object.entries(passives)) {
+        if (!pdata || pdata.level <= 0) continue;
+        const book = PASSIVE_BOOKS.find(b => b.id === pid);
+        if (!book || !book.effect) continue;
+        for (const [k, v] of Object.entries(book.effect)) {
+            if (passiveRes[k] !== undefined) passiveRes[k] += v;
+        }
+    }
+    const earthRes = capRes((p.earthRes || 0) + b.earthRes + eq.earthRes + passiveRes.earthRes);
+    const poisonRes = capRes((p.poisonRes || 0) + b.poisonRes + eq.poisonRes + passiveRes.poisonRes);
+    const lightningRes = capRes((p.lightningRes || 0) + b.lightningRes + eq.lightningRes + passiveRes.lightningRes);
+    const voidRes = capRes((p.voidRes || 0) + b.voidRes + eq.voidRes + passiveRes.voidRes);
+    const chaosRes = capRes((p.chaosRes || 0) + b.chaosRes + eq.chaosRes + passiveRes.chaosRes);
+    const fireRes = capRes((p.fireRes || 0) + b.fireRes + eq.fireRes + passiveRes.fireRes);
+    const tenacity = capRes((p.tenacity || 0) + passiveRes.tenacity);
     return {
-        atk: Math.floor(baseAtk * buffAtkMult), def: Math.floor(baseDef * buffDefMult), maxHp: Math.floor(baseHp),
+        atk: Math.floor(baseAtk * (includeBuffs ? buffAtkMult : 1.0)), def: Math.floor(baseDef * (includeBuffs ? buffDefMult : 1.0)), maxHp: Math.floor(baseHp),
         aspd: realAspd, speedMultiplier,
         crit: Math.min(1.0, p.crit + b.crit + eq.crit + eq.critMult + ach.crit), critDmg: p.critDmg + b.critDmg + eq.critDmg + eq.critDmgMult,
-        vamp: p.vamp + b.vamp + eq.vamp + eq.vampMult + ach.vamp, expBonus: b.expBonus + eq.expBonus + buffExpMult + eq.expMult, goldBonus: b.goldBonus,
+        vamp: p.vamp + b.vamp + eq.vamp + eq.vampMult + ach.vamp, expBonus: b.expBonus + eq.expBonus + (includeBuffs ? buffExpMult : 0) + eq.expMult, goldBonus: b.goldBonus,
         armorPenFlat: b.armorPenFlat + eq.armorPenFlat, armorPenPercent: Math.min(0.35, b.armorPenPercent + eq.armorPenPercent),
         spi: p.spi + eq.spi + ach.spi, maxMp: p.maxMp, mp: p.mp,
-        activeSets: eq.activeSets, activeSetDescs: eq.activeSetDescs, ach: ach
+        activeSets: eq.activeSets, activeSetDescs: eq.activeSetDescs, ach: ach,
+        earthRes, poisonRes, lightningRes, voidRes, chaosRes, fireRes, tenacity
     };
 }
 
@@ -1366,35 +1456,64 @@ function enemyAttack(skipUI = false) {
     if (!game.enemy || game.enemy.hp <= 0) return;
     if (game.player.hp <= 0) { playerDeath(); return; }
     const now = Date.now();
-    // BOSS技能
+    // BOSS技能（应用抗性）
+    const playerRes = getPlayerStats(false);
     if (game.enemy.isBoss && game.enemy.bossSkills) {
         for (const skill of game.enemy.bossSkills) {
             if (skill.interval && now - (skill.lastCast || 0) >= skill.interval) {
                 skill.lastCast = now;
                 if (skill.type === 'petrify') {
-                    game.player.stunnedUntil = now + skill.duration;
-                    log(`🗿 ${game.enemy.name} 使用了石化凝视！你被眩晕了！`, 'log-damage');
+                    let dur = skill.duration * (1 - playerRes.earthRes);
+                    // 韧性减少眩晕时间
+                    dur *= (1 - playerRes.tenacity);
+                    game.player.stunnedUntil = now + dur;
+                    game.player.counterState = game.player.counterState || {};
+                    game.player.counterState.stunImmune = now + dur + 3000;
+                    log(`🗿 ${game.enemy.name} 使用了石化凝视！${playerRes.earthRes > 0 ? '【土抗减免】' : ''}你被眩晕了 ${(dur/1000).toFixed(1)} 秒！`, 'log-damage');
                 } else if (skill.type === 'thunder_strike') {
-                    const thunderDmg = Math.floor(game.player.maxHp * skill.damage);
+                    const thunderDmg = Math.floor(game.player.maxHp * skill.damage * (1 - playerRes.lightningRes));
                     game.player.hp = Math.max(0, game.player.hp - thunderDmg);
-                    log(`⚡ ${game.enemy.name} 召唤了雷霆审判！你受到了 ${formatNumber(thunderDmg)} 点闪电伤害！`, 'log-damage');
+                    log(`⚡ ${game.enemy.name} 召唤了雷霆审判！${playerRes.lightningRes > 0 ? '【雷抗减免】' : ''}你受到了 ${formatNumber(thunderDmg)} 点闪电伤害！`, 'log-damage');
                 } else if (skill.type === 'void_drain') {
-                    const drain = Math.floor(game.player.hp * skill.drain);
-                    game.player.hp = Math.max(0, game.player.hp - drain);
-                    game.enemy.hp = Math.min(game.enemy.maxHp, game.enemy.hp + drain);
-                    log(`🌑 ${game.enemy.name} 使用了虚空吞噬！你失去了 ${formatNumber(drain)} 点生命！`, 'log-damage');
+                    // 虚空护盾抵消
+                    game.player.counterState = game.player.counterState || {};
+                    if (game.player.counterState.voidShield) {
+                        game.player.counterState.voidShield = false;
+                        log(`🛡️ 虚空护盾抵消了 ${game.enemy.name} 的虚空吞噬！`, 'log-skill');
+                    } else {
+                        const drain = Math.floor(game.player.hp * skill.drain * (1 - playerRes.voidRes));
+                        game.player.hp = Math.max(0, game.player.hp - drain);
+                        game.enemy.hp = Math.min(game.enemy.maxHp, game.enemy.hp + drain);
+                        log(`🌑 ${game.enemy.name} 使用了虚空吞噬！${playerRes.voidRes > 0 ? '【虚空抗减免】' : ''}你失去了 ${formatNumber(drain)} 点生命！`, 'log-damage');
+                    }
                 } else if (skill.type === 'poison_aura') {
-                    const poisonDmg = Math.floor(game.player.maxHp * skill.dps);
+                    const poisonDmg = Math.floor(game.player.maxHp * skill.dps * (1 - playerRes.poisonRes));
                     game.player.hp = Math.max(0, game.player.hp - poisonDmg);
-                    log(`☠️ 毒雾弥漫！你受到了 ${formatNumber(poisonDmg)} 点毒伤！`, 'log-damage');
+                    log(`☠️ 毒雾弥漫！${playerRes.poisonRes > 0 ? '【毒抗减免】' : ''}你受到了 ${formatNumber(poisonDmg)} 点毒伤！`, 'log-damage');
                 } else if (skill.type === 'chaos_purge') {
-                    game.player.buffs = {};
-                    log(`🌀 ${game.enemy.name} 展开了混沌领域！你的所有增益效果被清除了！`, 'log-damage');
+                    game.player.counterState = game.player.counterState || {};
+                    if (game.player.counterState.chaosReflux) {
+                        game.player.counterState.chaosReflux = false;
+                        log(`🌀 混沌逆流反弹！${game.enemy.name} 的混沌领域被反噬！`, 'log-skill');
+                    } else if (Math.random() < playerRes.chaosRes) {
+                        log(`🌀 你抵抗了 ${game.enemy.name} 的混沌领域！`, 'log-skill');
+                    } else {
+                        game.player.buffs = {};
+                        log(`🌀 ${game.enemy.name} 展开了混沌领域！你的所有增益效果被清除了！`, 'log-damage');
+                    }
                 }
             }
         }
     }
-    // 眩晕检查
+    // 眩晕检查（含韧性霸体）
+    game.player.counterState = game.player.counterState || {};
+    if (game.player.counterState.stunImmune && now < game.player.counterState.stunImmune) {
+        // 霸体期间免疫眩晕，但如果 stunUntil 还有效，清除它
+        if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
+            log(`🛡️ 霸体！免疫了眩晕效果！`, 'log-skill');
+            game.player.stunnedUntil = 0;
+        }
+    }
     if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
         log(`😵 你被眩晕了，无法行动！`, 'log-damage');
         if (!skipUI) updateUI();
@@ -1425,11 +1544,12 @@ function enemyAttack(skipUI = false) {
         game.player.hp = Math.max(0, game.player.hp - reflect);
         if (reflect > 0) log(`🌵 荆棘反弹了 ${formatNumber(reflect)} 点伤害！`, 'log-damage');
     }
-    // 怪物被动：燃烧
+    // 怪物被动：燃烧（应用火抗）
     if (game.enemy.burn) {
-        const burnDmg = Math.floor(game.player.maxHp * 0.03);
+        const playerRes = getPlayerStats(false);
+        const burnDmg = Math.floor(game.player.maxHp * 0.03 * (1 - playerRes.fireRes));
         game.player.hp = Math.max(0, game.player.hp - burnDmg);
-        log(`🔥 燃烧造成了 ${formatNumber(burnDmg)} 点伤害！`, 'log-damage');
+        log(`🔥 燃烧造成了 ${formatNumber(burnDmg)} 点伤害！${playerRes.fireRes > 0 ? '【火抗减免】' : ''}`, 'log-damage');
     }
     // 怪物被动：破甲
     if (game.enemy.armorPen && !game.player.armorPenDebuff) {
@@ -1478,9 +1598,9 @@ function enemyDefeated() {
         showNotification(`🎉 击败BOSS ${game.enemy.emoji} ${game.enemy.name}！`);
         dropLog(`🏆 击败BOSS：${game.enemy.emoji} ${game.enemy.name} — ${formatNumber(exp)}经验 ${formatNumber(gold)}金币`);
 
-        // BOSS宝物：60%概率，最低史诗
+        // BOSS宝物：60%概率，最低史诗；无尽模式开放神器/超脱掉落
         if (Math.random() < 0.60) {
-            const bossTreasure = rollTreasureDrop('epic');
+            const bossTreasure = rollTreasureDrop('epic', undefined, game.currentArea >= 15);
             if (bossTreasure) {
                 addTreasure(bossTreasure);
                 const rc = RARITY_CONFIG[bossTreasure.rarity];
@@ -1491,7 +1611,7 @@ function enemyDefeated() {
         }
 
         // BOSS装备：高概率，最低稀有
-        const eqDropRate = (EQUIPMENT_DROP_RATES[game.currentArea] || 0) * 1.2;
+        const eqDropRate = (EQUIPMENT_DROP_RATES[game.currentArea] || EQUIPMENT_DROP_RATES[EQUIPMENT_DROP_RATES.length - 1] || 0) * 1.2;
         if (eqDropRate > 0 && Math.random() < eqDropRate) {
             const equipment = rollEquipmentDrop('rare');
             if (equipment) {
@@ -1504,7 +1624,7 @@ function enemyDefeated() {
         }
 
         // BOSS技能书：高概率
-        const bookDropRate = (SKILL_BOOK_DROP_RATES[game.currentArea] || 0) * 1.5;
+        const bookDropRate = (SKILL_BOOK_DROP_RATES[game.currentArea] || SKILL_BOOK_DROP_RATES[SKILL_BOOK_DROP_RATES.length - 1] || 0) * 1.5;
         if (bookDropRate > 0 && Math.random() < bookDropRate) {
             const book = SKILL_BOOKS[Math.floor(Math.random() * SKILL_BOOKS.length)];
             addSkillBook(book);
@@ -1527,16 +1647,28 @@ function enemyDefeated() {
                 showNotification(`🔮 BOSS掉落${stone.name} ×${stoneCount}！`);
             }
         }
+
+        // 被动技能书：超低概率，仅BOSS掉落
+        if (Math.random() < PASSIVE_BOOK_DROP_RATE) {
+            const pBook = PASSIVE_BOOKS[Math.floor(Math.random() * PASSIVE_BOOKS.length)];
+            game.player.passives = game.player.passives || {};
+            if (!game.player.passives[pBook.id]) {
+                game.player.passives[pBook.id] = { level: 1 };
+                log(`📘 BOSS掉落了稀有被动技能书：${pBook.emoji} ${pBook.name}！${pBook.desc}`, 'log-legendary');
+                dropLog(`📘 稀有被动：${pBook.emoji} ${pBook.name}`);
+                showNotification(`📘 获得稀有被动：${pBook.name}！`);
+            }
+        }
     } else if (game.enemy.isElite) {
         log(`🌟 击败了 ${enemyName}！获得 ${formatNumber(exp)} 经验值和 ${formatNumber(gold)} 金币！`, 'log-epic');
         showNotification(`🌟 击败精英 ${game.enemy.emoji} ${game.enemy.name}！`);
         dropLog(`🌟 击败精英：${game.enemy.emoji} ${game.enemy.name} — ${formatNumber(exp)}经验 ${formatNumber(gold)}金币`);
         addClue();
 
-        // 精英宝物：1.5倍概率，最低稀有
-        const treasureRate = (AREA_DROP_RATES[game.currentArea] || 0) * 1.5;
+        // 精英宝物：1.5倍概率，最低稀有；无尽精英开放神器/超脱
+        const treasureRate = (AREA_DROP_RATES[game.currentArea] || getAreaDropRate()) * 1.5;
         if (treasureRate > 0 && Math.random() < treasureRate) {
-            const treasure = rollTreasureDrop('rare');
+            const treasure = rollTreasureDrop('rare', undefined, game.currentArea >= 15);
             if (treasure) {
                 addTreasure(treasure);
                 const rc = RARITY_CONFIG[treasure.rarity];
@@ -1550,7 +1682,7 @@ function enemyDefeated() {
         }
 
         // 精英装备：1.5倍概率，最低稀有
-        const eqDropRate = (EQUIPMENT_DROP_RATES[game.currentArea] || 0) * 1.5;
+        const eqDropRate = (EQUIPMENT_DROP_RATES[game.currentArea] || EQUIPMENT_DROP_RATES[EQUIPMENT_DROP_RATES.length - 1] || 0) * 1.5;
         if (eqDropRate > 0 && Math.random() < eqDropRate) {
             const equipment = rollEquipmentDrop('rare');
             if (equipment) {
@@ -1563,7 +1695,7 @@ function enemyDefeated() {
         }
 
         // 精英技能书：1.5倍概率
-        const bookDropRate = (SKILL_BOOK_DROP_RATES[game.currentArea] || 0) * 1.5;
+        const bookDropRate = (SKILL_BOOK_DROP_RATES[game.currentArea] || SKILL_BOOK_DROP_RATES[SKILL_BOOK_DROP_RATES.length - 1] || 0) * 1.5;
         if (bookDropRate > 0 && Math.random() < bookDropRate) {
             const book = SKILL_BOOKS[Math.floor(Math.random() * SKILL_BOOKS.length)];
             addSkillBook(book);
@@ -1602,8 +1734,8 @@ function enemyDefeated() {
         log(`击败了 ${enemyName}！获得 ${formatNumber(exp)} 经验值和 ${formatNumber(gold)} 金币！`, 'log-exp');
         addClue();
 
-        // 普通怪物装备：基础概率
-        const eqDropRate = EQUIPMENT_DROP_RATES[game.currentArea] || 0;
+        // 普通怪物装备：基础概率（无尽模式沿用最后一个区域）
+        const eqDropRate = EQUIPMENT_DROP_RATES[game.currentArea] || EQUIPMENT_DROP_RATES[EQUIPMENT_DROP_RATES.length - 1] || 0;
         if (eqDropRate > 0 && Math.random() < eqDropRate) {
             const equipment = rollEquipmentDrop();
             if (equipment) {
@@ -1615,8 +1747,8 @@ function enemyDefeated() {
             }
         }
 
-        // 普通怪物技能书：基础概率
-        const bookDropRate = SKILL_BOOK_DROP_RATES[game.currentArea] || 0;
+        // 普通怪物技能书：基础概率（无尽模式沿用最后一个区域）
+        const bookDropRate = SKILL_BOOK_DROP_RATES[game.currentArea] || SKILL_BOOK_DROP_RATES[SKILL_BOOK_DROP_RATES.length - 1] || 0;
         if (bookDropRate > 0 && Math.random() < bookDropRate) {
             // 非无尽模式过滤禁咒技能书
             const eligibleBooks = game.currentArea >= 15 ? SKILL_BOOKS : SKILL_BOOKS.filter(b => b.id !== 'book_void_annihilation');
@@ -2431,7 +2563,7 @@ function renderBagEquipments(container) {
     _bagBtn(toolbar, 'autoSellEquip', `💰 自动出售: ${as.equipment ? '开' : '关'}`, () => toggleAutoSell('equipment'), as.equipment, 'linear-gradient(45deg,#2ecc71,#27ae60)');
     _bagText(toolbar, 'rarityLabel', '≤', as.equipment);
     rarityOptions.forEach(r => {
-        _bagBtn(toolbar, `rarity_${r.key}`, r.label, () => setAutoSellRarity(r.key), as.maxRarity === r.key, 'linear-gradient(45deg,#f39c12,#e67e22)', '2px 6px').style.display = as.equipment ? '' : 'none';
+        _bagBtn(toolbar, `rarity_${r.key}`, r.label, () => setAutoSellRarity('equipment', r.key), as.equipMaxRarity === r.key, 'linear-gradient(45deg,#f39c12,#e67e22)', '2px 6px').style.display = as.equipment ? '' : 'none';
     });
 
     const filterSlots = [
@@ -2569,7 +2701,7 @@ function renderBagItems(container) {
     _bagBtn(toolbar, 'autoSellBooks', `💰 自动出售: ${as.skillBooks ? '开' : '关'}`, () => toggleAutoSell('skillBooks'), as.skillBooks, 'linear-gradient(45deg,#2ecc71,#27ae60)');
     _bagText(toolbar, 'rarityLabel', '≤', as.skillBooks);
     rarityOptions.forEach(r => {
-        _bagBtn(toolbar, `rarity_${r.key}`, r.label, () => setAutoSellRarity(r.key), as.maxRarity === r.key, 'linear-gradient(45deg,#f39c12,#e67e22)', '2px 6px').style.display = as.skillBooks ? '' : 'none';
+        _bagBtn(toolbar, `rarity_${r.key}`, r.label, () => setAutoSellRarity('skillBooks', r.key), as.bookMaxRarity === r.key, 'linear-gradient(45deg,#f39c12,#e67e22)', '2px 6px').style.display = as.skillBooks ? '' : 'none';
     });
 
     itemFilters.forEach(f => {
@@ -3016,11 +3148,12 @@ function renderEquipments() {
     if (eqBonuses.vamp) bonusTexts.push(`吸血+${Math.round(eqBonuses.vamp*100)}%`);
     if (eqBonuses.expBonus) bonusTexts.push(`经验+${Math.round(eqBonuses.expBonus*100)}%`);
     if (eqBonuses.spi) bonusTexts.push(`精神+${formatNumber(eqBonuses.spi)}`);
-    let infoText = bonusTexts.length > 0 ? `装备加成: ${bonusTexts.join(' | ')}` : '暂无装备加成';
+    const bonusLine = bonusTexts.length > 0 ? `装备加成: ${bonusTexts.join(' | ')}` : '暂无装备加成';
+    let setLine = '';
     if (eqBonuses.activeSetDescs && eqBonuses.activeSetDescs.length > 0) {
-        infoText += ` | 套装: ${eqBonuses.activeSetDescs.join('；')}`;
+        setLine = eqBonuses.activeSetDescs.join('<br>');
     }
-    info.textContent = infoText;
+    info.innerHTML = setLine ? `${bonusLine}<br><br>${setLine}` : bonusLine;
 
     for (const [slotKey, slotDef] of Object.entries(EQUIPMENT_SLOTS)) {
         let slot = grid.querySelector(`[data-slot="${slotKey}"]`);
@@ -3087,7 +3220,9 @@ function updateUI() {
     document.getElementById('armorPenPercent').textContent = `${Math.round(stats.armorPenPercent*100)}%`;
     document.getElementById('battleLevel').textContent = game.player.level;
 
-    const power = Math.floor((stats.atk * 2 + stats.def * 1.5 + stats.maxHp * 0.5 + stats.crit * 100 + stats.critDmg * 20 + stats.armorPenFlat * 5 + stats.armorPenPercent * 300 + stats.spi * 5) * stats.speedMultiplier);
+    // 战力忽略临时 buff，使用基础属性计算
+    const baseStats = getPlayerStats(false);
+    const power = Math.floor((baseStats.atk * 2 + baseStats.def * 1.5 + baseStats.maxHp * 0.5 + baseStats.crit * 100 + baseStats.critDmg * 20 + baseStats.armorPenFlat * 5 + baseStats.armorPenPercent * 300 + baseStats.spi * 5) * baseStats.speedMultiplier);
     document.getElementById('power').textContent = formatNumber(power);
 
     // 更新buff与成就显示
@@ -3131,11 +3266,13 @@ function updateUI() {
             buffIds.add(bid);
             let el = buffPanel.querySelector(`[data-buff="${bid}"]`);
             if (!el) {
-                el = document.createElement('span');
+                el = document.createElement('div');
                 el.setAttribute('data-buff', bid);
-                el.style.cssText = 'display:inline-block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px;';
+                el.style.cssText = 'display:block;background:rgba(46,204,113,0.15);color:#2ecc71;padding:2px 8px;border-radius:10px;font-size:0.7em;margin:2px 0;';
                 buffPanel.appendChild(el);
             }
+            el.style.display = 'block';
+            el.style.margin = '2px 0';
             const remaining = Math.max(0, Math.ceil((buff.endTime - Date.now()) / 1000));
             const mins = Math.floor(remaining / 60);
             const secs = remaining % 60;
@@ -3154,6 +3291,38 @@ function updateUI() {
         });
 
         buffPanel.style.display = hasAny ? 'block' : 'none';
+    }
+
+    // 抗性面板更新
+    const resistPanel = document.getElementById('resistPanel');
+    if (resistPanel) {
+        const r = baseStats;
+        const hasResist = r.earthRes > 0 || r.poisonRes > 0 || r.lightningRes > 0 || r.voidRes > 0 || r.chaosRes > 0 || r.fireRes > 0 || r.tenacity > 0;
+        if (hasResist) {
+            const resTexts = [];
+            if (r.earthRes > 0) resTexts.push(`🗿 土抗 ${Math.round(r.earthRes*100)}%`);
+            if (r.poisonRes > 0) resTexts.push(`☠️ 毒抗 ${Math.round(r.poisonRes*100)}%`);
+            if (r.lightningRes > 0) resTexts.push(`⚡ 雷抗 ${Math.round(r.lightningRes*100)}%`);
+            if (r.voidRes > 0) resTexts.push(`🌑 虚空抗 ${Math.round(r.voidRes*100)}%`);
+            if (r.chaosRes > 0) resTexts.push(`🌀 混沌抗 ${Math.round(r.chaosRes*100)}%`);
+            if (r.fireRes > 0) resTexts.push(`🔥 火抗 ${Math.round(r.fireRes*100)}%`);
+            if (r.tenacity > 0) resTexts.push(`💎 韧性 ${Math.round(r.tenacity*100)}%`);
+            const passives = game.player.passives || {};
+            const passiveTexts = [];
+            for (const [pid, pdata] of Object.entries(passives)) {
+                if (!pdata || pdata.level <= 0) continue;
+                const pb = PASSIVE_BOOKS.find(b => b.id === pid);
+                if (pb) passiveTexts.push(`${pb.emoji} ${pb.name}`);
+            }
+            let html = `<div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">克制属性</div><div style="display:flex;flex-wrap:wrap;gap:4px;">${resTexts.map(t => `<span style="background:rgba(155,89,182,0.15);color:#a55eea;padding:2px 6px;border-radius:6px;font-size:0.7em;">${t}</span>`).join('')}</div>`;
+            if (passiveTexts.length > 0) {
+                html += `<div style="font-size:0.75em;color:#aaa;margin-top:6px;margin-bottom:4px;">被动技能</div><div style="display:flex;flex-wrap:wrap;gap:4px;">${passiveTexts.map(t => `<span style="background:rgba(241,196,15,0.15);color:#f1c40f;padding:2px 6px;border-radius:6px;font-size:0.7em;">${t}</span>`).join('')}</div>`;
+            }
+            resistPanel.innerHTML = html;
+            resistPanel.style.display = 'block';
+        } else {
+            resistPanel.style.display = 'none';
+        }
     }
 
     updateEnemyUI();
@@ -3320,6 +3489,33 @@ function castSkill(skillId) {
             log(`🩸 暗影箭吸血恢复了 ${formatNumber(heal)} 点生命`, 'log-heal');
         }
 
+        // 元素反制（仅对BOSS触发）
+        if (game.enemy.isBoss && game.enemy.bossSkills) {
+            game.player.counterState = game.player.counterState || {};
+            for (const bossSkill of game.enemy.bossSkills) {
+                if (skill.element === 'fire' && bossSkill.type === 'poison_aura') {
+                    bossSkill.lastCast = now + 3000;
+                    log(`🔥 火技能反制！毒雾光环被压制 3 秒！`, 'log-skill');
+                }
+                if (skill.element === 'ice' && bossSkill.type === 'thunder_strike') {
+                    bossSkill.lastCast = now;
+                    log(`❄️ 冰技能反制！雷霆审判被打断重置！`, 'log-skill');
+                }
+                if (skill.element === 'holy' && bossSkill.type === 'void_drain') {
+                    game.player.counterState.voidShield = true;
+                    log(`✨ 圣光护盾！下一次虚空吞噬将被抵消！`, 'log-skill');
+                }
+                if (skill.element === 'lightning' && bossSkill.type === 'petrify' && Math.random() < 0.5) {
+                    bossSkill.lastCast = now;
+                    log(`⚡ 雷霆打断！石化凝视被打断！`, 'log-skill');
+                }
+                if (skill.element === 'dark' && bossSkill.type === 'chaos_purge') {
+                    game.player.counterState.chaosReflux = true;
+                    log(`🌑 混沌逆流！下一次清buff将反弹给BOSS！`, 'log-skill');
+                }
+            }
+        }
+
         if (game.enemy.hp <= 0) {
             enemyDefeated();
             updateUI();
@@ -3457,6 +3653,7 @@ function equipItem(bagIndex) {
     showNotification(`🛡️ 穿戴了 ${eqDef.name}！`);
     updateUI();
     renderEquipments();
+    renderBag();
 }
 
 function unequipItem(slotKey) {
@@ -3471,10 +3668,10 @@ function unequipItem(slotKey) {
     if (game.autoSell && game.autoSell.equipment) {
         game.autoSell.equipment = false;
         log('💰 自动出售已关闭（卸下装备）', 'log-loot');
-        renderBag();
     }
     updateUI();
     renderEquipments();
+    renderBag();
 }
 
 function sellEquipment(bagIndex) {
@@ -3487,6 +3684,7 @@ function sellEquipment(bagIndex) {
     game.player.gold += eqDef.sellPrice;
     log(`💰 出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${formatNumber(eqDef.sellPrice)} 金币`, 'log-loot');
     updateUI();
+    renderBag();
 }
 
 // ========== 主城/NPC系统 ==========
@@ -3624,6 +3822,11 @@ function showBattleView() {
 }
 
 function switchNpcTab(tab) {
+    if (currentNpcTab !== tab) {
+        // 切换 tab 时清空容器，避免上一 tab 的 DOM（如精神修炼面板）残留
+        const container = document.getElementById('npcContent');
+        if (container) container.innerHTML = '';
+    }
     currentNpcTab = tab;
     document.querySelectorAll('.npc-tab').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -3803,6 +4006,12 @@ function renderAppraiserContent() {
             if (el.parentNode) el.parentNode.removeChild(el);
         });
     }
+
+    // 清理：移除所有不在 activeIds 中的鉴定卡片（避免已鉴定/已售出条目残留）
+    listContainer.querySelectorAll('[data-appraise-id]').forEach(el => {
+        const id = el.getAttribute('data-appraise-id');
+        if (!activeIds.has(id) && el.parentNode) el.parentNode.removeChild(el);
+    });
 
     // 空状态
     let emptyMsg = '你暂时没有需要鉴定的物品';
@@ -4422,6 +4631,7 @@ function appraiseBook(bookId) {
     log(`🔍 鉴定成功！${book.emoji} ${book.name} 内含技能: ${skill.emoji} ${skill.name}`, 'log-skill');
     showNotification(`🔍 鉴定成功: ${skill.name}！`);
     renderAppraiserContent();
+    renderBag();
     updateUI();
 }
 
@@ -4437,6 +4647,8 @@ function learnFromBook(bookId) {
     log(`📖 通过技能书学会了 ${skill.emoji} ${skill.name}！`, 'log-skill');
     showNotification(`📖 学会了 ${skill.name}！`);
     renderNpcContent();
+    renderAppraiserContent();
+    renderBag();
     updateUI();
     updateSkillButtons();
 }
@@ -4450,6 +4662,8 @@ function sellSkillBook(bookId) {
     game.player.gold += book.sellPrice;
     log(`💰 出售了 ${book.emoji} ${book.name}，获得 ${formatNumber(book.sellPrice)} 金币`, 'log-loot');
     renderNpcContent();
+    renderAppraiserContent();
+    renderBag();
     updateUI();
 }
 

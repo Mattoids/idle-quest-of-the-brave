@@ -1766,7 +1766,7 @@ function enemyDefeated() {
 
     // 无尽模式普通怪：经验和金币额外加成，但不掉落特有道具/装备/宝物
     if (game.currentArea >= 15 && !game.enemy.isElite && !game.enemy.isBoss) {
-        const extraMult = 1.5 + (game.currentArea - 14) * 0.02;
+        const extraMult = 2.0 + (game.currentArea - 14) * 0.05;
         exp = Math.floor(exp * extraMult);
         gold = Math.floor(gold * extraMult);
     }

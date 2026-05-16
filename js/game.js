@@ -2776,8 +2776,8 @@ function renderBagTreasures(container) {
         card.style.borderColor = isLocked ? '#e94560' : '';
         card.style.borderWidth = isLocked ? '2px' : '';
         const lockBadge = isLocked
-            ? `<div style="position: absolute; top: 5px; left: 8px; cursor: pointer; background: rgba(233,69,96,0.9); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: bold; letter-spacing: 0.5px; z-index: 2;" onclick="toggleTreasureLock('${tid}')" title="点击解锁">🔒 已锁</div>`
-            : `<div style="position: absolute; top: 5px; left: 8px; cursor: pointer; background: rgba(255,255,255,0.1); color: #888; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: bold; letter-spacing: 0.5px; z-index: 2; border: 1px solid rgba(255,255,255,0.15);" onclick="toggleTreasureLock('${tid}')" title="点击锁定">🔓 锁定</div>`;
+            ? `<div style="position: absolute; top: 5px; left: 8px; cursor: pointer; background: #e94560; color: #fff; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85em; z-index: 2; box-shadow: 0 2px 6px rgba(233,69,96,0.4);" onclick="toggleTreasureLock('${tid}')" title="点击解锁">🔒</div>`
+            : `<div style="position: absolute; top: 5px; left: 8px; cursor: pointer; background: rgba(136,136,136,0.25); color: #ccc; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85em; z-index: 2;" onclick="toggleTreasureLock('${tid}')" title="点击锁定">🔓</div>`;
         card.innerHTML = `
             ${lockBadge}
             <div class="treasure-count">×${data.count}</div>

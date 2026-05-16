@@ -650,6 +650,47 @@ function unwrapSaveData(wrapped) {
     return { valid: true, data: wrapped.data };
 }
 
+// ========== 交易系统 ==========
+const TRADE_SECRET = 'Trade_Market_2025_Key';
+
+function computeTradeSignature(payloadStr) {
+    let hash = 0;
+    const combined = payloadStr + TRADE_SECRET;
+    for (let i = 0; i < combined.length; i++) {
+        const char = combined.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char + (i * 7);
+        hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+}
+
+function generateTradeCode(itemData) {
+    const payload = { ...itemData };
+    const payloadStr = JSON.stringify(payload);
+    const sig = computeTradeSignature(payloadStr);
+    const wrapped = { data: payload, sig };
+    try {
+        return btoa(encodeURIComponent(JSON.stringify(wrapped)).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode('0x' + p1)));
+    } catch (e) {
+        return null;
+    }
+}
+
+function parseTradeCode(codeStr) {
+    try {
+        const cleaned = codeStr.trim().replace(/\s/g, '');
+        const jsonStr = decodeURIComponent(atob(cleaned).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        const wrapped = JSON.parse(jsonStr);
+        if (!wrapped || !wrapped.data || !wrapped.sig) return { valid: false, error: '格式错误' };
+        const payloadStr = JSON.stringify(wrapped.data);
+        const expected = computeTradeSignature(payloadStr);
+        if (expected !== wrapped.sig) return { valid: false, error: '交易码已被篡改或无效' };
+        return { valid: true, item: wrapped.data };
+    } catch (e) {
+        return { valid: false, error: '无法解析交易码' };
+    }
+}
+
 function saveGame() {
     const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
     localStorage.setItem(SAVE_KEY, JSON.stringify(wrapSaveData(data)));
@@ -2690,6 +2731,9 @@ function renderBagTreasures(container) {
     entries.sort((a, b) => {
         const ta = TREASURE_POOL.find(x => x.id === a[0]);
         const tb = TREASURE_POOL.find(x => x.id === b[0]);
+        const lockedA = a[1].locked ? 1 : 0;
+        const lockedB = b[1].locked ? 1 : 0;
+        if (lockedA !== lockedB) return lockedA - lockedB;
         return (RARITY_ORDER[tb?.rarity] || 0) - (RARITY_ORDER[ta?.rarity] || 0);
     });
 
@@ -4329,8 +4373,32 @@ function showInnView() {
     document.getElementById('npcAppraiserView').style.display = 'none';
     document.getElementById('npcBlacksmithView').style.display = 'none';
     document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
     document.getElementById('npcInnView').style.display = '';
     renderInnContent();
+}
+
+let currentTraderTab = 'sell';
+
+function showTraderView() {
+    document.getElementById('npcSelectView').style.display = 'none';
+    document.getElementById('npcMentorView').style.display = 'none';
+    document.getElementById('npcAppraiserView').style.display = 'none';
+    document.getElementById('npcBlacksmithView').style.display = 'none';
+    document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcInnView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = '';
+    switchTraderTab(currentTraderTab);
+}
+
+function switchTraderTab(tab) {
+    currentTraderTab = tab;
+    document.querySelectorAll('#npcTraderView .npc-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    const container = document.getElementById('traderContent');
+    if (tab === 'sell') renderTradeSellView(container);
+    else renderTradeBuyView(container);
 }
 
 function renderInnContent() {
@@ -4394,6 +4462,7 @@ function showBlacksmithView() {
     document.getElementById('npcAppraiserView').style.display = 'none';
     document.getElementById('npcBlacksmithView').style.display = '';
     document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
     switchBlacksmithTab('forge');
 }
 
@@ -4969,6 +5038,394 @@ function buyShopItem(itemId, count = 1) {
     updateUI();
 }
 
+// ========== 交易系统渲染 ==========
+let currentTradeSellSubTab = 'equipment';
+
+function renderTradeSellView(container) {
+    if (!container.querySelector('.trade-sell-panel')) {
+        container.innerHTML = `
+            <div class="trade-sell-panel">
+                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'equipment' ? 'active' : ''}" onclick="switchTradeSellSubTab('equipment')" style="padding:4px 12px;font-size:0.8em;">🛡️ 装备</button>
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'treasure' ? 'active' : ''}" onclick="switchTradeSellSubTab('treasure')" style="padding:4px 12px;font-size:0.8em;">🎁 宝物</button>
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'item' ? 'active' : ''}" onclick="switchTradeSellSubTab('item')" style="padding:4px 12px;font-size:0.8em;">📦 道具</button>
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'skillbook' ? 'active' : ''}" onclick="switchTradeSellSubTab('skillbook')" style="padding:4px 12px;font-size:0.8em;">📕 技能书</button>
+                </div>
+                <div class="trade-sell-content" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;"></div>
+                <div class="trade-code-result" style="margin-top:15px;display:none;">
+                    <div style="background:rgba(241,196,15,0.1);border:1px solid rgba(241,196,15,0.3);border-radius:8px;padding:12px;">
+                        <div style="color:#f1c40f;font-weight:bold;margin-bottom:8px;">📋 交易码（可复制给他人）</div>
+                        <div class="trade-code-text" style="font-family:monospace;font-size:0.85em;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;word-break:break-all;color:#2ecc71;"></div>
+                        <button class="btn btn-primary" onclick="copyTradeCode()" style="margin-top:8px;padding:4px 12px;font-size:0.8em;">📋 复制到剪贴板</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    const content = container.querySelector('.trade-sell-content');
+    const resultPanel = container.querySelector('.trade-code-result');
+    if (resultPanel) resultPanel.style.display = 'none';
+    content.innerHTML = '';
+
+    if (currentTradeSellSubTab === 'equipment') _renderTradeEquipmentList(content);
+    else if (currentTradeSellSubTab === 'treasure') _renderTradeTreasureList(content);
+    else if (currentTradeSellSubTab === 'item') _renderTradeItemList(content);
+    else if (currentTradeSellSubTab === 'skillbook') _renderTradeSkillBookList(content);
+}
+
+function switchTradeSellSubTab(tab) {
+    currentTradeSellSubTab = tab;
+    const container = document.getElementById('traderContent');
+    if (container) renderTradeSellView(container);
+}
+
+function _renderTradeEquipmentList(container) {
+    const bag = game.player.equipmentBag || [];
+    if (bag.length === 0) {
+        container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">背包中没有装备</div>';
+        return;
+    }
+    bag.forEach((item, index) => {
+        const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
+        if (!eqDef) return;
+        const rc = RARITY_CONFIG[eqDef.rarity];
+        const refineTag = item.refine > 0 ? ` +${item.refine}` : '';
+        const multTag = item.attrMult ? ` (${Math.round(item.attrMult * 100)}%)` : '';
+        const setTag = eqDef.setId ? `<span style="color:#f1c40f;font-size:0.7em;">${ALL_SETS[eqDef.setId]?.name || ''}</span>` : '';
+        const card = document.createElement('div');
+        card.style.cssText = 'background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);position:relative;';
+        card.innerHTML = `
+            <div style="font-size:2em;margin-bottom:5px;">${eqDef.emoji}</div>
+            <div style="font-weight:bold;font-size:0.85em;margin-bottom:4px;color:${rc.color}">${eqDef.name}${refineTag}</div>
+            <div style="font-size:0.7em;color:#aaa;margin-bottom:4px;">${formatEqStat(eqDef, item)}${multTag}</div>
+            ${setTag}
+            <div style="margin-top:8px;">
+                <button class="btn btn-primary" onclick="sellTradeEquipment(${index})" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function _renderTradeTreasureList(container) {
+    const treasures = game.player.treasures || {};
+    const entries = Object.entries(treasures).filter(([_, d]) => d && d.count > 0 && !d.locked);
+    if (entries.length === 0) {
+        container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">没有可出售的宝物（锁定的宝物不会显示）</div>';
+        return;
+    }
+    entries.forEach(([tid, data]) => {
+        const t = TREASURE_POOL.find(x => x.id === tid);
+        if (!t) return;
+        const rc = RARITY_CONFIG[t.rarity];
+        const level = data.level || 1;
+        const count = data.count;
+
+        // 高等级条目（Lv > 1 时显示）
+        if (level > 1) {
+            const highCard = document.createElement('div');
+            highCard.style.cssText = 'background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);position:relative;';
+            highCard.innerHTML = `
+                <div style="position:absolute;top:5px;right:8px;background:rgba(233,69,96,0.2);color:#e94560;padding:1px 6px;border-radius:6px;font-size:0.65em;font-weight:bold;">强化+${level - 1}</div>
+                <div style="font-size:2em;margin-bottom:5px;">${t.emoji}</div>
+                <div style="font-weight:bold;font-size:0.85em;margin-bottom:4px;color:${rc.color}">${t.name}</div>
+                <div style="font-size:0.75em;color:#f1c40f;margin-bottom:4px;">Lv.${level} ×1</div>
+                <div style="font-size:0.7em;color:#aaa;margin-bottom:4px;">${formatValue(t.stat, t.value)}</div>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-primary" onclick="sellTradeTreasure('${tid}', ${level}, 1, true)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                </div>
+            `;
+            container.appendChild(highCard);
+        }
+
+        // 基础条目（Lv=1 的副本）
+        const baseCount = level > 1 ? count - 1 : count;
+        if (baseCount > 0) {
+            const baseCard = document.createElement('div');
+            baseCard.style.cssText = 'background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);position:relative;';
+            baseCard.innerHTML = `
+                <div style="font-size:2em;margin-bottom:5px;">${t.emoji}</div>
+                <div style="font-weight:bold;font-size:0.85em;margin-bottom:4px;color:${rc.color}">${t.name}</div>
+                <div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">Lv.1 ×${baseCount}</div>
+                <div style="font-size:0.7em;color:#aaa;margin-bottom:4px;">${formatValue(t.stat, t.value)}</div>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-primary" onclick="sellTradeTreasure('${tid}', 1, 1, false)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                </div>
+            `;
+            container.appendChild(baseCard);
+        }
+    });
+}
+
+function _renderTradeItemList(container) {
+    const items = game.player.items || {};
+    const entries = Object.entries(items).filter(([_, d]) => d && d.count > 0);
+    if (entries.length === 0) {
+        container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">背包中没有道具</div>';
+        return;
+    }
+    entries.forEach(([itemId, data]) => {
+        const item = SHOP_ITEMS.find(i => i.id === itemId);
+        if (!item) return;
+        const card = document.createElement('div');
+        card.style.cssText = 'background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);position:relative;';
+        card.innerHTML = `
+            <div style="font-size:2em;margin-bottom:5px;">${item.emoji}</div>
+            <div style="font-weight:bold;font-size:0.85em;margin-bottom:4px;">${item.name}</div>
+            <div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">${item.desc}</div>
+            <div style="font-size:0.8em;color:#f1c40f;margin-bottom:4px;">×${data.count}</div>
+            <div style="margin-top:8px;">
+                <button class="btn btn-primary" onclick="sellTradeItem('${itemId}', 1)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function _renderTradeSkillBookList(container) {
+    const books = game.player.skillBooks || {};
+    const entries = Object.entries(books).filter(([_, d]) => d && d.count > 0);
+    if (entries.length === 0) {
+        container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">背包中没有技能书</div>';
+        return;
+    }
+    entries.forEach(([bookId, data]) => {
+        const book = SKILL_BOOKS.find(b => b.id === bookId);
+        if (!book) return;
+        const rc = RARITY_CONFIG[book.rarity];
+        const card = document.createElement('div');
+        card.style.cssText = 'background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,0.08);position:relative;';
+        card.innerHTML = `
+            <div style="font-size:2em;margin-bottom:5px;">${book.emoji}</div>
+            <div style="font-weight:bold;font-size:0.85em;margin-bottom:4px;color:${rc.color}">${book.name}</div>
+            <div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">${data.appraised ? '已鉴定' : '未鉴定'}</div>
+            <div style="font-size:0.8em;color:#f1c40f;margin-bottom:4px;">×${data.count}</div>
+            <div style="margin-top:8px;">
+                <button class="btn btn-primary" onclick="sellTradeSkillBook('${bookId}', 1)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// 出售操作函数
+function sellTradeEquipment(bagIndex) {
+    const bag = game.player.equipmentBag;
+    if (!bag || bagIndex < 0 || bagIndex >= bag.length) return;
+    const item = bag[bagIndex];
+    const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
+    if (!eqDef) return;
+
+    const code = generateTradeCode({
+        type: 'eq',
+        id: item.id,
+        level: item.level || 1,
+        appraised: item.appraised || false,
+        refine: item.refine || 0,
+        attrMult: item.attrMult || 1
+    });
+    if (!code) { showNotification('生成交易码失败'); return; }
+
+    // 扣除物品
+    bag.splice(bagIndex, 1);
+
+    _showTradeCode(code, `${eqDef.emoji} ${eqDef.name}`);
+    renderBag();
+    updateUI();
+    log(`💱 生成了 ${eqDef.emoji} ${eqDef.name} 的交易码`, 'log-loot');
+    showNotification(`💱 ${eqDef.name} 交易码已生成！`);
+}
+
+function sellTradeTreasure(tid, level, count, isHighLevel) {
+    const data = game.player.treasures?.[tid];
+    if (!data || data.count < count) { showNotification('宝物数量不足'); return; }
+    const t = TREASURE_POOL.find(x => x.id === tid);
+    if (!t) return;
+
+    const code = generateTradeCode({ type: 'tr', id: tid, level });
+    if (!code) { showNotification('生成交易码失败'); return; }
+
+    // 扣除物品
+    data.count -= count;
+    if (isHighLevel) data.level = 1; // 高等级出售后清零
+    if (data.count <= 0) delete game.player.treasures[tid];
+
+    _showTradeCode(code, `${t.emoji} ${t.name} Lv.${level}`);
+    renderBag();
+    updateUI();
+    log(`💱 生成了 ${t.emoji} ${t.name}(Lv.${level}) 的交易码`, 'log-loot');
+    showNotification(`💱 ${t.name}(Lv.${level}) 交易码已生成！`);
+}
+
+function sellTradeItem(itemId, count) {
+    const data = game.player.items?.[itemId];
+    if (!data || data.count < count) { showNotification('道具数量不足'); return; }
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) return;
+
+    const code = generateTradeCode({ type: 'it', id: itemId, count });
+    if (!code) { showNotification('生成交易码失败'); return; }
+
+    data.count -= count;
+    if (data.count <= 0) delete game.player.items[itemId];
+
+    _showTradeCode(code, `${item.emoji} ${item.name} ×${count}`);
+    renderBag();
+    updateUI();
+    log(`💱 生成了 ${item.emoji} ${item.name} ×${count} 的交易码`, 'log-loot');
+    showNotification(`💱 ${item.name} ×${count} 交易码已生成！`);
+}
+
+function sellTradeSkillBook(bookId, count) {
+    const data = game.player.skillBooks?.[bookId];
+    if (!data || data.count < count) { showNotification('技能书数量不足'); return; }
+    const book = SKILL_BOOKS.find(b => b.id === bookId);
+    if (!book) return;
+
+    const code = generateTradeCode({
+        type: 'sb',
+        id: bookId,
+        skillId: data.skillId || book.skillId,
+        appraised: data.appraised || false,
+        count
+    });
+    if (!code) { showNotification('生成交易码失败'); return; }
+
+    data.count -= count;
+    if (data.count <= 0) delete game.player.skillBooks[bookId];
+
+    _showTradeCode(code, `${book.emoji} ${book.name} ×${count}`);
+    renderBag();
+    updateUI();
+    log(`💱 生成了 ${book.emoji} ${book.name} 的交易码`, 'log-loot');
+    showNotification(`💱 ${book.name} 交易码已生成！`);
+}
+
+function _showTradeCode(code, itemDesc) {
+    const container = document.getElementById('traderContent');
+    const resultPanel = container?.querySelector('.trade-code-result');
+    const codeText = container?.querySelector('.trade-code-text');
+    if (resultPanel && codeText) {
+        resultPanel.style.display = 'block';
+        codeText.textContent = code;
+        codeText.dataset.code = code;
+    }
+}
+
+function copyTradeCode() {
+    const container = document.getElementById('traderContent');
+    const code = container?.querySelector('.trade-code-text')?.dataset?.code;
+    if (!code) return;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code).then(() => showNotification('📋 交易码已复制！')).catch(() => prompt('请复制以下交易码：', code));
+    } else {
+        prompt('请复制以下交易码：', code);
+    }
+}
+
+// 购买界面
+function renderTradeBuyView(container) {
+    if (!container.querySelector('.trade-buy-panel')) {
+        container.innerHTML = `
+            <div class="trade-buy-panel">
+                <div style="text-align:center;padding:10px 0;">
+                    <div style="font-size:3em;margin-bottom:10px;">📥</div>
+                    <div style="font-weight:bold;color:#f1c40f;margin-bottom:8px;">输入交易码领取物品</div>
+                    <div style="color:#aaa;font-size:0.85em;margin-bottom:15px;">将他人给你的交易码粘贴到下方，即可领取对应物品</div>
+                </div>
+                <div style="max-width:500px;margin:0 auto;">
+                    <textarea class="trade-input" placeholder="在此粘贴交易码..." style="width:100%;min-height:80px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;color:#fff;font-family:monospace;font-size:0.85em;resize:vertical;box-sizing:border-box;"></textarea>
+                    <button class="btn btn-primary" onclick="processTradeBuy()" style="width:100%;margin-top:10px;padding:8px;">📥 领取物品</button>
+                </div>
+                <div class="trade-buy-result" style="margin-top:15px;display:none;">
+                    <div style="background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.3);border-radius:8px;padding:12px;">
+                        <div class="trade-buy-msg" style="color:#2ecc71;font-weight:bold;"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function processTradeBuy() {
+    const container = document.getElementById('traderContent');
+    const input = container?.querySelector('.trade-input');
+    const resultPanel = container?.querySelector('.trade-buy-result');
+    const msgEl = container?.querySelector('.trade-buy-msg');
+    if (!input || !resultPanel || !msgEl) return;
+
+    const code = input.value.trim();
+    if (!code) { showNotification('请输入交易码'); return; }
+
+    const result = parseTradeCode(code);
+    if (!result.valid) {
+        resultPanel.style.display = 'block';
+        msgEl.style.color = '#e74c3c';
+        msgEl.textContent = `❌ ${result.error || '交易码无效'}`;
+        return;
+    }
+
+    const item = result.item;
+    let itemName = '';
+    let itemEmoji = '';
+
+    if (item.type === 'eq') {
+        const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
+        if (!eqDef) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 装备数据不存在'; return; }
+        game.player.equipmentBag = game.player.equipmentBag || [];
+        game.player.equipmentBag.push({
+            id: item.id,
+            level: item.level || 1,
+            appraised: item.appraised !== undefined ? item.appraised : true,
+            refine: item.refine || 0,
+            attrMult: item.attrMult || 1
+        });
+        itemName = eqDef.name;
+        itemEmoji = eqDef.emoji;
+    } else if (item.type === 'tr') {
+        const t = TREASURE_POOL.find(x => x.id === item.id);
+        if (!t) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 宝物数据不存在'; return; }
+        game.player.treasures = game.player.treasures || {};
+        if (!game.player.treasures[item.id]) game.player.treasures[item.id] = { count: 0, level: 1, locked: false };
+        game.player.treasures[item.id].count++;
+        if (item.level > 1) game.player.treasures[item.id].level = item.level;
+        itemName = t.name;
+        itemEmoji = t.emoji;
+    } else if (item.type === 'it') {
+        const shopItem = SHOP_ITEMS.find(i => i.id === item.id);
+        if (!shopItem) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 道具数据不存在'; return; }
+        game.player.items = game.player.items || {};
+        if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
+        game.player.items[item.id].count += item.count || 1;
+        itemName = shopItem.name;
+        itemEmoji = shopItem.emoji;
+    } else if (item.type === 'sb') {
+        const book = SKILL_BOOKS.find(b => b.id === item.id);
+        if (!book) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 技能书数据不存在'; return; }
+        game.player.skillBooks = game.player.skillBooks || {};
+        if (!game.player.skillBooks[item.id]) game.player.skillBooks[item.id] = { count: 0, appraised: false, skillId: null };
+        game.player.skillBooks[item.id].count += item.count || 1;
+        if (item.appraised) {
+            game.player.skillBooks[item.id].appraised = true;
+            game.player.skillBooks[item.id].skillId = item.skillId || book.skillId;
+        }
+        itemName = book.name;
+        itemEmoji = book.emoji;
+    } else {
+        resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 未知的物品类型'; return;
+    }
+
+    resultPanel.style.display = 'block';
+    msgEl.style.color = '#2ecc71';
+    msgEl.textContent = `✅ 成功领取 ${itemEmoji} ${itemName}！`;
+    input.value = '';
+    renderBag();
+    updateUI();
+    log(`💱 通过交易码获得了 ${itemEmoji} ${itemName}`, 'log-loot');
+    showNotification(`💱 获得 ${itemName}！`);
+}
+
+// ========== 技能系统 ==========
 function renderSkillList(container) {
     const activeIds = new Set();
     let hasContent = false;

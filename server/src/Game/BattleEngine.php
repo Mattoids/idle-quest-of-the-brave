@@ -121,10 +121,12 @@ final class BattleEngine
         $session['enemy'] = $report['enemy'];
         $session['last_tick_ms'] = $nowMs;
 
+        // 敌人反击
         if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
-            $counter = $this->enemySwing($save['player'], $session['enemy'], $stats);
-            $log[] = $counter['log'];
-            $save['player'] = $counter['player'];
+            $counter = $this->enemySwing($save['player'], $session['enemy'], $stats, (int) $session['area']);
+            foreach ($counter['logs'] as $l) $log[] = $l;
+            $save['player']   = $counter['player'];
+            $session['enemy'] = $counter['enemy'];
         }
 
         return $this->finalize($deviceHash, $save, $session, $log);
@@ -151,13 +153,17 @@ final class BattleEngine
             $save['player'], $session['enemy'], $stats, $skillId
         );
         foreach ($skillLog as $l) $log[] = $l;
+
+        // 技能命中后也检查 berserker 触发
+        $session['enemy'] = EnemyBehavior::tryBerserk($session['enemy']);
         $session['last_tick_ms'] = $nowMs;
 
-        // 技能命中后给敌人一次反击机会（与 game.js 一致：技能释放后敌人正常 swing）
+        // 技能命中后给敌人一次反击机会
         if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
-            $counter = $this->enemySwing($save['player'], $session['enemy'], $stats);
-            $log[] = $counter['log'];
-            $save['player'] = $counter['player'];
+            $counter = $this->enemySwing($save['player'], $session['enemy'], $stats, (int) $session['area']);
+            foreach ($counter['logs'] as $l) $log[] = $l;
+            $save['player']   = $counter['player'];
+            $session['enemy'] = $counter['enemy'];
         }
 
         return $this->finalize($deviceHash, $save, $session, $log);
@@ -198,9 +204,10 @@ final class BattleEngine
             $session['enemy'] = $report['enemy'];
 
             if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
-                $counter = $this->enemySwing($save['player'], $session['enemy'], $stats);
-                $log[] = $counter['log'];
-                $save['player'] = $counter['player'];
+                $counter = $this->enemySwing($save['player'], $session['enemy'], $stats, (int) $session['area']);
+                foreach ($counter['logs'] as $l) $log[] = $l;
+                $save['player']   = $counter['player'];
+                $session['enemy'] = $counter['enemy'];
             }
         }
         $session['last_tick_ms'] = $nowMs;
@@ -226,6 +233,15 @@ final class BattleEngine
      */
     private function resolveSwing(array $player, array $enemy, array $stats, bool $isSkill): array
     {
+        // ethereal 15% 闪避（仅普通攻击，不影响技能）
+        if (!$isSkill && EnemyBehavior::tryDodge($enemy)) {
+            return [
+                'log'    => ['t' => 'player_miss', 'reason' => 'dodge', 'enemy_hp' => $enemy['hp'] ?? 0],
+                'player' => $player,
+                'enemy'  => $enemy,
+            ];
+        }
+
         // 应用敌人 debuff 修饰后的实际防御/攻击
         $enemyEff = BuffSystem::applyEnemyDebuffsToStats($enemy);
 
@@ -247,6 +263,9 @@ final class BattleEngine
         $damage = (int) floor($base);
         $enemy['hp'] = max(0, ($enemy['hp'] ?? 0) - $damage);
 
+        // 命中后检查 berserker 触发（敌人血量低于 30%）
+        $enemy = EnemyBehavior::tryBerserk($enemy);
+
         // 吸血
         if (($stats['vamp'] ?? 0) > 0 && $damage > 0) {
             $heal = (int) ($damage * $stats['vamp']);
@@ -260,7 +279,7 @@ final class BattleEngine
         ];
     }
 
-    private function enemySwing(array $player, array $enemy, array $stats): array
+    private function enemySwing(array $player, array $enemy, array $stats, int $areaIndex = 0): array
     {
         // 敌人 debuff 调整
         $enemyEff = BuffSystem::applyEnemyDebuffsToStats($enemy);
@@ -270,9 +289,20 @@ final class BattleEngine
         $damage = (int) floor($base);
         $player['hp'] = max(0, ($player['hp'] ?? 0) - $damage);
 
+        $logs = [['t' => 'enemy_hit', 'dmg' => $damage, 'player_hp' => $player['hp']]];
+
+        // vampiric 攻击吸血
+        $enemy = EnemyBehavior::applyVampire($enemy, $damage);
+
+        // 怪物类型 / 精英 / Boss 施加 debuff
+        $rolled = EnemyBehavior::rollAttackDebuffs($player, $enemy, $areaIndex);
+        $player = $rolled['player'];
+        foreach ($rolled['log'] as $l) $logs[] = $l;
+
         return [
-            'log'    => ['t' => 'enemy_hit', 'dmg' => $damage, 'player_hp' => $player['hp']],
+            'logs'   => $logs,
             'player' => $player,
+            'enemy'  => $enemy,
         ];
     }
 
@@ -291,13 +321,20 @@ final class BattleEngine
             $log[] = ['t' => 'player_died', 'gold_lost' => $penalty];
             $this->cache->delete($this->sessionKey($deviceHash));
         } elseif (($session['enemy']['hp'] ?? 0) <= 0) {
-            // 敌人死亡 → 结算
-            $drops = $this->processKill($save, $session);
-            $save = $drops['save'];
-            $log[] = ['t' => 'enemy_killed', 'drops' => $drops['drops']];
+            // undead 复活：仅一次，复活到 30% maxHp
+            $rev = EnemyBehavior::tryRevive($session['enemy']);
+            $session['enemy'] = $rev['enemy'];
+            if ($rev['revived']) {
+                $log[] = ['t' => 'enemy_revived', 'hp' => $session['enemy']['hp']];
+            } else {
+                // 敌人死亡 → 结算
+                $drops = $this->processKill($save, $session);
+                $save = $drops['save'];
+                $log[] = ['t' => 'enemy_killed', 'drops' => $drops['drops']];
 
-            // 生成下一个敌人
-            $session['enemy'] = $this->spawnEnemy((int) ($session['area'] ?? 0));
+                // 生成下一个敌人
+                $session['enemy'] = $this->spawnEnemy((int) ($session['area'] ?? 0));
+            }
         } else {
             // 战斗继续，不需要落库存档
         }
@@ -420,7 +457,7 @@ final class BattleEngine
         $exp = (int) (8  * $mult);
         $gold = (int) (5 * $mult);
 
-        return [
+        $enemy = [
             'name'    => $tpl['name'],
             'emoji'   => $tpl['emoji'],
             'type'    => $tpl['type'],
@@ -434,6 +471,8 @@ final class BattleEngine
             'isElite' => $isElite,
             'isBoss'  => false,
         ];
+        // 应用怪物类型修饰（aggressive/tank/fragile 调整属性；pack 调 aspd；标准化 enemyType/debuffs 字段）
+        return EnemyBehavior::decorateSpawn($enemy);
     }
 
     /* ---------------- 缓存 helper ---------------- */

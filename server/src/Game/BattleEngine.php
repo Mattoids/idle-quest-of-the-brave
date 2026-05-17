@@ -117,6 +117,7 @@ final class BattleEngine
 
         $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
         $log[] = $report['log'];
+        foreach (($report['extra_logs'] ?? []) as $l) $log[] = $l;
         $save['player'] = $report['player'];
         $session['enemy'] = $report['enemy'];
         $session['last_tick_ms'] = $nowMs;
@@ -200,6 +201,7 @@ final class BattleEngine
             if ($save['player']['hp'] <= 0 || $session['enemy']['hp'] <= 0) break;
             $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
             $log[] = $report['log'];
+            foreach (($report['extra_logs'] ?? []) as $l) $log[] = $l;
             $save['player']   = $report['player'];
             $session['enemy'] = $report['enemy'];
 
@@ -229,7 +231,7 @@ final class BattleEngine
     /* ---------------- 单次"挥砍"伤害解算 ---------------- */
 
     /**
-     * @return array{log:array, player:array, enemy:array}
+     * @return array{log:array, player:array, enemy:array, extra_logs?:array}
      */
     private function resolveSwing(array $player, array $enemy, array $stats, bool $isSkill): array
     {
@@ -266,6 +268,12 @@ final class BattleEngine
         // 命中后检查 berserker 触发（敌人血量低于 30%）
         $enemy = EnemyBehavior::tryBerserk($enemy);
 
+        // 区域被动：荆棘反伤
+        $extraLogs = [];
+        $thornsRes = AreaPassive::onPlayerHitEnemy($player, $enemy, $damage);
+        $player = $thornsRes['player'];
+        foreach ($thornsRes['log'] as $l) $extraLogs[] = $l;
+
         // 吸血
         if (($stats['vamp'] ?? 0) > 0 && $damage > 0) {
             $heal = (int) ($damage * $stats['vamp']);
@@ -273,9 +281,10 @@ final class BattleEngine
         }
 
         return [
-            'log'    => ['t' => 'player_hit', 'dmg' => $damage, 'crit' => $isCrit, 'enemy_hp' => $enemy['hp']],
-            'player' => $player,
-            'enemy'  => $enemy,
+            'log'        => ['t' => 'player_hit', 'dmg' => $damage, 'crit' => $isCrit, 'enemy_hp' => $enemy['hp']],
+            'player'     => $player,
+            'enemy'      => $enemy,
+            'extra_logs' => $extraLogs,
         ];
     }
 
@@ -291,8 +300,14 @@ final class BattleEngine
 
         $logs = [['t' => 'enemy_hit', 'dmg' => $damage, 'player_hp' => $player['hp']]];
 
-        // vampiric 攻击吸血
+        // vampiric 攻击吸血（怪物类型）
         $enemy = EnemyBehavior::applyVampire($enemy, $damage);
+
+        // 区域被动：吸血 / 燃烧 / 破甲
+        $areaRes = AreaPassive::onEnemyHitPlayer($player, $enemy, $damage, $stats);
+        $player = $areaRes['player'];
+        $enemy  = $areaRes['enemy'];
+        foreach ($areaRes['log'] as $l) $logs[] = $l;
 
         // 怪物类型 / 精英 / Boss 施加 debuff
         $rolled = EnemyBehavior::rollAttackDebuffs($player, $enemy, $areaIndex);
@@ -321,10 +336,16 @@ final class BattleEngine
             $log[] = ['t' => 'player_died', 'gold_lost' => $penalty];
             $this->cache->delete($this->sessionKey($deviceHash));
         } elseif (($session['enemy']['hp'] ?? 0) <= 0) {
-            // undead 复活：仅一次，复活到 30% maxHp
+            // 复活：undead 类型 + 区域级 revive 共用 hasRevived
             $rev = EnemyBehavior::tryRevive($session['enemy']);
             $session['enemy'] = $rev['enemy'];
-            if ($rev['revived']) {
+            $revived = $rev['revived'];
+            if (!$revived) {
+                $rev2 = AreaPassive::tryAreaRevive($session['enemy']);
+                $session['enemy'] = $rev2['enemy'];
+                $revived = $rev2['revived'];
+            }
+            if ($revived) {
                 $log[] = ['t' => 'enemy_revived', 'hp' => $session['enemy']['hp']];
             } else {
                 // 敌人死亡 → 结算
@@ -471,8 +492,10 @@ final class BattleEngine
             'isElite' => $isElite,
             'isBoss'  => false,
         ];
-        // 应用怪物类型修饰（aggressive/tank/fragile 调整属性；pack 调 aspd；标准化 enemyType/debuffs 字段）
-        return EnemyBehavior::decorateSpawn($enemy);
+        // 应用怪物类型修饰（aggressive/tank/fragile 调整属性；pack 调 aspd；标准化 enemyType/debuffs/berserkActive/hasRevived 字段）
+        $enemy = EnemyBehavior::decorateSpawn($enemy);
+        // 应用区域被动机制（burn/lifeSteal/thorns/armorPen/revive）
+        return AreaPassive::decorateSpawn($enemy, $areaIndex);
     }
 
     /* ---------------- 缓存 helper ---------------- */

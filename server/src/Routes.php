@@ -39,6 +39,7 @@ final class Routes
 
         // ---- battle ----
         $r->post('/battle/start',  [BattleController::class, 'start'])->middleware(AuthMiddleware::class);
+        $r->post('/battle/boss',   [BattleController::class, 'startBoss'])->middleware(AuthMiddleware::class);
         $r->post('/battle/attack', [BattleController::class, 'attack'])->middleware(AuthMiddleware::class);
         $r->post('/battle/skill',  [BattleController::class, 'skill'])->middleware(AuthMiddleware::class);
         $r->post('/battle/tick',   [BattleController::class, 'tick'])->middleware(AuthMiddleware::class);

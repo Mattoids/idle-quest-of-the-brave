@@ -75,8 +75,53 @@ final class BattleEngine
         $save = $this->saves->loadOrThrow($deviceHash);
         $save['battle'] = null;
         $save['world']['inCity'] = true;
+        $save['world']['fightingBoss'] = false;
         $this->saves->replace($deviceHash, $save);
         return ['ended' => true];
+    }
+
+    /**
+     * 挑战 BOSS：需要 BOSS 未被击败 + 线索足够
+     */
+    public function startBoss(string $deviceHash, int $areaIndex): array
+    {
+        if (!in_array($areaIndex, Constants::BOSS_AREAS, true)) {
+            throw HttpException::badRequest('not_a_boss_area');
+        }
+        $save = $this->saves->loadOrThrow($deviceHash);
+
+        if (!empty($save['world']['bossDefeated'][$areaIndex])) {
+            throw HttpException::conflict('boss_already_defeated');
+        }
+        $required = Constants::CLUE_REQUIRED[$areaIndex] ?? 0;
+        $have     = (int) (($save['world']['clues'] ?? [])[$areaIndex] ?? 0);
+        if ($have < $required) {
+            throw HttpException::badRequest('insufficient_clues', ['need' => $required, 'have' => $have]);
+        }
+
+        $enemy = BossDefs::spawn($areaIndex);
+        // 初始化 lastCast = nowMs，避免第一次 attack 就立即触发 BOSS 技能
+        $nowMs = BuffSystem::nowMs();
+        foreach ($enemy['bossSkills'] as &$bs) {
+            if (isset($bs['lastCast'])) $bs['lastCast'] = $nowMs;
+        }
+        unset($bs);
+        $session = [
+            'session_id'  => bin2hex(random_bytes(8)),
+            'area'        => $areaIndex,
+            'enemy'       => $enemy,
+            'started_at'  => microtime(true),
+            'last_tick_ms'=> $nowMs,
+        ];
+        $this->saveSession($deviceHash, $session);
+
+        $save['battle'] = $session;
+        $save['world']['inCity']       = false;
+        $save['world']['currentArea']  = $areaIndex;
+        $save['world']['fightingBoss'] = true;
+        $this->saves->replace($deviceHash, $save);
+
+        return ['session' => $session, 'player' => $save['player']];
     }
 
     public function status(string $deviceHash): array
@@ -114,6 +159,21 @@ final class BattleEngine
         $save['player']    = $tickRes['player'];
         $session['enemy']  = $tickRes['enemy'];
         $log = $tickRes['log'];
+        // 推进 BOSS 技能（如有）
+        $bossTick = BossSkillEngine::tick($save['player'], $session['enemy'], $stats);
+        $save['player']    = $bossTick['player'];
+        $session['enemy']  = $bossTick['enemy'];
+        foreach ($bossTick['log'] as $l) $log[] = $l;
+
+        // 眩晕拒绝普攻
+        if (BossSkillEngine::isStunned($save['player'])) {
+            $session['last_tick_ms'] = $nowMs;
+            $log[] = ['t' => 'player_stunned'];
+            $this->saveSession($deviceHash, $session);
+            $save['battle'] = $session;
+            $this->saves->replace($deviceHash, $save);
+            return ['log' => $log, 'session' => $session, 'player' => $save['player']];
+        }
 
         $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
         $log[] = $report['log'];
@@ -149,6 +209,11 @@ final class BattleEngine
         $save['player']   = $tickRes['player'];
         $session['enemy'] = $tickRes['enemy'];
         $log = $tickRes['log'];
+        // BOSS 技能 tick
+        $bossTick = BossSkillEngine::tick($save['player'], $session['enemy'], $stats);
+        $save['player']   = $bossTick['player'];
+        $session['enemy'] = $bossTick['enemy'];
+        foreach ($bossTick['log'] as $l) $log[] = $l;
 
         [$save['player'], $session['enemy'], $skillLog] = SkillEngine::cast(
             $save['player'], $session['enemy'], $stats, $skillId
@@ -188,6 +253,11 @@ final class BattleEngine
         $save['player']   = $tickRes['player'];
         $session['enemy'] = $tickRes['enemy'];
         $log = $tickRes['log'];
+        // BOSS 技能 tick
+        $bossTick = BossSkillEngine::tick($save['player'], $session['enemy'], $stats);
+        $save['player']   = $bossTick['player'];
+        $session['enemy'] = $bossTick['enemy'];
+        foreach ($bossTick['log'] as $l) $log[] = $l;
 
         $maxBatch = (int) Bootstrap::config('game.max_tick_batch', 200);
         $swings = (int) min($maxBatch, floor($elapsed / $aspdMs));
@@ -262,6 +332,8 @@ final class BattleEngine
         if ($isCrit) {
             $base *= max(1.0, (float) ($stats['critDmg'] ?? 2));
         }
+        // BOSS damage_reduce 衰减玩家伤害
+        $base *= BossSkillEngine::damageReduceMult($enemy);
         $damage = (int) floor($base);
         $enemy['hp'] = max(0, ($enemy['hp'] ?? 0) - $damage);
 
@@ -314,6 +386,13 @@ final class BattleEngine
         $player = $rolled['player'];
         foreach ($rolled['log'] as $l) $logs[] = $l;
 
+        // BOSS stun_chance（天空领主 20% +1s 眩晕）
+        $stun = BossSkillEngine::tryStunChance($player, $enemy);
+        $player = $stun['player'];
+        if (!empty($stun['stunned'])) {
+            $logs[] = ['t' => 'boss_stun', 'dur' => $stun['dur'] ?? 0];
+        }
+
         return [
             'logs'   => $logs,
             'player' => $player,
@@ -336,14 +415,18 @@ final class BattleEngine
             $log[] = ['t' => 'player_died', 'gold_lost' => $penalty];
             $this->cache->delete($this->sessionKey($deviceHash));
         } elseif (($session['enemy']['hp'] ?? 0) <= 0) {
-            // 复活：undead 类型 + 区域级 revive 共用 hasRevived
-            $rev = EnemyBehavior::tryRevive($session['enemy']);
-            $session['enemy'] = $rev['enemy'];
-            $revived = $rev['revived'];
-            if (!$revived) {
-                $rev2 = AreaPassive::tryAreaRevive($session['enemy']);
-                $session['enemy'] = $rev2['enemy'];
-                $revived = $rev2['revived'];
+            $isBoss = !empty($session['enemy']['isBoss']);
+            $revived = false;
+            if (!$isBoss) {
+                // 复活：undead 类型 + 区域级 revive 共用 hasRevived
+                $rev = EnemyBehavior::tryRevive($session['enemy']);
+                $session['enemy'] = $rev['enemy'];
+                $revived = $rev['revived'];
+                if (!$revived) {
+                    $rev2 = AreaPassive::tryAreaRevive($session['enemy']);
+                    $session['enemy'] = $rev2['enemy'];
+                    $revived = $rev2['revived'];
+                }
             }
             if ($revived) {
                 $log[] = ['t' => 'enemy_revived', 'hp' => $session['enemy']['hp']];
@@ -352,6 +435,20 @@ final class BattleEngine
                 $drops = $this->processKill($save, $session);
                 $save = $drops['save'];
                 $log[] = ['t' => 'enemy_killed', 'drops' => $drops['drops']];
+
+                if ($isBoss) {
+                    // BOSS 被击败：永久标记 + 清线索 + 退出战斗
+                    $area = (int) ($session['area'] ?? 0);
+                    $save['world']['bossDefeated'][$area] = true;
+                    $save['world']['clues'][$area] = 0;
+                    $save['world']['fightingBoss'] = false;
+                    $save['world']['inCity'] = true;
+                    $save['battle'] = null;
+                    $log[] = ['t' => 'boss_defeated', 'area' => $area];
+                    $this->cache->delete($this->sessionKey($deviceHash));
+                    $this->saves->replace($deviceHash, $save);
+                    return ['log' => $log, 'session' => null, 'player' => $save['player']];
+                }
 
                 // 生成下一个敌人
                 $session['enemy'] = $this->spawnEnemy((int) ($session['area'] ?? 0));
@@ -431,8 +528,32 @@ final class BattleEngine
                 $drops['items'][] = ['type' => 'item', 'payload' => $it];
             }
         }
-        // BOSS 额外掉落
+        // BOSS 额外掉落（必掉宝物/装备/技能书，且品质更高）
         if (!empty($enemy['isBoss'])) {
+            // BOSS 宝物 60%，最低 epic
+            if (Random::chance(0.60)) {
+                $bossT = DropTable::rollTreasureDrop($area, 'epic', $area >= 15);
+                if ($bossT) {
+                    $save['player'] = PlayerService::addTreasure($save['player'], $bossT);
+                    $drops['items'][] = ['type' => 'treasure', 'payload' => $bossT, 'tag' => 'boss'];
+                }
+            }
+            // BOSS 装备：基础 ×1.2，最低 rare
+            if (Random::chance(min(0.85, DropTable::equipmentDropRate($area) * 1.2))) {
+                $bossEq = DropTable::rollEquipmentDrop($area, 'rare');
+                if ($bossEq) {
+                    $save['player'] = PlayerService::addEquipmentToBag($save['player'], $bossEq);
+                    $drops['items'][] = ['type' => 'equipment', 'payload' => $bossEq, 'tag' => 'boss'];
+                }
+            }
+            // BOSS 技能书：基础 ×1.5
+            if (Random::chance(min(0.85, DropTable::skillBookDropRate($area) * 1.5))) {
+                $bossB = DropTable::rollSkillBookDrop($area, $area >= 15);
+                if ($bossB) {
+                    $save['player'] = PlayerService::addSkillBook($save['player'], $bossB);
+                    $drops['items'][] = ['type' => 'skill_book', 'payload' => $bossB, 'tag' => 'boss'];
+                }
+            }
             $stone = DropTable::rollBossEnhanceStone();
             if ($stone) {
                 $save['player'] = PlayerService::addItem($save['player'], $stone['id'], $stone['count']);
@@ -442,6 +563,20 @@ final class BattleEngine
             if ($passive) {
                 $save['player'] = PlayerService::addPassiveBook($save['player'], $passive);
                 $drops['items'][] = ['type' => 'passive_book', 'payload' => ['id' => $passive['id']]];
+            }
+        }
+        // 线索掉落：在 BOSS 区域击败普通怪 15% 概率（且 BOSS 未击败）
+        if (
+            empty($enemy['isBoss']) &&
+            in_array($area, Constants::BOSS_AREAS, true) &&
+            empty($save['world']['bossDefeated'][$area]) &&
+            Random::chance(Constants::CLUE_DROP_RATE)
+        ) {
+            $cur = (int) (($save['world']['clues'] ?? [])[$area] ?? 0);
+            $req = (int) (Constants::CLUE_REQUIRED[$area] ?? 0);
+            if ($cur < $req) {
+                $save['world']['clues'][$area] = $cur + 1;
+                $drops['items'][] = ['type' => 'clue', 'payload' => ['area' => $area, 'count' => $cur + 1, 'need' => $req]];
             }
         }
         // 无尽普通怪：恢复/加成道具

@@ -32,6 +32,13 @@ final class BattleController
         return $this->engine->start($req->deviceHash, $area);
     }
 
+    public function startBoss(Request $req): array
+    {
+        if (!$req->deviceHash) throw HttpException::unauthorized();
+        $area = (int) $req->require('area');
+        return $this->engine->startBoss($req->deviceHash, $area);
+    }
+
     public function attack(Request $req): array
     {
         if (!$req->deviceHash) throw HttpException::unauthorized();

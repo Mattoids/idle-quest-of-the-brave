@@ -5067,7 +5067,10 @@ function renderTradeSellView(container) {
                     <div style="background:rgba(241,196,15,0.1);border:1px solid rgba(241,196,15,0.3);border-radius:8px;padding:12px;">
                         <div style="color:#f1c40f;font-weight:bold;margin-bottom:8px;">📋 交易码（可复制给他人）</div>
                         <div class="trade-code-text" style="font-family:monospace;font-size:0.85em;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;word-break:break-all;color:#2ecc71;"></div>
-                        <button class="btn btn-primary" onclick="copyTradeCode()" style="margin-top:8px;padding:4px 12px;font-size:0.8em;">📋 复制到剪贴板</button>
+                        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                            <button class="btn btn-primary" onclick="copyTradeCode()" style="padding:4px 12px;font-size:0.8em;">📋 复制到剪贴板</button>
+                            <button class="btn btn-success" onclick="confirmTradeCodeCopied()" style="padding:4px 12px;font-size:0.8em;">✅ 我已复制，继续出售</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5220,7 +5223,14 @@ function _renderTradeSkillBookList(container) {
 }
 
 // 出售操作函数
+function _isTradeCodePending() {
+    const container = document.getElementById('traderContent');
+    const resultPanel = container?.querySelector('.trade-code-result');
+    return resultPanel && resultPanel.style.display !== 'none';
+}
+
 function sellTradeEquipment(bagIndex) {
+    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
     const bag = game.player.equipmentBag;
     if (!bag || bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
@@ -5243,11 +5253,12 @@ function sellTradeEquipment(bagIndex) {
     _showTradeCode(code, `${eqDef.emoji} ${eqDef.name}`);
     renderBag();
     updateUI();
-    log(`💱 生成了 ${eqDef.emoji} ${eqDef.name} 的交易码`, 'log-loot');
-    showNotification(`💱 ${eqDef.name} 交易码已生成！`);
+    log(`🏪 生成了 ${eqDef.emoji} ${eqDef.name} 的交易码`, 'log-loot');
+    showNotification(`🏪 ${eqDef.name} 交易码已生成！`);
 }
 
 function sellTradeTreasure(tid, level, count, isHighLevel) {
+    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
     const data = game.player.treasures?.[tid];
     if (!data || data.count < count) { showNotification('宝物数量不足'); return; }
     const t = TREASURE_POOL.find(x => x.id === tid);
@@ -5264,11 +5275,12 @@ function sellTradeTreasure(tid, level, count, isHighLevel) {
     _showTradeCode(code, `${t.emoji} ${t.name} Lv.${level}`);
     renderBag();
     updateUI();
-    log(`💱 生成了 ${t.emoji} ${t.name}(Lv.${level}) 的交易码`, 'log-loot');
-    showNotification(`💱 ${t.name}(Lv.${level}) 交易码已生成！`);
+    log(`🏪 生成了 ${t.emoji} ${t.name}(Lv.${level}) 的交易码`, 'log-loot');
+    showNotification(`🏪 ${t.name}(Lv.${level}) 交易码已生成！`);
 }
 
 function sellTradeItem(itemId, count) {
+    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
     const data = game.player.items?.[itemId];
     if (!data || data.count < count) { showNotification('道具数量不足'); return; }
     const item = SHOP_ITEMS.find(i => i.id === itemId);
@@ -5283,11 +5295,12 @@ function sellTradeItem(itemId, count) {
     _showTradeCode(code, `${item.emoji} ${item.name} ×${count}`);
     renderBag();
     updateUI();
-    log(`💱 生成了 ${item.emoji} ${item.name} ×${count} 的交易码`, 'log-loot');
-    showNotification(`💱 ${item.name} ×${count} 交易码已生成！`);
+    log(`🏪 生成了 ${item.emoji} ${item.name} ×${count} 的交易码`, 'log-loot');
+    showNotification(`🏪 ${item.name} ×${count} 交易码已生成！`);
 }
 
 function sellTradeSkillBook(bookId, count) {
+    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
     const data = game.player.skillBooks?.[bookId];
     if (!data || data.count < count) { showNotification('技能书数量不足'); return; }
     const book = SKILL_BOOKS.find(b => b.id === bookId);
@@ -5308,8 +5321,8 @@ function sellTradeSkillBook(bookId, count) {
     _showTradeCode(code, `${book.emoji} ${book.name} ×${count}`);
     renderBag();
     updateUI();
-    log(`💱 生成了 ${book.emoji} ${book.name} 的交易码`, 'log-loot');
-    showNotification(`💱 ${book.name} 交易码已生成！`);
+    log(`🏪 生成了 ${book.emoji} ${book.name} 的交易码`, 'log-loot');
+    showNotification(`🏪 ${book.name} 交易码已生成！`);
 }
 
 function _showTradeCode(code, itemDesc) {
@@ -5321,6 +5334,15 @@ function _showTradeCode(code, itemDesc) {
         codeText.textContent = code;
         codeText.dataset.code = code;
     }
+}
+
+function confirmTradeCodeCopied() {
+    const container = document.getElementById('traderContent');
+    const resultPanel = container?.querySelector('.trade-code-result');
+    if (resultPanel) resultPanel.style.display = 'none';
+    // 刷新出售界面
+    renderTradeSellView(container);
+    showNotification('✅ 可以继续出售下一件物品了');
 }
 
 function copyTradeCode() {

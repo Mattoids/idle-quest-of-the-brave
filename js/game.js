@@ -4348,6 +4348,10 @@ function showMentorView() {
     document.getElementById('npcSelectView').style.display = 'none';
     document.getElementById('npcMentorView').style.display = '';
     document.getElementById('npcAppraiserView').style.display = 'none';
+    document.getElementById('npcBlacksmithView').style.display = 'none';
+    document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcInnView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
     switchNpcTab('skills');
 }
 
@@ -4355,6 +4359,10 @@ function showAppraiserView() {
     document.getElementById('npcSelectView').style.display = 'none';
     document.getElementById('npcMentorView').style.display = 'none';
     document.getElementById('npcAppraiserView').style.display = '';
+    document.getElementById('npcBlacksmithView').style.display = 'none';
+    document.getElementById('npcShopView').style.display = 'none';
+    document.getElementById('npcInnView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
     renderAppraiserContent();
 }
 
@@ -4365,6 +4373,7 @@ function showNpcSelect() {
     document.getElementById('npcBlacksmithView').style.display = 'none';
     document.getElementById('npcShopView').style.display = 'none';
     document.getElementById('npcInnView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
 }
 
 function showInnView() {
@@ -4472,6 +4481,8 @@ function showShopView() {
     document.getElementById('npcAppraiserView').style.display = 'none';
     document.getElementById('npcBlacksmithView').style.display = 'none';
     document.getElementById('npcShopView').style.display = '';
+    document.getElementById('npcInnView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
     renderShopContent();
 }
 

@@ -59,7 +59,8 @@ final class DropTable
     public static function equipmentDropRate(int $areaIndex): float
     {
         if ($areaIndex >= 15) {
-            $base = end(Constants::EQUIPMENT_DROP_RATES);
+            $rates = Constants::EQUIPMENT_DROP_RATES;
+            $base = $rates[count($rates) - 1];
             return (float) min(0.50, $base * 1.5);
         }
         return Constants::EQUIPMENT_DROP_RATES[$areaIndex] ?? 0.0;
@@ -68,7 +69,8 @@ final class DropTable
     public static function skillBookDropRate(int $areaIndex): float
     {
         if ($areaIndex >= 15) {
-            $base = end(Constants::SKILL_BOOK_DROP_RATES);
+            $rates = Constants::SKILL_BOOK_DROP_RATES;
+            $base = $rates[count($rates) - 1];
             return (float) min(0.20, $base * 2.0);
         }
         return Constants::SKILL_BOOK_DROP_RATES[$areaIndex] ?? 0.0;

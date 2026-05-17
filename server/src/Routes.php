@@ -9,6 +9,7 @@ use App\Controllers\BattleController;
 use App\Controllers\HealthController;
 use App\Controllers\MarketController;
 use App\Controllers\NpcController;
+use App\Controllers\ProgressController;
 use App\Controllers\SaveController;
 use App\Controllers\SkillController;
 
@@ -61,6 +62,10 @@ final class Routes
         $r->post('/npc/shop/use',             [NpcController::class, 'useItem'])->middleware(AuthMiddleware::class);
         $r->post('/npc/inn/rest',             [NpcController::class, 'rest'])->middleware(AuthMiddleware::class);
         $r->post('/npc/spirit/train',         [NpcController::class, 'trainSpirit'])->middleware(AuthMiddleware::class);
+
+        // ---- progress (无尽模式 / 离线挂机) ----
+        $r->post('/endless/enter',  [ProgressController::class, 'enterEndless'])->middleware(AuthMiddleware::class);
+        $r->post('/offline/claim',  [ProgressController::class, 'claimOffline'])->middleware(AuthMiddleware::class);
 
         // ---- market ----
         $r->get('/market/listings',           [MarketController::class, 'listings']);

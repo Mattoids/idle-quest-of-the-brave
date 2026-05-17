@@ -20,14 +20,14 @@ final class AreaPassive
     public static function decorateSpawn(array $enemy, int $areaIndex): array
     {
         // 注意：不要覆盖已存在的 enemyType / debuffs 字段
-        if ($areaIndex >= 5)  $enemy['burn']      = true;
-        if ($areaIndex >= 6)  $enemy['frost']     = true;
-        if ($areaIndex >= 8)  $enemy['lifeSteal'] = 0.12;
-        if ($areaIndex >= 9)  $enemy['thorns']    = 0.08;
-        if ($areaIndex >= 11) $enemy['armorPen']  = 0.15;
-        if ($areaIndex >= 12) $enemy['curse']     = true;
-        if ($areaIndex >= 13) $enemy['berserk']   = true;
-        if ($areaIndex >= 14) $enemy['revive']    = true;
+        if ($areaIndex >= 5 && $areaIndex < 15)  $enemy['burn']      = true;
+        if ($areaIndex >= 6 && $areaIndex < 15)  $enemy['frost']     = true;
+        if ($areaIndex >= 8 && $areaIndex < 15)  $enemy['lifeSteal'] = 0.12;
+        if ($areaIndex >= 9 && $areaIndex < 15)  $enemy['thorns']    = 0.08;
+        if ($areaIndex >= 11 && $areaIndex < 15) $enemy['armorPen']  = 0.15;
+        if ($areaIndex >= 12 && $areaIndex < 15) $enemy['curse']     = true;
+        if ($areaIndex >= 13 && $areaIndex < 15) $enemy['berserk']   = true;
+        if ($areaIndex === 14)                   $enemy['revive']    = true;
         return $enemy;
     }
 

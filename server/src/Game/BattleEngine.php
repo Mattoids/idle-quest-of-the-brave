@@ -436,18 +436,33 @@ final class BattleEngine
                 $save = $drops['save'];
                 $log[] = ['t' => 'enemy_killed', 'drops' => $drops['drops']];
 
-                if ($isBoss) {
-                    // BOSS 被击败：永久标记 + 清线索 + 退出战斗
-                    $area = (int) ($session['area'] ?? 0);
+                // 更新 lastBattleEndTime（供离线挂机算法用）
+                $save['world']['lastBattleEndTime'] = time() * 1000;
+
+                $area = (int) ($session['area'] ?? 0);
+
+                if ($isBoss && $area < 15) {
+                    // 普通 BOSS 被击败：标记 + 清线索 + 退出战斗
                     $save['world']['bossDefeated'][$area] = true;
                     $save['world']['clues'][$area] = 0;
                     $save['world']['fightingBoss'] = false;
                     $save['world']['inCity'] = true;
                     $save['battle'] = null;
                     $log[] = ['t' => 'boss_defeated', 'area' => $area];
+                    // 击败 boss 14 → 自动解锁无尽（仅状态标记，不进入）
+                    if ($area === 14) {
+                        $log[] = ['t' => 'endless_unlocked'];
+                    }
                     $this->cache->delete($this->sessionKey($deviceHash));
                     $this->saves->replace($deviceHash, $save);
                     return ['log' => $log, 'session' => null, 'player' => $save['player']];
+                }
+
+                // 无尽模式：每次击杀（含 endless boss）推进 layer
+                if ($area >= 15) {
+                    $save = EndlessService::advanceLayer($save, $session);
+                    $session['area'] = (int) $save['world']['currentArea'];
+                    $log[] = ['t' => 'endless_layer', 'layer' => $session['area'] - 14];
                 }
 
                 // 生成下一个敌人
@@ -588,6 +603,25 @@ final class BattleEngine
             }
         }
 
+        // 无尽精英/Boss 特殊掉落（神器装备/超脱套装/无尽道具/禁咒书）
+        if ($area >= 15 && (!empty($enemy['isElite']) || !empty($enemy['isBoss']))) {
+            $special = EndlessService::rollSpecialDrops($area - 14, $enemy);
+            foreach ($special as $sp) {
+                switch ($sp['type']) {
+                    case 'equipment':
+                        $save['player'] = PlayerService::addEquipmentToBag($save['player'], $sp['payload']);
+                        break;
+                    case 'item':
+                        $save['player'] = PlayerService::addItem($save['player'], $sp['payload']['id'], $sp['payload']['count'] ?? 1);
+                        break;
+                    case 'skill_book':
+                        $save['player'] = PlayerService::addSkillBook($save['player'], $sp['payload']);
+                        break;
+                }
+                $drops['items'][] = $sp;
+            }
+        }
+
         return ['save' => $save, 'drops' => $drops];
     }
 
@@ -603,15 +637,25 @@ final class BattleEngine
             ? 100 + 2 * ($areaIndex - 14)
             : (Constants::AREAS[$areaIndex]['level'] ?? 1);
 
-        $isElite = Random::chance(Constants::ELITE_SPAWN_RATE);
+        // 无尽层数特殊：每 5 层精英、每 10 层 BOSS
+        $isElite = false;
+        $isEndlessBoss = false;
+        if ($areaIndex >= 15) {
+            $tier = EndlessService::tierOfLayer($areaIndex - 14);
+            $isElite = $tier['isElite'];
+            $isEndlessBoss = $tier['isBoss'];
+        }
+        if (!$isElite && !$isEndlessBoss) {
+            $isElite = Random::chance(Constants::ELITE_SPAWN_RATE);
+        }
         $tplPool = Constants::ENEMIES;
         $tpl = $tplPool[Random::int(0, count($tplPool) - 1)];
 
-        $hp  = (int) (50 * $mult * ($isElite ? 1.5 : 1));
-        $atk = (int) (5  * $mult * ($isElite ? 1.3 : 1));
-        $def = (int) (2  * $mult * ($isElite ? 1.2 : 1));
-        $exp = (int) (8  * $mult);
-        $gold = (int) (5 * $mult);
+        $hp  = (int) (50 * $mult * ($isEndlessBoss ? 1.8 : ($isElite ? 1.5 : 1)));
+        $atk = (int) (5  * $mult * ($isEndlessBoss ? 1.5 : ($isElite ? 1.3 : 1)));
+        $def = (int) (2  * $mult * ($isEndlessBoss ? 1.4 : ($isElite ? 1.2 : 1)));
+        $exp = (int) (8  * $mult * ($isEndlessBoss ? 2.0 : 1));
+        $gold = (int) (5 * $mult * ($isEndlessBoss ? 3.0 : 1));
 
         $enemy = [
             'name'    => $tpl['name'],
@@ -625,7 +669,7 @@ final class BattleEngine
             'exp'     => $exp,
             'gold'    => $gold,
             'isElite' => $isElite,
-            'isBoss'  => false,
+            'isBoss'  => $isEndlessBoss,
         ];
         // 应用怪物类型修饰（aggressive/tank/fragile 调整属性；pack 调 aspd；标准化 enemyType/debuffs/berserkActive/hasRevived 字段）
         $enemy = EnemyBehavior::decorateSpawn($enemy);

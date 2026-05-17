@@ -1,5 +1,5 @@
 const SAVE_KEY = 'idleRpgGame_save_v6';
-const GAME_VERSION = 'v3.3';
+const GAME_VERSION = 'v3.4';
 const MAX_ATK_SPEED = 10;
 const AREA_DROP_RATES = [0.005, 0.015, 0.025, 0.035, 0.045, 0.055, 0.065, 0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.15];
 const BOSS_AREAS = [3, 6, 9, 14];

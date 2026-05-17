@@ -38,6 +38,13 @@ final class BattleController
         return $this->engine->attack($req->deviceHash);
     }
 
+    public function skill(Request $req): array
+    {
+        if (!$req->deviceHash) throw HttpException::unauthorized();
+        $skillId = (string) $req->require('skill_id');
+        return $this->engine->castSkill($req->deviceHash, $skillId);
+    }
+
     public function tick(Request $req): array
     {
         if (!$req->deviceHash) throw HttpException::unauthorized();

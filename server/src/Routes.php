@@ -9,6 +9,7 @@ use App\Controllers\BattleController;
 use App\Controllers\HealthController;
 use App\Controllers\MarketController;
 use App\Controllers\SaveController;
+use App\Controllers\SkillController;
 
 /**
  * 路由表
@@ -39,9 +40,15 @@ final class Routes
         // ---- battle ----
         $r->post('/battle/start',  [BattleController::class, 'start'])->middleware(AuthMiddleware::class);
         $r->post('/battle/attack', [BattleController::class, 'attack'])->middleware(AuthMiddleware::class);
+        $r->post('/battle/skill',  [BattleController::class, 'skill'])->middleware(AuthMiddleware::class);
         $r->post('/battle/tick',   [BattleController::class, 'tick'])->middleware(AuthMiddleware::class);
         $r->get('/battle/status',  [BattleController::class, 'status'])->middleware(AuthMiddleware::class);
         $r->post('/battle/end',    [BattleController::class, 'end'])->middleware(AuthMiddleware::class);
+
+        // ---- skills (NPC 技能导师) ----
+        $r->get('/skills',         [SkillController::class, 'show'])->middleware(AuthMiddleware::class);
+        $r->post('/skills/learn',  [SkillController::class, 'learn'])->middleware(AuthMiddleware::class);
+        $r->post('/skills/upgrade',[SkillController::class, 'upgrade'])->middleware(AuthMiddleware::class);
 
         // ---- market ----
         $r->get('/market/listings',           [MarketController::class, 'listings']);

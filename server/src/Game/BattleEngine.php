@@ -99,9 +99,9 @@ final class BattleEngine
         $session = $this->requireSession($deviceHash);
         $save    = $this->saves->loadOrThrow($deviceHash);
 
-        $stats  = PlayerService::computeStats($save['player']);
+        $stats  = $this->resolvedStats($save['player']);
         $aspdMs = (int) max(100, $stats['aspd']);
-        $nowMs  = (int) (microtime(true) * 1000);
+        $nowMs  = BuffSystem::nowMs();
 
         $minInterval = (int) Bootstrap::config('game.min_action_interval_ms', 80);
         $elapsed = $nowMs - ($session['last_tick_ms'] ?? 0);
@@ -109,22 +109,58 @@ final class BattleEngine
             throw HttpException::tooMany('attack_too_fast');
         }
 
-        $log = [];
+        // 先 tick buff/debuff
+        $tickRes = BuffSystem::tick($save['player'], $session['enemy'], $nowMs);
+        $save['player']    = $tickRes['player'];
+        $session['enemy']  = $tickRes['enemy'];
+        $log = $tickRes['log'];
+
         $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
         $log[] = $report['log'];
         $save['player'] = $report['player'];
         $session['enemy'] = $report['enemy'];
         $session['last_tick_ms'] = $nowMs;
 
-        // 敌人反击
         if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
             $counter = $this->enemySwing($save['player'], $session['enemy'], $stats);
             $log[] = $counter['log'];
             $save['player'] = $counter['player'];
         }
 
-        $result = $this->finalize($deviceHash, $save, $session, $log);
-        return $result;
+        return $this->finalize($deviceHash, $save, $session, $log);
+    }
+
+    /**
+     * 释放技能：服务端权威计算，含 mp/cd/克制/debuff
+     */
+    public function castSkill(string $deviceHash, string $skillId): array
+    {
+        $session = $this->requireSession($deviceHash);
+        $save    = $this->saves->loadOrThrow($deviceHash);
+
+        $stats = $this->resolvedStats($save['player']);
+        $nowMs = BuffSystem::nowMs();
+
+        // 先 tick buff/debuff
+        $tickRes = BuffSystem::tick($save['player'], $session['enemy'], $nowMs);
+        $save['player']   = $tickRes['player'];
+        $session['enemy'] = $tickRes['enemy'];
+        $log = $tickRes['log'];
+
+        [$save['player'], $session['enemy'], $skillLog] = SkillEngine::cast(
+            $save['player'], $session['enemy'], $stats, $skillId
+        );
+        foreach ($skillLog as $l) $log[] = $l;
+        $session['last_tick_ms'] = $nowMs;
+
+        // 技能命中后给敌人一次反击机会（与 game.js 一致：技能释放后敌人正常 swing）
+        if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
+            $counter = $this->enemySwing($save['player'], $session['enemy'], $stats);
+            $log[] = $counter['log'];
+            $save['player'] = $counter['player'];
+        }
+
+        return $this->finalize($deviceHash, $save, $session, $log);
     }
 
     /**
@@ -135,21 +171,25 @@ final class BattleEngine
         $session = $this->requireSession($deviceHash);
         $save    = $this->saves->loadOrThrow($deviceHash);
 
-        $stats   = PlayerService::computeStats($save['player']);
+        $stats   = $this->resolvedStats($save['player']);
         $aspdMs  = (int) max(100, $stats['aspd']);
-        $nowMs   = (int) (microtime(true) * 1000);
+        $nowMs   = BuffSystem::nowMs();
         $elapsed = max(0, $nowMs - ($session['last_tick_ms'] ?? $nowMs));
+
+        // 先 tick buff/debuff（涵盖 elapsed 全部时间）
+        $tickRes = BuffSystem::tick($save['player'], $session['enemy'], $nowMs);
+        $save['player']   = $tickRes['player'];
+        $session['enemy'] = $tickRes['enemy'];
+        $log = $tickRes['log'];
 
         $maxBatch = (int) Bootstrap::config('game.max_tick_batch', 200);
         $swings = (int) min($maxBatch, floor($elapsed / $aspdMs));
         if ($swings <= 0) {
-            // 不足一次，回写 last_tick_ms 但不推进
             $session['last_tick_ms'] = $nowMs;
             $this->saveSession($deviceHash, $session);
-            return ['ticked' => 0, 'session' => $session, 'player' => $save['player']];
+            return ['ticked' => 0, 'log' => $log, 'session' => $session, 'player' => $save['player']];
         }
 
-        $log = [];
         for ($i = 0; $i < $swings; $i++) {
             if ($save['player']['hp'] <= 0 || $session['enemy']['hp'] <= 0) break;
             $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
@@ -170,6 +210,15 @@ final class BattleEngine
         return $result;
     }
 
+    /**
+     * 计算最终生效 stats（含 buff/debuff 修饰）
+     */
+    private function resolvedStats(array $player): array
+    {
+        $stats = PlayerService::computeStats($player);
+        return BuffSystem::applyPlayerBuffsToStats($player, $stats);
+    }
+
     /* ---------------- 单次"挥砍"伤害解算 ---------------- */
 
     /**
@@ -177,9 +226,11 @@ final class BattleEngine
      */
     private function resolveSwing(array $player, array $enemy, array $stats, bool $isSkill): array
     {
-        // 暴击：atk^2 / (atk + def)，最小 1
+        // 应用敌人 debuff 修饰后的实际防御/攻击
+        $enemyEff = BuffSystem::applyEnemyDebuffsToStats($enemy);
+
         $atk = (float) $stats['atk'];
-        $def = (float) ($enemy['def'] ?? 0);
+        $def = (float) ($enemyEff['def'] ?? 0);
 
         // 破甲
         $def -= ($stats['armorPenFlat'] ?? 0) * 1.5;
@@ -211,7 +262,9 @@ final class BattleEngine
 
     private function enemySwing(array $player, array $enemy, array $stats): array
     {
-        $atk = (float) ($enemy['atk'] ?? 1);
+        // 敌人 debuff 调整
+        $enemyEff = BuffSystem::applyEnemyDebuffsToStats($enemy);
+        $atk = (float) ($enemyEff['atk'] ?? 1);
         $def = (float) ($stats['def'] ?? 0);
         $base = max(1.0, $atk * $atk / max(1, $atk + $def));
         $damage = (int) floor($base);

@@ -1,0 +1,17 @@
+RewriteEngine On
+
+# 允许跨域预检
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# 如果请求文件/目录存在则直接返回
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# 否则一律交给 index.php 路由
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# 安全：禁止访问隐藏文件
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

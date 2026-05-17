@@ -1,0 +1,24 @@
+# Composer
+/vendor/
+/composer.lock
+
+# Runtime data — 不入仓库，仅保留目录结构
+/data/saves/*
+!/data/saves/.gitkeep
+/data/market/*
+!/data/market/.gitkeep
+/data/cache/*
+!/data/cache/.gitkeep
+/data/logs/*
+!/data/logs/.gitkeep
+/data/auth/
+
+# Local config 覆盖
+/config/local.php
+.env
+.env.local
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

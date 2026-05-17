@@ -1156,6 +1156,12 @@ function toggleTreasureLock(tid) {
         log(`🔓 ${t.emoji} ${t.name} 已解锁（灰色标签）`, 'log-loot');
     }
     renderBag();
+    // 同步刷新市场出售视图（市场依据锁定状态过滤宝物）
+    const traderView = document.getElementById('npcTraderView');
+    if (traderView && traderView.style.display !== 'none' && currentTraderTab === 'sell') {
+        const traderContent = document.getElementById('traderContent');
+        if (traderContent) renderTradeSellView(traderContent);
+    }
 }
 
 function loseRandomTreasure() {
@@ -2133,6 +2139,7 @@ function enemyDefeated() {
     }
     while (game.player.exp >= game.player.maxExp) levelUp();
     updateUI();
+    renderBag();
     // 非BOSS敌人或无尽模式所有敌人击败后生成下一个
     if (!game.enemy.isBoss || game.currentArea >= 15) {
         if (game.autoBattle) {
@@ -2654,7 +2661,7 @@ function _ensureBagPane(container, tabName) {
         pane = document.createElement('div');
         pane.setAttribute('data-bag-tab', tabName);
         pane.innerHTML = `
-            <div data-header style="position:sticky;top:0;z-index:3;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
+            <div data-header>
                 <div data-toolbar style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;"></div>
                 <div data-filter style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;"></div>
             </div>
@@ -4339,6 +4346,7 @@ function showNpcView() {
     document.getElementById('npcBlacksmithView').style.display = 'none';
     document.getElementById('npcShopView').style.display = 'none';
     document.getElementById('npcInnView').style.display = 'none';
+    document.getElementById('npcTraderView').style.display = 'none';
     renderAreas();
     updateClueUI();
     updateEnemyUI();
@@ -5056,14 +5064,16 @@ function renderTradeSellView(container) {
     if (!container.querySelector('.trade-sell-panel')) {
         container.innerHTML = `
             <div class="trade-sell-panel">
-                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                <div class="trade-sub-tab-bar">
                     <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'equipment' ? 'active' : ''}" onclick="switchTradeSellSubTab('equipment')" style="padding:4px 12px;font-size:0.8em;">🛡️ 装备</button>
                     <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'treasure' ? 'active' : ''}" onclick="switchTradeSellSubTab('treasure')" style="padding:4px 12px;font-size:0.8em;">🎁 宝物</button>
                     <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'item' ? 'active' : ''}" onclick="switchTradeSellSubTab('item')" style="padding:4px 12px;font-size:0.8em;">📦 道具</button>
                     <button class="btn btn-secondary trade-sub-tab ${currentTradeSellSubTab === 'skillbook' ? 'active' : ''}" onclick="switchTradeSellSubTab('skillbook')" style="padding:4px 12px;font-size:0.8em;">📕 技能书</button>
                 </div>
-                <div class="trade-sell-content" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;"></div>
-                <div class="trade-code-result" style="margin-top:15px;display:none;">
+                <div class="trade-sell-scroll">
+                    <div class="trade-sell-content"></div>
+                </div>
+                <div class="trade-code-result" style="margin-top:15px;display:none;flex-shrink:0;">
                     <div style="background:rgba(241,196,15,0.1);border:1px solid rgba(241,196,15,0.3);border-radius:8px;padding:12px;">
                         <div style="color:#f1c40f;font-weight:bold;margin-bottom:8px;">📋 交易码（可复制给他人）</div>
                         <div class="trade-code-text" style="font-family:monospace;font-size:0.85em;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;word-break:break-all;color:#2ecc71;"></div>
@@ -5254,7 +5264,7 @@ function sellTradeEquipment(bagIndex) {
     renderBag();
     updateUI();
     log(`🏪 生成了 ${eqDef.emoji} ${eqDef.name} 的交易码`, 'log-loot');
-    showNotification(`🏪 ${eqDef.name} 交易码已生成！`);
+    showNotification(`🏪 ${eqDef.name} 交易码已生成并复制到剪贴板！`);
 }
 
 function sellTradeTreasure(tid, level, count, isHighLevel) {
@@ -5276,7 +5286,7 @@ function sellTradeTreasure(tid, level, count, isHighLevel) {
     renderBag();
     updateUI();
     log(`🏪 生成了 ${t.emoji} ${t.name}(Lv.${level}) 的交易码`, 'log-loot');
-    showNotification(`🏪 ${t.name}(Lv.${level}) 交易码已生成！`);
+    showNotification(`🏪 ${t.name}(Lv.${level}) 交易码已生成并复制到剪贴板！`);
 }
 
 function sellTradeItem(itemId, count) {
@@ -5296,7 +5306,7 @@ function sellTradeItem(itemId, count) {
     renderBag();
     updateUI();
     log(`🏪 生成了 ${item.emoji} ${item.name} ×${count} 的交易码`, 'log-loot');
-    showNotification(`🏪 ${item.name} ×${count} 交易码已生成！`);
+    showNotification(`🏪 ${item.name} ×${count} 交易码已生成并复制到剪贴板！`);
 }
 
 function sellTradeSkillBook(bookId, count) {
@@ -5322,7 +5332,7 @@ function sellTradeSkillBook(bookId, count) {
     renderBag();
     updateUI();
     log(`🏪 生成了 ${book.emoji} ${book.name} 的交易码`, 'log-loot');
-    showNotification(`🏪 ${book.name} 交易码已生成！`);
+    showNotification(`🏪 ${book.name} 交易码已生成并复制到剪贴板！`);
 }
 
 function _showTradeCode(code, itemDesc) {
@@ -5333,6 +5343,10 @@ function _showTradeCode(code, itemDesc) {
         resultPanel.style.display = 'block';
         codeText.textContent = code;
         codeText.dataset.code = code;
+    }
+    // 出售完成后自动复制交易码到剪贴板（失败则保留手动复制按钮）
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code).catch(() => {});
     }
 }
 

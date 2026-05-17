@@ -113,18 +113,29 @@ h1 { text-align: center; font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 0
 .npc-avatar.npc-shopkeeper:hover { filter: drop-shadow(0 0 20px rgba(46,204,113,0.6)); background: rgba(46,204,113,0.08); border-color: rgba(46,204,113,0.3); }
 .npc-avatar.npc-inn:hover { filter: drop-shadow(0 0 20px rgba(52,152,219,0.6)); background: rgba(52,152,219,0.08); border-color: rgba(52,152,219,0.3); }
 
-#bagContent { flex: 1; min-height: 0; overflow-y: auto; }
-#bagContent::-webkit-scrollbar { width: 6px; }
-#bagContent::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
+#bagContent { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+#bagContent [data-bag-tab] { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#bagContent [data-bag-tab] [data-header] { flex-shrink: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px; }
+#bagContent [data-bag-tab] [data-content] { flex: 1; min-height: 0; overflow-y: auto; }
+#bagContent [data-bag-tab] [data-content]::-webkit-scrollbar { width: 6px; }
+#bagContent [data-bag-tab] [data-content]::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
 #dropLog { flex: 1; min-height: 0; overflow-y: auto; }
 #equipmentGrid { flex: 0 0 auto; }
 
 /* NPC 子视图固定高度布局 */
 #npcView { flex: 1; min-height: 0; overflow-y: auto; position: relative; }
-#npcSelectView, #npcMentorView, #npcAppraiserView, #npcBlacksmithView, #npcShopView, #npcInnView { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; overflow: hidden; }
-#npcContent, #appraiserContent, #blacksmithContent, #shopContent, #innContent { flex: 1; min-height: 0; overflow-y: auto; }
-#npcContent::-webkit-scrollbar, #appraiserContent::-webkit-scrollbar, #blacksmithContent::-webkit-scrollbar, #shopContent::-webkit-scrollbar, #innContent::-webkit-scrollbar, .npc-scroll-content::-webkit-scrollbar { width: 6px; }
-#npcContent::-webkit-scrollbar-thumb, #appraiserContent::-webkit-scrollbar-thumb, #blacksmithContent::-webkit-scrollbar-thumb, #shopContent::-webkit-scrollbar-thumb, #innContent::-webkit-scrollbar-thumb, .npc-scroll-content::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
+#npcSelectView, #npcMentorView, #npcAppraiserView, #npcBlacksmithView, #npcShopView, #npcInnView, #npcTraderView { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; overflow: hidden; }
+#npcContent, #appraiserContent, #blacksmithContent, #shopContent, #innContent, #traderContent { flex: 1; min-height: 0; overflow-y: auto; }
+#npcContent::-webkit-scrollbar, #appraiserContent::-webkit-scrollbar, #blacksmithContent::-webkit-scrollbar, #shopContent::-webkit-scrollbar, #innContent::-webkit-scrollbar, #traderContent::-webkit-scrollbar, .npc-scroll-content::-webkit-scrollbar { width: 6px; }
+#npcContent::-webkit-scrollbar-thumb, #appraiserContent::-webkit-scrollbar-thumb, #blacksmithContent::-webkit-scrollbar-thumb, #shopContent::-webkit-scrollbar-thumb, #innContent::-webkit-scrollbar-thumb, #traderContent::-webkit-scrollbar-thumb, .npc-scroll-content::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
+/* 市场出售面板：上固定（筛选）+ 下滚动（列表）+ 底固定（交易码结果） */
+#traderContent { overflow: hidden; display: flex; flex-direction: column; }
+.trade-sell-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.trade-sub-tab-bar { flex-shrink: 0; display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 8px; }
+.trade-sell-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.trade-sell-scroll::-webkit-scrollbar { width: 6px; }
+.trade-sell-scroll::-webkit-scrollbar-thumb { background: rgba(233,69,96,0.5); border-radius: 3px; }
+.trade-sell-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 
 /* 背包分页 */
 .bag-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }

@@ -8,6 +8,7 @@ use App\Controllers\AuthController;
 use App\Controllers\BattleController;
 use App\Controllers\HealthController;
 use App\Controllers\MarketController;
+use App\Controllers\NpcController;
 use App\Controllers\SaveController;
 use App\Controllers\SkillController;
 
@@ -50,6 +51,16 @@ final class Routes
         $r->get('/skills',         [SkillController::class, 'show'])->middleware(AuthMiddleware::class);
         $r->post('/skills/learn',  [SkillController::class, 'learn'])->middleware(AuthMiddleware::class);
         $r->post('/skills/upgrade',[SkillController::class, 'upgrade'])->middleware(AuthMiddleware::class);
+
+        // ---- npc (铁匠 / 鉴定师 / 商店 / 客栈 / 精神修炼) ----
+        $r->post('/npc/blacksmith/forge',     [NpcController::class, 'forge'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/blacksmith/refine',    [NpcController::class, 'refine'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/appraiser/equipment',  [NpcController::class, 'appraiseEquipment'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/appraiser/skillbook',  [NpcController::class, 'appraiseSkillBook'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/shop/buy',             [NpcController::class, 'buy'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/shop/use',             [NpcController::class, 'useItem'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/inn/rest',             [NpcController::class, 'rest'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/spirit/train',         [NpcController::class, 'trainSpirit'])->middleware(AuthMiddleware::class);
 
         // ---- market ----
         $r->get('/market/listings',           [MarketController::class, 'listings']);

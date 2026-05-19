@@ -1,0 +1,33 @@
+# Docker 构建时排除（减小镜像 + 加速）
+.git
+.gitignore
+.gitattributes
+.github
+.dockerignore
+
+# IDE / OS 临时
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+Thumbs.db
+
+# 文档 / 子项目内构建产物（如有）
+*.log
+*.tmp
+*.bak
+node_modules
+
+# 运行时数据：不能 COPY 进镜像（会污染基础镜像）
+server/data
+
+# 本地配置（含数据库密码 / Redis 密码）：不打包进镜像，运行时通过环境变量注入
+server/config/local.php
+
+# 已构建的单文件版本（dist/index.html）也跟随仓库一起 COPY，无需排除
+# 但如果某些环境想强制只用源码版本，可以打开下面这一行：
+# dist
+
+# 本项目专用 TODO / 临时记录文件
+TODO_*.md

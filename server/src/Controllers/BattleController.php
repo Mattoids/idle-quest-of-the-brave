@@ -55,7 +55,8 @@ final class BattleController
     public function tick(Request $req): array
     {
         if (!$req->deviceHash) throw HttpException::unauthorized();
-        return $this->engine->autoTick($req->deviceHash);
+        $rounds = (int) ($req->input('rounds') ?? 30);
+        return $this->engine->autoTick($req->deviceHash, $rounds);
     }
 
     public function status(Request $req): array

@@ -60,6 +60,7 @@ final class MarketRepository
             if (!empty($row['expires_at']) && $row['expires_at'] < $now) continue;
 
             if (!empty($filter['seller']) && ($row['seller'] ?? '') !== $filter['seller']) continue;
+            if (!empty($filter['exclude_seller']) && ($row['seller'] ?? '') === $filter['exclude_seller']) continue;
             if (isset($filter['min_price']) && ($row['price_gold'] ?? 0) < $filter['min_price']) continue;
             if (isset($filter['max_price']) && ($row['price_gold'] ?? 0) > $filter['max_price']) continue;
 

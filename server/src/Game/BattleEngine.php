@@ -66,18 +66,27 @@ final class BattleEngine
         $save['world']['currentArea'] = $areaIndex;
         $this->saves->replace($deviceHash, $save);
 
-        return ['session' => $session, 'player' => $save['player']];
+        return ['session' => $session, 'player' => $save['player'], 'world' => $save['world']];
     }
 
     public function end(string $deviceHash): array
     {
+        // 在清缓存前先读取 session，判断是否是 boss 战逃跑
+        $session = $this->loadSession($deviceHash);
         $this->cache->delete($this->sessionKey($deviceHash));
         $save = $this->saves->loadOrThrow($deviceHash);
+        // 若是 boss 战中途退出，标记 bossFled[area]=true 便于前端 UI 提示"BOSS 逃走"
+        if ($session && !empty($session['enemy']['isBoss']) && isset($session['area'])) {
+            $area = (int) $session['area'];
+            if ($area < 15) {
+                $save['world']['bossFled'][$area] = true;
+            }
+        }
         $save['battle'] = null;
         $save['world']['inCity'] = true;
         $save['world']['fightingBoss'] = false;
         $this->saves->replace($deviceHash, $save);
-        return ['ended' => true];
+        return ['ended' => true, 'world' => $save['world']];
     }
 
     /**
@@ -121,7 +130,7 @@ final class BattleEngine
         $save['world']['fightingBoss'] = true;
         $this->saves->replace($deviceHash, $save);
 
-        return ['session' => $session, 'player' => $save['player']];
+        return ['session' => $session, 'player' => $save['player'], 'world' => $save['world']];
     }
 
     public function status(string $deviceHash): array
@@ -131,6 +140,7 @@ final class BattleEngine
         return [
             'session' => $session,
             'player'  => $save['player'],
+            'world'   => $save['world'],
         ];
     }
 
@@ -236,57 +246,235 @@ final class BattleEngine
     }
 
     /**
-     * 自动 tick：按 elapsed_ms 推算攻击次数（双方都打），最多 max_tick_batch
+     * 批量战斗 tick：一次计算固定 rounds 回合（默认 30），并将每回合分组返回供前端按 aspd 节奏逐步播放。
+     *
+     * 设计目标：
+     *   - 一次请求 → 一批回合（默认 30）→ 减少 HTTP 抖动 / 服务端 IO 压力
+     *   - 前端按 `aspd_ms` 节奏逐回合渲染，全部播完再发下一次请求
+     *   - 服务端用 session.next_batch_at_ms 节流：未到时间再次请求返回 too_many('batch_in_progress', wait_ms)
+     *
+     * 返回结构：
+     *   {
+     *     ticked:        实际执行回合数（可能 < rounds，若中途玩家死亡或 BOSS 击败）
+     *     rounds:        [{round, ts_offset_ms, log: [...]}, ...]
+     *     duration_ms:   总时长 = ticked × aspd_ms
+     *     aspd_ms:       玩家攻速间隔（前端按这个节奏播放）
+     *     log:           扁平合并的全部日志（向后兼容旧前端）
+     *     session/player/world: 最终状态
+     *     ended_early:   是否提前结束（玩家死亡 / BOSS 击败 / 普通 BOSS 被打死等）
+     *   }
      */
-    public function autoTick(string $deviceHash): array
+    public function autoTick(string $deviceHash, int $rounds = 30): array
     {
+        $rounds = (int) max(1, min(60, $rounds));
         $session = $this->requireSession($deviceHash);
         $save    = $this->saves->loadOrThrow($deviceHash);
 
         $stats   = $this->resolvedStats($save['player']);
         $aspdMs  = (int) max(100, $stats['aspd']);
         $nowMs   = BuffSystem::nowMs();
-        $elapsed = max(0, $nowMs - ($session['last_tick_ms'] ?? $nowMs));
 
-        // 先 tick buff/debuff（涵盖 elapsed 全部时间）
-        $tickRes = BuffSystem::tick($save['player'], $session['enemy'], $nowMs);
-        $save['player']   = $tickRes['player'];
-        $session['enemy'] = $tickRes['enemy'];
-        $log = $tickRes['log'];
-        // BOSS 技能 tick
-        $bossTick = BossSkillEngine::tick($save['player'], $session['enemy'], $stats);
-        $save['player']   = $bossTick['player'];
-        $session['enemy'] = $bossTick['enemy'];
-        foreach ($bossTick['log'] as $l) $log[] = $l;
-
-        $maxBatch = (int) Bootstrap::config('game.max_tick_batch', 200);
-        $swings = (int) min($maxBatch, floor($elapsed / $aspdMs));
-        if ($swings <= 0) {
-            $session['last_tick_ms'] = $nowMs;
-            $this->saveSession($deviceHash, $session);
-            return ['ticked' => 0, 'log' => $log, 'session' => $session, 'player' => $save['player']];
+        // 节流：上次 batch 尚未播完不允许新请求
+        $nextBatchAt = (int) ($session['next_batch_at_ms'] ?? 0);
+        if ($nowMs < $nextBatchAt) {
+            throw HttpException::tooMany('batch_in_progress', [
+                'wait_ms' => $nextBatchAt - $nowMs,
+            ]);
         }
 
-        for ($i = 0; $i < $swings; $i++) {
-            if ($save['player']['hp'] <= 0 || $session['enemy']['hp'] <= 0) break;
-            $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
-            $log[] = $report['log'];
-            foreach (($report['extra_logs'] ?? []) as $l) $log[] = $l;
-            $save['player']   = $report['player'];
-            $session['enemy'] = $report['enemy'];
+        $roundLogs  = [];
+        $flatLog    = [];
+        $endedEarly = false;
 
+        for ($r = 0; $r < $rounds; $r++) {
+            if (($save['player']['hp'] ?? 0) <= 0) { $endedEarly = true; break; }
+
+            $roundOffset = $r * $aspdMs;
+            $simNow      = $nowMs + $roundOffset;
+            $roundLog    = [];
+
+            // 1. buff/debuff tick
+            $tickRes = BuffSystem::tick($save['player'], $session['enemy'], $simNow);
+            $save['player']   = $tickRes['player'];
+            $session['enemy'] = $tickRes['enemy'];
+            foreach ($tickRes['log'] as $l) $roundLog[] = $l;
+
+            // 重算 stats（buff 可能变化）
+            $stats = $this->resolvedStats($save['player']);
+
+            // 2. BOSS 技能 tick
+            $bossTick = BossSkillEngine::tick($save['player'], $session['enemy'], $stats);
+            $save['player']   = $bossTick['player'];
+            $session['enemy'] = $bossTick['enemy'];
+            foreach ($bossTick['log'] as $l) $roundLog[] = $l;
+
+            // 3. 自动施法（服务端权威决策）—— 传入 simNow 让 cd 在批量内按攻速节奏流逝
+            if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
+                $autoSid = SkillEngine::pickAutoSkill($save['player'], $session['enemy'], $stats, $simNow);
+                if ($autoSid !== null) {
+                    try {
+                        [$save['player'], $session['enemy'], $skillLog] = SkillEngine::cast(
+                            $save['player'], $session['enemy'], $stats, $autoSid, $simNow
+                        );
+                        foreach ($skillLog as $l) $roundLog[] = $l;
+                    } catch (\Throwable $e) { /* cd 漂移/沉默等静默 */ }
+                }
+            }
+
+            // 4. 玩家普攻
+            if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
+                if (BossSkillEngine::isStunned($save['player'])) {
+                    $roundLog[] = ['t' => 'player_stunned'];
+                } else {
+                    $report = $this->resolveSwing($save['player'], $session['enemy'], $stats, false);
+                    $roundLog[] = $report['log'];
+                    foreach (($report['extra_logs'] ?? []) as $l) $roundLog[] = $l;
+                    $save['player']   = $report['player'];
+                    $session['enemy'] = $report['enemy'];
+                }
+            }
+
+            // 5. 敌人反击
             if ($session['enemy']['hp'] > 0 && $save['player']['hp'] > 0) {
                 $counter = $this->enemySwing($save['player'], $session['enemy'], $stats, (int) $session['area']);
-                foreach ($counter['logs'] as $l) $log[] = $l;
+                foreach ($counter['logs'] as $l) $roundLog[] = $l;
                 $save['player']   = $counter['player'];
                 $session['enemy'] = $counter['enemy'];
             }
-        }
-        $session['last_tick_ms'] = $nowMs;
 
-        $result = $this->finalize($deviceHash, $save, $session, $log);
-        $result['ticked'] = $swings;
-        return $result;
+            // 6. 玩家死亡 → 结算 + 终止 batch
+            if (($save['player']['hp'] ?? 0) <= 0) {
+                $gold = (int) ($save['player']['gold'] ?? 0);
+                $penalty = (int) min(500, $gold * 0.05 + 50);
+                $save['player']['gold'] = max(0, $gold - $penalty);
+                $save['player']['hp']   = max(1, (int) (PlayerService::computeStats($save['player'])['maxHp'] * 0.3));
+                // 若死在 BOSS 战，清线索 + 标记 bossFled（"BOSS 逃走"）
+                if (!empty($session['enemy']['isBoss']) && isset($session['area'])) {
+                    $bossArea = (int) $session['area'];
+                    if ($bossArea < 15) {
+                        $save['world']['clues'][$bossArea]    = 0;
+                        $save['world']['bossFled'][$bossArea] = true;
+                        $save['world']['fightingBoss']        = false;
+                        $roundLog[] = ['t' => 'boss_fled', 'area' => $bossArea];
+                    }
+                }
+                $save['battle'] = null;
+                $save['world']['inCity'] = true;
+                $roundLog[] = ['t' => 'player_died', 'gold_lost' => $penalty];
+                $this->cache->delete($this->sessionKey($deviceHash));
+                $session = null;
+                $roundLogs[] = [
+                    'round'        => $r + 1,
+                    'ts_offset_ms' => $roundOffset,
+                    'log'          => $roundLog,
+                    'player_hp'    => (int) $save['player']['hp'],
+                    'player_mp'    => (int) ($save['player']['mp'] ?? 0),
+                    'enemy_hp'     => 0,
+                    'enemy'        => null,
+                    'skills'       => $save['player']['skills'] ?? new \stdClass(),
+                    'player_state' => self::roundPlayerState($save['player']),
+                ];
+                foreach ($roundLog as $l) $flatLog[] = $l;
+                $endedEarly = true;
+                break;
+            }
+
+            // 7. 敌人死亡 → 结算 + 可能 spawn 下一只继续
+            if (($session['enemy']['hp'] ?? 0) <= 0) {
+                $isBoss  = !empty($session['enemy']['isBoss']);
+                $revived = false;
+                if (!$isBoss) {
+                    $rev = EnemyBehavior::tryRevive($session['enemy']);
+                    $session['enemy'] = $rev['enemy'];
+                    $revived = $rev['revived'];
+                    if (!$revived) {
+                        $rev2 = AreaPassive::tryAreaRevive($session['enemy']);
+                        $session['enemy'] = $rev2['enemy'];
+                        $revived = $rev2['revived'];
+                    }
+                }
+                if ($revived) {
+                    $roundLog[] = ['t' => 'enemy_revived', 'hp' => $session['enemy']['hp']];
+                } else {
+                    $drops = $this->processKill($save, $session);
+                    $save  = $drops['save'];
+                    $roundLog[] = ['t' => 'enemy_killed', 'drops' => $drops['drops']];
+                    $save['world']['lastBattleEndTime'] = time() * 1000;
+
+                    $area = (int) ($session['area'] ?? 0);
+                    if ($isBoss && $area < 15) {
+                        // 普通 BOSS 击败：标记 + 清线索 + 退出战斗，提前结束 batch
+                        $save['world']['bossDefeated'][$area] = true;
+                        $save['world']['clues'][$area]        = 0;
+                        $save['world']['fightingBoss']        = false;
+                        $save['world']['inCity']              = true;
+                        $save['battle'] = null;
+                        $roundLog[] = ['t' => 'boss_defeated', 'area' => $area];
+                        if ($area === 14) $roundLog[] = ['t' => 'endless_unlocked'];
+                        $this->cache->delete($this->sessionKey($deviceHash));
+                        $session = null;
+                        $roundLogs[] = [
+                            'round'        => $r + 1,
+                            'ts_offset_ms' => $roundOffset,
+                            'log'          => $roundLog,
+                            'player_hp'    => (int) ($save['player']['hp'] ?? 0),
+                            'player_mp'    => (int) ($save['player']['mp'] ?? 0),
+                            'enemy_hp'     => 0,
+                            'enemy'        => null,
+                            'skills'       => $save['player']['skills'] ?? new \stdClass(),
+                            'player_state' => self::roundPlayerState($save['player']),
+                        ];
+                        foreach ($roundLog as $l) $flatLog[] = $l;
+                        $endedEarly = true;
+                        break;
+                    }
+                    if ($area >= 15) {
+                        $save = EndlessService::advanceLayer($save, $session);
+                        $session['area'] = (int) $save['world']['currentArea'];
+                        $roundLog[] = ['t' => 'endless_layer', 'layer' => $session['area'] - 14];
+                    }
+                    // 生成下一个敌人，本回合结束、下一回合继续
+                    $session['enemy'] = $this->spawnEnemy((int) ($session['area'] ?? 0));
+                }
+            }
+
+            $roundLogs[] = [
+                'round'        => $r + 1,
+                'ts_offset_ms' => $roundOffset,
+                'log'          => $roundLog,
+                'player_hp'    => (int) ($save['player']['hp'] ?? 0),
+                'player_mp'    => (int) ($save['player']['mp'] ?? 0),
+                'enemy_hp'     => $session ? (int) ($session['enemy']['hp'] ?? 0) : 0,
+                'enemy'        => $session ? $session['enemy'] : null,
+                'skills'       => $save['player']['skills'] ?? new \stdClass(),
+                'player_state' => self::roundPlayerState($save['player']),
+            ];
+            foreach ($roundLog as $l) $flatLog[] = $l;
+        }
+
+        // 8. 统一收尾：写 session + replace 一次
+        $playedRounds = count($roundLogs);
+        $durationMs   = $playedRounds * $aspdMs;
+
+        if ($session !== null) {
+            $session['last_tick_ms']      = $nowMs + $durationMs;
+            $session['next_batch_at_ms']  = $nowMs + $durationMs;
+            $this->saveSession($deviceHash, $session);
+            $save['battle'] = $session;
+        }
+        $this->saves->replace($deviceHash, $save);
+
+        return [
+            'ticked'      => $playedRounds,
+            'rounds'      => $roundLogs,
+            'duration_ms' => $durationMs,
+            'aspd_ms'     => $aspdMs,
+            'log'         => $flatLog,
+            'session'     => $session,
+            'player'      => $save['player'],
+            'world'       => $save['world'] ?? null,
+            'ended_early' => $endedEarly,
+        ];
     }
 
     /**
@@ -410,6 +598,16 @@ final class BattleEngine
             $penalty = (int) min(500, $gold * 0.05 + 50);
             $save['player']['gold'] = max(0, $gold - $penalty);
             $save['player']['hp'] = max(1, (int) (PlayerService::computeStats($save['player'])['maxHp'] * 0.3));
+            // 若是 BOSS 战中死亡，清空该区域线索 + 标记 bossFled（与离线模式一致：BOSS 逃走、需重新攒线索）
+            if (!empty($session['enemy']['isBoss']) && isset($session['area'])) {
+                $area = (int) $session['area'];
+                if ($area < 15) {
+                    $save['world']['clues'][$area]    = 0;
+                    $save['world']['bossFled'][$area] = true;
+                    $save['world']['fightingBoss']    = false;
+                    $log[] = ['t' => 'boss_fled', 'area' => $area];
+                }
+            }
             $save['battle'] = null;
             $save['world']['inCity'] = true;
             $log[] = ['t' => 'player_died', 'gold_lost' => $penalty];
@@ -455,7 +653,7 @@ final class BattleEngine
                     }
                     $this->cache->delete($this->sessionKey($deviceHash));
                     $this->saves->replace($deviceHash, $save);
-                    return ['log' => $log, 'session' => null, 'player' => $save['player']];
+                    return ['log' => $log, 'session' => null, 'player' => $save['player'], 'world' => $save['world']];
                 }
 
                 // 无尽模式：每次击杀（含 endless boss）推进 layer
@@ -480,6 +678,7 @@ final class BattleEngine
             'log'     => $log,
             'session' => $session,
             'player'  => $save['player'],
+            'world'   => $save['world'],
         ];
     }
 
@@ -700,5 +899,32 @@ final class BattleEngine
     private function sessionKey(string $deviceHash): string
     {
         return 'battle:' . $deviceHash;
+    }
+
+    /**
+     * 提取 player 中"会在战斗中变化的标量字段"快照，用于每回合下发给前端实时更新 UI
+     * （金币、经验、等级、击杀数、被升级影响的基础属性等）。
+     * 不包含 equipments/treasures/skillBooks/items 等大对象——这些在 batch 内不会变。
+     */
+    private static function roundPlayerState(array $player): array
+    {
+        return [
+            'gold'    => (int) ($player['gold']    ?? 0),
+            'exp'     => (int) ($player['exp']     ?? 0),
+            'maxExp'  => (int) ($player['maxExp']  ?? 100),
+            'level'   => (int) ($player['level']   ?? 1),
+            'kills'   => (int) ($player['kills']   ?? 0),
+            'hp'      => (int) ($player['hp']      ?? 0),
+            'mp'      => (int) ($player['mp']      ?? 0),
+            'maxHp'   => (int) ($player['maxHp']   ?? 100),
+            'maxMp'   => (int) ($player['maxMp']   ?? 50),
+            'atk'     => (int) ($player['atk']     ?? 10),
+            'def'     => (int) ($player['def']     ?? 5),
+            'spi'     => (int) ($player['spi']     ?? 10),
+            'aspd'    => (int) ($player['aspd']    ?? 1000),
+            'crit'    => (float) ($player['crit']    ?? 0),
+            'critDmg' => (float) ($player['critDmg'] ?? 2),
+            'vamp'    => (float) ($player['vamp']    ?? 0),
+        ];
     }
 }

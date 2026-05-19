@@ -44,6 +44,13 @@ final class Request
         $path = '/' . trim($path, '/');
         if ($path === '/') $path = '/';
 
+        // 统一剥离应用前缀 /game/idle-quest-of-the-brave
+        $prefix = '/game/idle-quest-of-the-brave';
+        if (str_starts_with($path, $prefix)) {
+            $path = substr($path, strlen($prefix));
+            if ($path === '') $path = '/';
+        }
+
         $query = $_GET;
 
         // 解析 body

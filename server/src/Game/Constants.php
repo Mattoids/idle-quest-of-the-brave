@@ -9,11 +9,11 @@ namespace App\Game;
  * 维护约定：前端的 EQUIPMENT_POOL/TREASURE_POOL/SHOP_ITEMS/SKILLS/PASSIVE_BOOKS 等
  * 必须以此处为准。前端任何与服务端不一致的物品会在交易/战斗时被拒绝。
  *
- * 注意：本文件按 v3.4 版本对齐。修改时请同步更新 js/game.js。
+ * 注意：本文件按 v4.0 版本对齐。修改时请同步更新 js/game.js。
  */
 final class Constants
 {
-    public const GAME_VERSION = 'v3.4';
+    public const GAME_VERSION = 'v4.0';
 
     public const MAX_ATK_SPEED = 10;
     public const AREA_DROP_RATES = [

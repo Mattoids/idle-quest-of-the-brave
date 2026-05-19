@@ -1,0 +1,98 @@
+# 勇者挂机传说 · 编排文件
+#
+# 一键启动：docker compose up -d
+# 服务：
+#   web    — PHP 8.2 + Apache + 前端静态 + 后端 API
+#   redis  — Redis 7（可选，作存档读缓存；移除该服务后 web 仍可用）
+#   mysql  — MySQL 8（可选，作存档持久备份；移除后存档完全走文件）
+#
+# 数据持久化：
+#   - server-data：所有存档 / 市场 / 缓存 / 日志（必须保留）
+#   - mysql-data ：MySQL 数据目录
+#   - redis-data ：Redis AOF/RDB 数据
+#
+# 默认端口：
+#   - 8080 → 容器 80（避免与本机已占用的 80 冲突；按需修改）
+
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: idle-quest-of-the-brave:latest
+    container_name: iqotb-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      # 设备 ID 哈希盐（生产环境务必修改！）
+      AUTH_DEVICE_SALT: "change-this-in-production"
+      # --- Redis ---
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # --- MySQL ---
+      MYSQL_ENABLED: "true"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: iqotb
+      MYSQL_USERNAME: iqotb
+      MYSQL_PASSWORD: iqotb_pwd_change_me
+    volumes:
+      - server-data:/var/www/html/server/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - iqotb-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: iqotb-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - iqotb-net
+
+  mysql:
+    image: mysql:8.0
+    container_name: iqotb-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pwd_change_me
+      MYSQL_DATABASE: iqotb
+      MYSQL_USER: iqotb
+      MYSQL_PASSWORD: iqotb_pwd_change_me
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 启动时自动跑 migration（CREATE TABLE IF NOT EXISTS，幂等）
+      - ./server/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot_pwd_change_me"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - iqotb-net
+
+volumes:
+  server-data:
+  redis-data:
+  mysql-data:
+
+networks:
+  iqotb-net:
+    driver: bridge

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Auth\TokenStore;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Market\ListingService;
@@ -34,13 +35,35 @@ final class MarketController
         if ($req->query('seller')) {
             $filter['seller'] = (string) $req->query('seller');
         }
+
+        // 解析当前用户（可选认证）—— 用于给每条 listing 打 is_mine 标记，
+        // 但默认不再自动排除自己的挂售（之前会让"自己挂的东西在市场看不到"）
+        $myHash = null;
+        $token = $req->bearerToken();
+        if ($token) {
+            $myHash = (new TokenStore())->resolve($token);
+        }
+        // 仅当客户端 explicit 传 ?exclude_self=1 才过滤自己
+        if ($myHash && $req->query('exclude_self')) {
+            $filter['exclude_seller'] = $myHash;
+        }
+
         if ($req->query('min_price')) {
             $filter['min_price'] = (int) $req->query('min_price');
         }
         if ($req->query('max_price')) {
             $filter['max_price'] = (int) $req->query('max_price');
         }
-        return $this->svc->listOpen($type, $filter);
+        $result = $this->svc->listOpen($type, $filter);
+
+        // 给每条 listing 标记是否是自己的（前端用来切按钮：购买 vs 取消）
+        if ($myHash && !empty($result['listings'])) {
+            foreach ($result['listings'] as &$row) {
+                $row['is_mine'] = (($row['seller'] ?? '') === $myHash);
+            }
+            unset($row);
+        }
+        return $result;
     }
 
     public function show(Request $req): array

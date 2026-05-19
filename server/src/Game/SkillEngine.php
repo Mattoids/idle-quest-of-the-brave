@@ -16,9 +16,10 @@ use App\Http\HttpException;
 final class SkillEngine
 {
     /**
+     * @param int|null $nowMs  覆盖时间戳，用于"批量战斗模拟"——每回合传 simulated time，让 cd 在批量内自然流逝
      * @return array{0:array, 1:array, 2:array<int,array>}
      */
-    public static function cast(array $player, array $enemy, array $stats, string $skillId): array
+    public static function cast(array $player, array $enemy, array $stats, string $skillId, ?int $nowMs = null): array
     {
         $skill = Constants::findSkill($skillId);
         if (!$skill) {
@@ -35,7 +36,7 @@ final class SkillEngine
             throw HttpException::badRequest('stunned');
         }
 
-        $nowMs = BuffSystem::nowMs();
+        $nowMs = $nowMs ?? BuffSystem::nowMs();
         $cdEnd = (int) ($learned['cooldownEnd'] ?? 0);
         if ($cdEnd > $nowMs) {
             throw HttpException::tooMany('skill_cooldown', ['remaining_ms' => $cdEnd - $nowMs]);
@@ -137,6 +138,78 @@ final class SkillEngine
         }
 
         return [$player, $enemy, $log];
+    }
+
+    /**
+     * 自动选技能（服务端权威决策，避免前后端不一致）
+     *
+     * 决策优先级（与原前端 tryAutoCastSkill 一致）：
+     *   1. 沉默 / 眩晕 / 战斗外（无敌人或敌人已死）→ null
+     *   2. 玩家 hp/maxHp < 0.7 时优先选 heal 类（按估算治疗量从高到低）
+     *   3. 当前没有 shield buff 时选第一个 buff 类
+     *   4. 否则按估算伤害从高到低选 damage / damage_lifesteal / dot 类
+     *
+     * 仅返回可用技能 id（cd 已就绪 + mp 充足），其余条件不满足返回 null。
+     */
+    public static function pickAutoSkill(array $player, array $enemy, array $stats, ?int $nowMs = null): ?string
+    {
+        if (BuffSystem::isSilenced($player) || BossSkillEngine::isStunned($player)) return null;
+        if (empty($enemy) || (int) ($enemy['hp'] ?? 0) <= 0) return null;
+        if ((int) ($player['hp'] ?? 0) <= 0) return null;
+
+        $nowMs  = $nowMs ?? BuffSystem::nowMs();
+        $skills = (array) ($player['skills'] ?? []);
+        if (!$skills) return null;
+
+        $available = [];
+        foreach ($skills as $sid => $data) {
+            if (empty($data) || (int) ($data['level'] ?? 0) <= 0) continue;
+            if ((int) ($data['cooldownEnd'] ?? 0) > $nowMs) continue;
+            $def = Constants::findSkill((string) $sid);
+            if (!$def) continue;
+            if ((int) ($player['mp'] ?? 0) < (int) ($def['mpCost'] ?? 0)) continue;
+            $level = (int) ($data['level'] ?? 1);
+            $available[] = [
+                'id'    => (string) $sid,
+                'def'   => $def,
+                'level' => $level,
+                'est'   => self::skillDamage($player, $stats, $def, $level),
+            ];
+        }
+        if (!$available) return null;
+
+        $maxHp = (int) ($stats['maxHp'] ?? ($player['maxHp'] ?? 100));
+        $hpRatio = $maxHp > 0 ? ((float) $player['hp'] / $maxHp) : 1.0;
+
+        // 1. 低血优先治疗
+        if ($hpRatio < 0.7) {
+            $heals = array_values(array_filter($available, fn($a) => ($a['def']['type'] ?? '') === 'heal'));
+            if ($heals) {
+                usort($heals, fn($a, $b) => $b['est'] <=> $a['est']);
+                return $heals[0]['id'];
+            }
+        }
+
+        // 2. 没护盾选 buff
+        $hasShield = false;
+        $shield = (($player['buffs'] ?? [])['shield'] ?? null);
+        if ($shield && (int) ($shield['endTime'] ?? 0) > $nowMs) $hasShield = true;
+        if (!$hasShield) {
+            foreach ($available as $a) {
+                if (($a['def']['type'] ?? '') === 'buff') return $a['id'];
+            }
+        }
+
+        // 3. 选伤害最高的输出技能
+        $damagers = array_values(array_filter($available, function ($a) {
+            $t = (string) ($a['def']['type'] ?? '');
+            return $t === 'damage' || $t === 'damage_lifesteal' || $t === 'dot';
+        }));
+        if ($damagers) {
+            usort($damagers, fn($a, $b) => $b['est'] <=> $a['est']);
+            return $damagers[0]['id'];
+        }
+        return null;
     }
 
     /**

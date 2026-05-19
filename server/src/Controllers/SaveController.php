@@ -32,6 +32,9 @@ final class SaveController
     /**
      * 直接覆盖。建议仅在调试或同设备登录初始化时使用。
      * 生产路径走 BattleController/MarketController 以避免作弊。
+     *
+     * 防御性兜底：前端永远不能通过 PUT /save 覆写 battle / 服务端权威字段，
+     * 即使前端误传也会被这里丢弃 → 保留服务端原值。
      */
     public function replace(Request $req): array
     {
@@ -40,6 +43,8 @@ final class SaveController
         if (empty($payload['player'])) {
             throw HttpException::badRequest('missing_player');
         }
+        // 不允许前端覆写 battle / 服务端权威字段
+        unset($payload['battle']);
         return $this->saves->replace($req->deviceHash, $payload);
     }
 
@@ -58,6 +63,13 @@ final class SaveController
             }
             return $save;
         });
+    }
+
+    public function reset(Request $req): array
+    {
+        if (!$req->deviceHash) throw HttpException::unauthorized();
+        $this->saves->delete($req->deviceHash);
+        return ['reset' => true];
     }
 
     private static function setByPath(array &$arr, string $path, $value): void

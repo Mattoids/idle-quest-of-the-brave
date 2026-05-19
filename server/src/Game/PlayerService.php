@@ -141,7 +141,9 @@ final class PlayerService
 
     public static function addTreasure(array $player, array $drop): array
     {
-        $tid = (string) $drop['id'];
+        // 兼容 'id' / 'treasureId' / 'tid' 三种 key 命名（不同掉落入口字段不统一）
+        $tid = (string) ($drop['id'] ?? $drop['treasureId'] ?? $drop['tid'] ?? '');
+        if ($tid === '') return $player;
         $current = $player['treasures'] ?? [];
         if (!is_array($current)) $current = [];
         if (!isset($current[$tid])) {

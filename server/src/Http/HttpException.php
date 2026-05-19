@@ -55,8 +55,8 @@ class HttpException extends Exception
         return new self($msg, 409, $details);
     }
 
-    public static function tooMany(string $msg = 'too_many_requests'): self
+    public static function tooMany(string $msg = 'too_many_requests', ?array $details = null): self
     {
-        return new self($msg, 429);
+        return new self($msg, 429, $details);
     }
 }

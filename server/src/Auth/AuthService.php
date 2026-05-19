@@ -141,6 +141,42 @@ final class AuthService
     }
 
     /**
+     * 凭 device_hash 直接登录（用于 URL ?device_hash=xxx 自动加载存档）
+     *
+     * 安全模型：device_hash 是 sha256(device_id + salt)，知道 hash 即认为持有该账号；
+     * 类似一个长效"凭证"，与 recovery_code 等价。便于本地测试 / 跨设备分享存档。
+     * 若该 hash 对应的设备/存档都不存在，抛 404。
+     *
+     * @return array{device_hash:string, token:string}
+     */
+    public function loginByHash(string $deviceHash): array
+    {
+        $deviceHash = strtolower(trim($deviceHash));
+        if (!preg_match('/^[a-f0-9]{32,128}$/', $deviceHash)) {
+            throw HttpException::badRequest('invalid_device_hash');
+        }
+        // 优先按设备记录验证；若设备记录缺失但存档存在（人工迁移），同样允许 issue token
+        $deviceExists = $this->files->exists($this->devicePath($deviceHash));
+        $saveExists   = $this->saves->exists($deviceHash);
+        if (!$deviceExists && !$saveExists) {
+            throw HttpException::notFound('device_not_found');
+        }
+        // 更新最后登录时间（如有设备记录）
+        if ($deviceExists) {
+            $record = $this->files->readJson($this->devicePath($deviceHash));
+            if (is_array($record)) {
+                $record['last_login_at'] = time();
+                $this->files->writeJson($this->devicePath($deviceHash), $record);
+            }
+        }
+        $token = $this->tokens->issue($deviceHash);
+        return [
+            'device_hash' => $deviceHash,
+            'token'       => $token,
+        ];
+    }
+
+    /**
      * 重新生成恢复码（旧的失效），通过当前 token 调用
      */
     public function rotateRecovery(string $deviceHash): string

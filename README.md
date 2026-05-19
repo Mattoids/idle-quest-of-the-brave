@@ -505,6 +505,45 @@ BOSS 的专属技能不再是无解的秒杀手段。通过收集套装、宝物
 
 ## 🛠️ 技术说明
 
+### Docker 部署（推荐生产 / 自托管）
+
+一键启动整套服务（前端 + 后端 + Redis 缓存 + MySQL 持久化）：
+
+```bash
+docker compose up -d
+# 浏览器访问 http://localhost:8080
+```
+
+涉及文件：
+- `Dockerfile`：基于 `php:8.2-apache`，预装 `pdo_mysql / redis / opcache` 扩展，含健康检查
+- `docker/apache.conf`：Apache vhost，前端静态 + `/game/idle-quest-of-the-brave/*` API 路由
+- `docker-compose.yml`：编排 `web / redis / mysql` 三个服务，含数据卷与健康依赖
+- `.dockerignore`：排除 `.git / server/data / 本地配置` 等
+
+环境变量（在 `docker-compose.yml` 中调整）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `APP_ENV` | `production` | 环境标识 |
+| `APP_DEBUG` | `false` | 错误堆栈输出 |
+| `AUTH_DEVICE_SALT` | `change-this-in-production` | **务必修改**，设备 ID 哈希盐 |
+| `REDIS_ENABLED` / `REDIS_HOST` / `REDIS_PORT` | `true / redis / 6379` | Redis 缓存层 |
+| `MYSQL_ENABLED` / `MYSQL_HOST` / `MYSQL_DATABASE` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | `true / mysql / iqotb / iqotb / iqotb_pwd_change_me` | MySQL 持久层 |
+
+只跑独立 web（不要 Redis / MySQL）：
+
+```bash
+docker build -t idle-quest-of-the-brave .
+docker run -p 8080:80 \
+  -e REDIS_ENABLED=false -e MYSQL_ENABLED=false \
+  -v iqotb-data:/var/www/html/server/data \
+  idle-quest-of-the-brave
+```
+
+数据持久化：`server/data` 通过 Docker volume 挂出来，重建容器不丢存档。
+
+健康检查：`GET /game/idle-quest-of-the-brave/health` 返回 `{"ok": true}`。
+
 ### 浏览器后台运行优化
 
 当页面切换到后台时，浏览器的 `setInterval` 会被节流到约 1000ms。游戏通过记录时间戳，在切回前台时批量计算错过的攻击次数和技能释放，最多批量处理 500 次攻击，确保长时间挂机不会丢失进度。
@@ -521,21 +560,33 @@ BOSS 的专属技能不再是无解的秒杀手段。通过收集套装、宝物
 
 ```
 .
-├── index.html           # 游戏主页面
-├── css/style.css        # 游戏样式
-├── js/game.js           # 游戏逻辑
-├── build.js             # 构建脚本：合并压缩为单文件
-├── dist/
-│   └── index.html       # 合并 + 压缩后的单文件版（可直接打开离线游玩）
-└── README.md            # 本说明文档
+├── index.html              # 游戏主页面（前端入口）
+├── css/style.css           # 游戏样式
+├── js/game.js              # 游戏逻辑（约 7000 行）
+├── build.js                # 构建脚本：合并压缩为单文件
+├── dist/index.html         # 合并 + 压缩后的单文件版（可直接打开离线游玩）
+├── server/                 # PHP 后端（v4.0 联网架构）
+│   ├── public/index.php    #   入口（Apache document root 之一）
+│   ├── src/                #   业务代码（Auth / Game / Market / Storage / Controllers）
+│   ├── config/app.php      #   主配置（环境变量优先）
+│   ├── config/local.example.php  #   本地配置模板
+│   ├── migrations/         #   MySQL 表 schema
+│   └── data/               #   运行时存档 / 市场 / 缓存（挂载 volume）
+├── docker/apache.conf      # Apache vhost
+├── Dockerfile              # 容器构建
+├── docker-compose.yml      # 编排（web / redis / mysql）
+└── README.md               # 本说明文档
 ```
 
 ### 技术栈
 
-- 纯原生 HTML5 / CSS3 / JavaScript（ES6+）
-- 无需任何外部依赖
-- 使用 `localStorage` 本地持久化存档
-- 响应式布局，支持移动端浏览
+**前端**：纯原生 HTML5 / CSS3 / JavaScript（ES6+），无外部依赖，`localStorage` 本地存档，响应式布局支持移动端浏览。
+
+**后端**（v4.0 联网架构）：
+
+- PHP 8.2 + Apache（开发可用 `php -S 127.0.0.1:8787 -t server/public`）
+- 三级存档存储：Redis（读缓存）+ MySQL（持久备份）+ File（兜底 + 锁）
+- 原生 HTTP 路由 + JSON 响应，零框架依赖
 
 ### 单文件构建
 
@@ -549,7 +600,69 @@ node build.js
 
 ## 📝 更新日志
 
-### 🆕 v3.4 最新（本次更新）
+### 🆕 v4.0 最新（联网架构重构）
+
+> 这是一次"前端单机 → 服务端权威"的重大升级。游戏可以离线游玩，但联网时所有战斗/存档/NPC/市场都由服务端计算并持久化。
+
+- **☁️ 服务端权威架构**
+  - 原生 PHP 后端（`server/`）：账号 / 存档 / 战斗 / NPC / 技能 / 市场 / 进度
+  - 联网模式下战斗（伤害、暴击、闪避、debuff、BOSS 技能、区域被动、掉落、经验、金币、boss 击杀、无尽推进）100% 由服务端 `BattleEngine` 计算
+  - 前端只做日志渲染 + 动画 + 决策上的轻量交互（手动施法按钮等）
+- **🗄️ 三级存档存储（cache-aside）**
+  - **Redis**（可选启用）：读取缓存，命中直接返回
+  - **MySQL**（可选启用）：仅持久化"存档信息"（与功能拆分一致：market / auth 不走 MySQL）
+  - **File**（始终启用）：本地权威 + 互斥锁（`flock(LOCK_EX)`）
+  - 任一层异常自动降级，存档不丢；自动建表（`CREATE TABLE IF NOT EXISTS`）
+  - 配置：`config/app.php → storage.redis / storage.mysql`，或在 `config/local.php` 覆盖
+- **⚔️ 批量战斗回放（30 回合 / 节奏播放）**
+  - 一次 `/battle/tick` 服务端固定计算 30 回合，每回合带 `ts_offset_ms / player_hp / player_mp / enemy_hp / skills / player_state` 等
+  - 前端按 `aspd_ms` 节奏逐回合渲染日志 + 同步状态，营造"连续战斗"动画
+  - 服务端节流：`session.next_batch_at_ms = now + duration_ms`，未播完拒绝新请求（`batch_in_progress + wait_ms`）
+  - 服务器压力从"挂机时每 300ms 一次"降到"每 aspd × 30 ≈ 数十秒一次"
+- **🧠 自动施法决策搬到后端**
+  - 服务端 `SkillEngine::pickAutoSkill` 复刻原前端 `tryAutoCastSkill` 的优先级（低血治疗 > 没护盾上 buff > 选最强输出）
+  - 批量内每回合都尝试自动施放，cd / mp 同步流逝
+- **🔁 跨设备恢复存档**
+  - URL `?device_hash=xxx` → 自动调用 `/auth/by-hash` 换 token 加载对应存档
+  - URL 参数加载后自动清除，避免重复触发
+  - 适合本地测试 / 跨设备分享存档
+- **🏪 市场上线（联网正式启用）**
+  - 装备 / 宝物 / 道具 / 技能书 4 类挂售，单用户最大 30 单，挂售 TTL 7 天
+  - 列表区分"我的挂售"与他人挂售：自己的卡片金边 + "我的"徽章 + "取消挂售"按钮（不能买自己的）
+  - `MarketController::listings` 返回每条 listing 的 `is_mine` 标记
+- **💾 存档同步与一致性**
+  - 联网模式下移除前端"30s 整存档 PUT"（避免覆盖服务端权威）
+  - 纯前端操作（穿装备 / 出售 / 升级能力 / 锁定宝物 / 自动开关）通过 `/save/diff` 局部增量同步，刷新后不丢失
+  - PUT /save 防御性兜底：未带 `battle` 字段时保留服务端原值，前端误传不会清掉战斗会话
+  - PHP `json_decode` 空对象坑修复：服务端 `SaveRepository::normalize` 把空 `[]` 强制转 `stdClass {}`，前端 `_normalizePlayerObjectFields` 双重保险
+- **🩹 自动恢复 / 自动出售 / 自动强化开关持久化**
+  - `world.autoRecover / autoStrengthen / autoSell` 状态通过 `/save/diff` 实时同步
+  - 联网战斗每个 batch 播完调用 `_autoRecoverNet()` 通过 `/npc/shop/use` 服务端扣药水
+- **👹 BOSS 战死亡丢失进度**
+  - 玩家死在 BOSS 战 → 清线索 + 标记 `bossFled`（与离线模式一致）
+- **⏱️ 技能冷却进度条 clamp**
+  - 修复 server/client 时钟漂移导致进度条 > 100% 的显示问题（双重 clamp 到 0~100%）
+- **🐛 大量回归修复**：详见 `TODO_BACKEND_REGRESSION.md` 进展记录
+
+#### 兼容性
+
+- 旧 v3.x 本地存档自动兼容（首次启动迁移）
+- 离线模式（无服务端 / 服务端不可用）所有功能照常工作
+
+#### 部署提示
+
+```bash
+# 启动 PHP 服务（开发）
+php -S 127.0.0.1:8787 -t server/public
+
+# 启用 Redis + MySQL（可选）
+cp server/config/local.example.php server/config/local.php
+# 编辑 local.php 填入 host/port/credentials；MysqlStore 自动建表
+```
+
+---
+
+### v3.4
 
 - **🏪 市场交易系统（暂时屏蔽，待联网功能上线后开放）**
   - 主城新增「市场商人」NPC，支持装备/宝物/道具/技能书的离线交易码出售与领取

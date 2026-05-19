@@ -49,6 +49,15 @@ final class AuthController
         return $this->auth->recover($code);
     }
 
+    /**
+     * 凭 device_hash 直接换 token（用于 URL ?device_hash=xxx 自动恢复存档）
+     */
+    public function loginByHash(Request $req): array
+    {
+        $hash = (string) $req->require('device_hash');
+        return $this->auth->loginByHash($hash);
+    }
+
     public function logout(Request $req): array
     {
         $token = $req->token;

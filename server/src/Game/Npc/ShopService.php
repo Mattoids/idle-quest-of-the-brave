@@ -61,21 +61,26 @@ final class ShopService
         $val  = $def['value'] ?? null;
         $log  = [];
 
+        // hp/mp 上限要按装备/宝物/套装等合并后的 stats 计算，否则喝药水会被截到基础值
+        $stats   = PlayerService::computeStats($player);
+        $maxHp   = (int) ($stats['maxHp'] ?? ($player['maxHp'] ?? 100));
+        $maxMp   = (int) ($stats['maxMp'] ?? ($player['maxMp'] ?? 50));
+
         for ($i = 0; $i < $count; $i++) {
             switch ($type) {
                 case 'heal':
-                    $heal = (int) floor(($player['maxHp'] ?? 100) * ((float) $val));
-                    $player['hp'] = min((int) ($player['maxHp'] ?? 100), (int) $player['hp'] + $heal);
+                    $heal = (int) floor($maxHp * ((float) $val));
+                    $player['hp'] = min($maxHp, (int) $player['hp'] + $heal);
                     $log[] = ['t' => 'heal', 'amount' => $heal];
                     break;
                 case 'heal_full':
-                    $player['hp'] = (int) ($player['maxHp'] ?? 100);
-                    $player['mp'] = (int) ($player['maxMp'] ?? 50);
+                    $player['hp'] = $maxHp;
+                    $player['mp'] = $maxMp;
                     $log[] = ['t' => 'heal_full'];
                     break;
                 case 'mp':
-                    $heal = (int) floor(($player['maxMp'] ?? 50) * ((float) $val));
-                    $player['mp'] = min((int) ($player['maxMp'] ?? 50), (int) $player['mp'] + $heal);
+                    $heal = (int) floor($maxMp * ((float) $val));
+                    $player['mp'] = min($maxMp, (int) $player['mp'] + $heal);
                     $log[] = ['t' => 'mp', 'amount' => $heal];
                     break;
                 case 'permanent_atk':

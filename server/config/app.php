@@ -34,6 +34,36 @@ $base = [
         'gc_probability' => 0.01,
     ],
 
+    // ---------------- 存档持久化 ----------------
+    // 三级存储：Redis（实时缓存，优先）+ MySQL（持久备份，仅 save）+ File（兜底）
+    // 任何一层异常都会自动降级，保证至少一层可用
+    'storage' => [
+        // 是否启用 Redis 加速；未启用 / 连接失败时直接走 MySQL → File
+        'redis' => [
+            'enabled' => filter_var(getenv('REDIS_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN),
+            'host'    => getenv('REDIS_HOST') ?: '127.0.0.1',
+            'port'    => (int) (getenv('REDIS_PORT') ?: 6379),
+            'auth'    => getenv('REDIS_AUTH') ?: null,
+            'db'      => (int) (getenv('REDIS_DB') ?: 0),
+            // 连接超时（秒）
+            'timeout' => 1.0,
+            // save 在 Redis 中的 TTL（0 = 永久；> 0 可避免脏数据）
+            'ttl'     => 0,
+            'prefix'  => 'iqotb:save:',
+        ],
+        // 是否启用 MySQL 持久化；未启用 / 连接失败时存档完全走 File
+        // 仅用于"存档信息"持久化，不影响 market / auth
+        'mysql' => [
+            'enabled'  => filter_var(getenv('MYSQL_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN),
+            'host'     => getenv('MYSQL_HOST') ?: '127.0.0.1',
+            'port'     => (int) (getenv('MYSQL_PORT') ?: 3306),
+            'database' => getenv('MYSQL_DATABASE') ?: 'iqotb',
+            'username' => getenv('MYSQL_USERNAME') ?: 'iqotb',
+            'password' => getenv('MYSQL_PASSWORD') ?: '',
+            'charset'  => 'utf8mb4',
+        ],
+    ],
+
     // 认证配置
     'auth' => [
         // token 有效期（秒）

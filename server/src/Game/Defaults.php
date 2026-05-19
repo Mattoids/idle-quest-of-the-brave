@@ -54,7 +54,8 @@ final class Defaults
                 'bookMaxRarity' => 'rare',
             ],
             'inCity' => true,
-            'lastBattleEndTime' => null,
+            // 新号默认设为账号创建时刻，避免 OfflineService::claim 在首次进入时返回 0
+            'lastBattleEndTime' => time() * 1000,
         ];
     }
 }

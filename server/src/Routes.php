@@ -29,6 +29,7 @@ final class Routes
         $r->post('/auth/register',  [AuthController::class, 'register']);
         $r->post('/auth/login',     [AuthController::class, 'login']);
         $r->post('/auth/recover',   [AuthController::class, 'recover']);
+        $r->post('/auth/by-hash',   [AuthController::class, 'loginByHash']);
 
         // 需要 token
         $r->post('/auth/logout',           [AuthController::class, 'logout'])->middleware(AuthMiddleware::class);
@@ -37,7 +38,8 @@ final class Routes
         // ---- save ----
         $r->get('/save',       [SaveController::class, 'show'])->middleware(AuthMiddleware::class);
         $r->put('/save',       [SaveController::class, 'replace'])->middleware(AuthMiddleware::class);
-        $r->post('/save/diff', [SaveController::class, 'diff'])->middleware(AuthMiddleware::class);
+        $r->post('/save/diff',  [SaveController::class, 'diff'])->middleware(AuthMiddleware::class);
+        $r->post('/save/reset', [SaveController::class, 'reset'])->middleware(AuthMiddleware::class);
 
         // ---- battle ----
         $r->post('/battle/start',  [BattleController::class, 'start'])->middleware(AuthMiddleware::class);

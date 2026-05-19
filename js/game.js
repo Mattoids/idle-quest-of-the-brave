@@ -1,6 +1,871 @@
 const SAVE_KEY = 'idleRpgGame_save_v6';
-const GAME_VERSION = 'v3.4';
+const GAME_VERSION = 'v4.0';
 const MAX_ATK_SPEED = 10;
+
+// ========== 服务端 API 客户端 ==========
+// 与 server/ 目录下的 PHP 后端对接：账号 + 存档同步 + 市场挂售
+// 设计原则：离线优先 — 任何网络失败都不阻塞游戏，本地存档兜底
+const ApiClient = (() => {
+    // 服务端地址：可通过 ?api=... 覆盖
+    //   - 默认：同源同路径前缀 `${location.origin}/game/idle-quest-of-the-brave`
+    //     适用于 Docker / 反向代理同域部署、生产环境
+    //   - 本地开发使用 php -S 127.0.0.1:8787 时：用 `?api=http://127.0.0.1:8787/game/idle-quest-of-the-brave` 覆盖
+    const url = new URL(location.href);
+    const BASE_URL = url.searchParams.get('api') || `${location.origin}/game/idle-quest-of-the-brave`;
+
+    const TOKEN_KEY    = 'iqotb_token';
+    const DEVICE_KEY   = 'iqotb_device_id';
+    const RECOVERY_KEY = 'iqotb_recovery_code';
+
+    let _online = false;
+    let _lastError = null;
+    let _ready = false;
+
+    function token()    { return localStorage.getItem(TOKEN_KEY) || ''; }
+    function deviceId() { return localStorage.getItem(DEVICE_KEY) || ''; }
+    function recovery() { return localStorage.getItem(RECOVERY_KEY) || ''; }
+    function isOnline() { return _online; }
+    function isReady()  { return _ready; }
+
+    async function request(method, path, body) {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (token()) opts.headers['Authorization'] = `Bearer ${token()}`;
+        if (body !== undefined) opts.body = JSON.stringify(body);
+
+        let resp;
+        try {
+            resp = await fetch(`${BASE_URL}${path}`, opts);
+        } catch (e) {
+            _online = false; _lastError = e.message || 'network_error';
+            throw new Error('offline');
+        }
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || json.ok === false) {
+            _lastError = json.error || `http_${resp.status}`;
+            const err = new Error(_lastError);
+            err.status = resp.status; err.details = json.details;
+            throw err;
+        }
+        _online = true; _lastError = null;
+        return json.data;
+    }
+
+    /**
+     * 确保有有效会话；无 token 时自动注册。返回 token 或 null（注册失败 = 离线）
+     *
+     * URL 注入：?device_hash=xxx 时，优先尝试用该 hash 换 token（跨设备恢复存档）
+     */
+    async function ensureSession() {
+        // URL 携带 device_hash 时，强制用该 hash 登录（覆盖本地 token）
+        const params = new URLSearchParams(location.search);
+        const urlHash = (params.get('device_hash') || '').trim().toLowerCase();
+        if (urlHash && /^[a-f0-9]{32,128}$/.test(urlHash)) {
+            try {
+                const r = await request('POST', '/auth/by-hash', { device_hash: urlHash });
+                if (r && r.token) {
+                    localStorage.setItem(TOKEN_KEY, r.token);
+                    // device_id 此时未知（只有 hash），清掉旧 device_id 避免 fallback 时混淆
+                    localStorage.removeItem(DEVICE_KEY);
+                    localStorage.removeItem(RECOVERY_KEY);
+                    log(`🔁 已通过 URL 切换账号（device_hash=${urlHash.slice(0,8)}...）`, 'log-loot');
+                    // 从 URL 中清除该参数，避免后续刷新重复触发
+                    params.delete('device_hash');
+                    const qs = params.toString();
+                    const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, '', newUrl);
+                    }
+                    return r.token;
+                }
+            } catch (e) {
+                if (e.status === 404 || e.message === 'device_not_found') {
+                    log(`❌ URL 中的 device_hash 在服务端不存在，使用本地账号继续`, 'log-damage');
+                } else if (e.message === 'offline') {
+                    return null;
+                } else {
+                    log(`❌ device_hash 登录失败：${e.message}`, 'log-damage');
+                }
+                // 失败时仍走下方原有流程（本地 token / 注册新账号）
+            }
+        }
+
+        if (token()) {
+            // 验证 token 是否仍有效
+            try { await request('GET', '/save'); _online = true; return token(); } catch (e) {
+                if (e.status === 401) {
+                    // token 过期 → 用 device_id 重新登录
+                    try {
+                        const r = await request('POST', '/auth/login', { device_id: deviceId() });
+                        localStorage.setItem(TOKEN_KEY, r.token);
+                        return r.token;
+                    } catch (_) { /* fall through to register */ }
+                }
+                if (e.message === 'offline') return null;
+            }
+        }
+        try {
+            const r = await request('POST', '/auth/register', { meta: { client_version: GAME_VERSION } });
+            localStorage.setItem(TOKEN_KEY,    r.token);
+            localStorage.setItem(DEVICE_KEY,   r.device_id);
+            localStorage.setItem(RECOVERY_KEY, r.recovery_code);
+            log(`🔐 已联网创建账号，恢复码：${r.recovery_code}（妥善保管，跨设备登录用）`, 'log-loot');
+            return r.token;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    return {
+        BASE_URL,
+        token, deviceId, recovery,
+        isOnline, isReady, ensureSession,
+        request,
+        getSave:        ()        => request('GET',  '/save'),
+        putSave:        (save)    => request('PUT',  '/save', save),
+        diffSave:       (changes) => request('POST', '/save/diff', { changes }),
+        marketList:     (type)    => request('GET',  `/market/listings?type=${encodeURIComponent(type)}`),
+        marketCreate:   (data)    => request('POST', '/market/list', data),
+        marketBuy:      (type, id)=> request('POST', '/market/buy', { type, id }),
+        marketCancel:   (type, id)=> request('POST', '/market/cancel', { type, id }),
+        marketMy:       ()        => request('GET',  '/market/my'),
+        claimOffline:   ()        => request('POST', '/offline/claim'),
+        rotateRecovery: ()        => request('POST', '/auth/rotate-recovery'),
+        markReady: () => { _ready = true; },
+    };
+})();
+
+// 把前端 game 对象按服务端 schema 序列化
+function _toServerSave() {
+    return {
+        player: game.player,
+        world: {
+            currentArea:        game.currentArea,
+            bossDefeated:       game.bossDefeated,
+            bossFled:           game.bossFled,
+            clues:              game.clues,
+            fightingBoss:       game.fightingBoss,
+            autoBattle:         !!game.autoBattle,
+            autoStrengthen:     !!game.autoStrengthen,
+            autoRecover:        !!game.autoRecover,
+            autoSell:           game.autoSell,
+            inCity:             !!game.inCity,
+            lastBattleEndTime:  game.lastBattleEndTime,
+        },
+        meta: { client_version: GAME_VERSION },
+    };
+}
+
+function _applyServerSave(save) {
+    if (!save || typeof save !== 'object') return;
+    if (save.player) _mergeServerPlayer(save.player);
+    const w = save.world;
+    if (w) {
+        if (w.currentArea       !== undefined) game.currentArea       = w.currentArea;
+        if (w.bossDefeated      !== undefined) game.bossDefeated      = w.bossDefeated;
+        if (w.bossFled          !== undefined) game.bossFled          = w.bossFled;
+        if (w.clues             !== undefined) game.clues             = w.clues;
+        if (w.fightingBoss      !== undefined) game.fightingBoss      = w.fightingBoss;
+        if (w.autoStrengthen    !== undefined) game.autoStrengthen    = w.autoStrengthen;
+        if (w.autoRecover       !== undefined) game.autoRecover       = w.autoRecover;
+        if (w.autoSell          !== undefined) game.autoSell          = { ...game.autoSell, ...w.autoSell };
+        if (w.inCity            !== undefined) game.inCity            = w.inCity;
+        if (w.lastBattleEndTime !== undefined) game.lastBattleEndTime = w.lastBattleEndTime;
+        // 注意：不恢复 autoBattle，避免离线时自动开始挂机
+    }
+}
+
+/**
+ * 将服务端返回的 player 合并到本地 game.player；保留本地瞬态字段（如 buff/debuff/技能 cd 进度等）。
+ * 服务端字段为权威，本地字段仅在服务端未返回时保留。
+ *
+ * 防御性：PHP json_decode($raw, true) 会把空对象 {} 解成空数组 []，前端如果直接当 object 用
+ * （`obj[key] = ...`）会出现"赋字符串属性给数组"，JSON.stringify 时丢失。所以这里把已知
+ * 必须是 object 的字段强制转回 {}。
+ */
+function _mergeServerPlayer(serverPlayer) {
+    if (!serverPlayer || typeof serverPlayer !== 'object') return;
+    _normalizePlayerObjectFields(serverPlayer);
+    // 浅合并：服务端字段优先覆盖本地，本地独有字段（counterState/debuff/buff 进度等）保留
+    game.player = { ...game.player, ...serverPlayer };
+    // 合并后再次确保字段类型（防御本地某些路径残留 array 形式）
+    _normalizePlayerObjectFields(game.player);
+}
+
+/** 把已知必须是 object 的字段，从空数组/null/undefined 统一转成空对象 {} */
+function _normalizePlayerObjectFields(player) {
+    if (!player) return;
+    const objectFields = ['equipments', 'treasures', 'skills', 'skillBooks', 'items', 'buffs', 'debuffs', 'passives', 'counterState'];
+    for (const k of objectFields) {
+        const v = player[k];
+        if (v === null || v === undefined) {
+            player[k] = {};
+        } else if (Array.isArray(v)) {
+            // PHP 把空 assoc 当 array 序列化为 [] —— 转回 {}
+            if (v.length === 0) {
+                player[k] = {};
+            }
+            // 非空数组场景这些字段几乎不会发生（key 是字符串），保持原样
+        }
+    }
+    // equipmentBag 必须是数组
+    if (player.equipmentBag !== undefined && !Array.isArray(player.equipmentBag)) {
+        player.equipmentBag = [];
+    }
+}
+
+/**
+ * 联网模式下，将本地 game.player 中指定字段通过 /save/diff 同步到服务端。
+ * 用于纯前端操作（穿装备/卸装备/出售/升级能力/锁定宝物等）—— 这些没有专门的 NPC 端点，
+ * 但又必须落库到服务端，否则刷新后被服务端旧 save 覆盖。
+ *
+ * @param {string[]} fields  player 顶层字段名数组，如 ['gold','equipments','equipmentBag']
+ */
+function _diffSyncPlayer(fields) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) return;
+    if (!fields || !fields.length) return;
+    const changes = {};
+    for (const f of fields) {
+        changes[`player.${f}`] = game.player[f];
+    }
+    ApiClient.diffSave(changes).catch(e => {
+        console.warn('diff sync failed:', f, e && e.message);
+        showNotification('⚠️ 数据同步失败，刷新后可能丢失');
+    });
+}
+
+// 启动时联网同步：拉取服务端存档；如果服务端更新更晚则覆盖本地
+async function _serverBoot() {
+    const tk = await ApiClient.ensureSession();
+    if (!tk) {
+        log('📴 离线模式：使用本地存档', 'log-loot');
+        return;
+    }
+    try {
+        const remote = await ApiClient.getSave();
+        const localSavedAt = (() => {
+            try { return JSON.parse(localStorage.getItem(SAVE_KEY) || '{}').data?.savedAt || 0; } catch (_) { return 0; }
+        })();
+        // 服务端 updated_at 单位是秒
+        const remoteUpdatedMs = (remote.updated_at || 0) * 1000;
+        let needSpawnEnemy = true;
+        if (remoteUpdatedMs > localSavedAt + 1000) {
+            _applyServerSave(remote);
+            // 如果服务端有活跃战斗，同步敌人
+            if (remote.battle && remote.battle.enemy) {
+                game.enemy = remote.battle.enemy;
+                BattleNet.clearSession();
+                needSpawnEnemy = false;
+            }
+            if (needSpawnEnemy) spawnEnemy();
+            renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
+            // 让 view 与服务端的 inCity 状态保持一致：避免出现"中间显示主城但地图按钮高亮某区"的不一致
+            if (game.inCity) {
+                if (document.getElementById('npcView').style.display === 'none') {
+                    showNpcView();
+                }
+            } else {
+                if (document.getElementById('battleView').style.display !== 'block') {
+                    showBattleView();
+                }
+            }
+            log('☁️ 已从服务端同步最新存档', 'log-loot');
+        }
+        ApiClient.markReady();
+        // 联网态下若当前在无尽模式（area>=15）但没有活跃战斗，主动到服务端开一场
+        // 否则本地 spawnEnemy 会按主线敌人池生成，与服务端 endless 敌人不一致
+        if (game.currentArea >= 15 && !(remote.battle && remote.battle.enemy) && !game.inCity) {
+            try {
+                const r = await BattleNet.start(game.currentArea);
+                if (r && r.session && r.session.enemy) {
+                    game.enemy = r.session.enemy;
+                    _applyBattleResult(r);
+                }
+            } catch (_) { /* 服务端不可用时维持本地 spawn 的敌人 */ }
+        }
+        // 离线挂机补偿
+        try {
+            const r = await ApiClient.claimOffline();
+            if (r && r.rewards && r.rewards.kills > 0) {
+                const m = Math.round(r.rewards.offline_ms / 60000);
+                log(`⏰ 离线挂机 ${m} 分钟：击杀 ${r.rewards.kills} | 经验 +${formatNumber(r.rewards.exp)} | 金币 +${formatNumber(r.rewards.gold)}`, 'log-loot');
+                showNotification(`⏰ 离线收益已领取`);
+                if (typeof updateUI === 'function') updateUI();
+            }
+        } catch (_) {}
+    } catch (e) {
+        // 服务端无存档时 PUT 一次本地存档
+        if (e.status === 404 || e.message === 'save_not_found') {
+            try { await ApiClient.putSave(_toServerSave()); log('☁️ 本地存档已上传到服务端', 'log-loot'); ApiClient.markReady(); } catch (_) {}
+        }
+    }
+}
+
+// 30s 自动推送到服务端（与本地 saveGame 解耦，失败静默）
+// 注意：联网模式下服务端是权威——NPC/战斗调用会原子写库；这里若再 PUT 整存档，
+// 会用前端旧快照覆盖刚被服务端写过的金币/装备/技能等级，出现"数据回滚"。
+// 因此联网模式下 autosave 改为 no-op；仅在离线模式 / 服务端尚未 ready 时由
+// _serverBoot 的 404 分支负责一次性上传初始本地存档。
+function _serverAutosave() {
+    // 故意留空：联网模式不再自动 PUT 整存档，避免与服务端权威写库形成双轨写
+}
+
+// ========== 联网战斗管理器 ==========
+// 设计：服务端权威计算 → 前端仅做UI渲染和日志展示
+// 离线时自动回退到本地模式（兼容单机游玩）
+const BattleNet = (() => {
+    let _session = null;          // 当前服务端战斗会话
+    let _offline = false;         // 是否处于离线战斗模式
+    let _lastTickPromise = null;  // 防止并发tick
+    let _actionLock = false;      // 防止手动攻击/技能并发
+
+    function isOnline()  { return !_offline && ApiClient.isOnline() && ApiClient.isReady(); }
+    function isOffline() { return _offline || !ApiClient.isOnline() || !ApiClient.isReady(); }
+    function session()   { return _session; }
+    function setOffline(v) { _offline = !!v; if (v) _session = null; }
+    function clearSession() { _session = null; }
+    function isLocked() { return _actionLock; }
+    async function withLock(fn) {
+        if (_actionLock) return null;
+        _actionLock = true;
+        try { return await fn(); } finally { _actionLock = false; }
+    }
+
+    async function start(areaIndex) {
+        if (isOffline()) return null;
+        try {
+            const r = await ApiClient.request('POST', '/battle/start', { area: areaIndex });
+            _session = r.session || null;
+            return r;
+        } catch (e) {
+            if (e.message === 'offline') { _offline = true; log('📴 进入离线战斗模式', 'log-loot'); }
+            return null;
+        }
+    }
+
+    async function startBoss(areaIndex) {
+        if (isOffline()) return null;
+        try {
+            const r = await ApiClient.request('POST', '/battle/boss', { area: areaIndex });
+            _session = r.session || null;
+            return r;
+        } catch (e) {
+            if (e.message === 'offline') { _offline = true; }
+            return null;
+        }
+    }
+
+    async function attack() {
+        if (isOffline()) return null;
+        try {
+            const r = await ApiClient.request('POST', '/battle/attack');
+            _session = r.session || null;
+            return r;
+        } catch (e) {
+            if (e.message === 'offline') { _offline = true; }
+            return null;
+        }
+    }
+
+    async function castSkill(skillId) {
+        if (isOffline()) return null;
+        try {
+            const r = await ApiClient.request('POST', '/battle/skill', { skill_id: skillId });
+            _session = r.session || null;
+            return r;
+        } catch (e) {
+            if (e.message === 'offline') { _offline = true; }
+            return null;
+        }
+    }
+
+    async function tick(rounds = 30) {
+        if (isOffline()) return null;
+        if (_lastTickPromise) return _lastTickPromise;
+        const p = (async () => {
+            try {
+                const r = await ApiClient.request('POST', '/battle/tick', { rounds });
+                _session = r.session || null;
+                return r;
+            } catch (e) {
+                if (e.message === 'offline') { _offline = true; }
+                // batch_in_progress：上次还没播完，调用方按 details.wait_ms 重试即可
+                if (e.message === 'batch_in_progress') return { _waitMs: (e.details && e.details.wait_ms) || 500 };
+                return null;
+            }
+        })();
+        _lastTickPromise = p;
+        p.finally(() => { _lastTickPromise = null; });
+        return p;
+    }
+
+    async function end() {
+        if (isOffline()) return null;
+        try {
+            const r = await ApiClient.request('POST', '/battle/end');
+            _session = null;
+            return r;
+        } catch (e) { return null; }
+    }
+
+    return { isOnline, isOffline, session, setOffline, clearSession, isLocked, withLock,
+             start, startBoss, attack, castSkill: castSkill, tick, end };
+})();
+
+/**
+ * 统一处理服务端战斗结果：同步 player/enemy 状态 + 解析 log 驱动UI
+ */
+function _applyBattleResult(result) {
+    if (!result) return false;
+    if (result.player) _mergeServerPlayer(result.player);
+    if (result.session && result.session.enemy) {
+        game.enemy = result.session.enemy;
+    } else if (result.session === null) {
+        game.enemy = null;
+    }
+    // 服务端 world 字段同步（核心：lastBattleEndTime 用于离线挂机补偿）
+    if (result.world) {
+        const w = result.world;
+        if (w.lastBattleEndTime !== undefined) game.lastBattleEndTime = w.lastBattleEndTime;
+        if (w.currentArea       !== undefined) game.currentArea       = w.currentArea;
+        if (w.bossDefeated      !== undefined) game.bossDefeated      = w.bossDefeated;
+        if (w.fightingBoss      !== undefined) game.fightingBoss      = w.fightingBoss;
+        if (w.inCity            !== undefined) game.inCity            = w.inCity;
+        if (w.clues             !== undefined) game.clues             = w.clues;
+        if (w.bossFled          !== undefined) game.bossFled          = w.bossFled;
+    }
+    if (result.log && Array.isArray(result.log)) {
+        _renderBattleLogs(result.log);
+    }
+    updateUI();
+    updateEnemyUI();
+    updateSkillButtons();
+    return true;
+}
+
+/**
+ * 批量战斗回放：按服务端给的 aspd_ms 节奏逐回合播放
+ *
+ * 服务端 /battle/tick 一次返回 ~30 回合战斗数据；前端按攻速间隔逐回合渲染日志 +
+ * 同步 player_hp / enemy_hp，营造"连续战斗"动画。全部播完才会调度下一次请求。
+ *
+ * @returns {Promise<boolean>} true=正常播完  false=播放过程被打断（用户停手动停了挂机/切换地图等）
+ */
+async function _playBattleRounds(result) {
+    if (!result) return false;
+    const rounds = result.rounds || [];
+    const aspd   = Math.max(120, result.aspd_ms || 1000);
+
+    // 应用 world 同步（在播放前生效：bossDefeated/currentArea 等用于 UI 状态）
+    if (result.world) {
+        const w = result.world;
+        if (w.lastBattleEndTime !== undefined) game.lastBattleEndTime = w.lastBattleEndTime;
+        if (w.currentArea       !== undefined) game.currentArea       = w.currentArea;
+        if (w.bossDefeated      !== undefined) game.bossDefeated      = w.bossDefeated;
+        if (w.bossFled          !== undefined) game.bossFled          = w.bossFled;
+        if (w.clues             !== undefined) game.clues             = w.clues;
+    }
+
+    for (let i = 0; i < rounds.length; i++) {
+        if (!game.autoBattle) return false;     // 中途停了挂机
+        if (game.inCity)       return false;     // 玩家手动回主城
+        const round = rounds[i];
+
+        // 同步当前敌人引用（每回合服务端可能 spawn 新敌人）
+        if (round.enemy === null) {
+            game.enemy = null;
+        } else if (round.enemy) {
+            game.enemy = round.enemy;
+        }
+
+        // 渲染该回合 log（不走折叠：单回合事件数很小）
+        if (round.log && round.log.length > 0) {
+            for (const entry of round.log) _dispatchBattleLog(entry);
+        }
+
+        // 同步 hp / mp / 技能 cd（在 log 渲染之后，避免日志里的 hp 与显示不同步）
+        if (game.player && round.player_hp !== undefined) game.player.hp = round.player_hp;
+        if (game.player && round.player_mp !== undefined) game.player.mp = round.player_mp;
+        // 同步基础标量（金币/经验/等级/击杀数/atk/def/spi/maxHp/maxMp/crit/critDmg/vamp 等）
+        // —— 让战斗中掉落的金币、经验、升级等"实时"反映在 UI 上，无需等 batch 结束
+        if (game.player && round.player_state && typeof round.player_state === 'object') {
+            Object.assign(game.player, round.player_state);
+        }
+        if (game.player && round.skills && typeof round.skills === 'object') {
+            // 用服务端最新的 skills 覆盖（含 cooldownEnd），让技能按钮立刻反映 cd
+            // 服务端 cooldownEnd 是 server clock + batch 模拟偏移，可能比"本地 now + skill.cooldown"还大；
+            // 这里 clamp 到合理上限，避免冷却进度条显示 > 100%
+            const nowClient = Date.now();
+            const fixedSkills = {};
+            for (const [sid, sdata] of Object.entries(round.skills)) {
+                if (sdata && typeof sdata === 'object' && typeof sdata.cooldownEnd === 'number') {
+                    const skillDef = SKILLS.find(s => s.id === sid);
+                    if (skillDef && skillDef.cooldown > 0) {
+                        const maxEnd = nowClient + skillDef.cooldown;
+                        if (sdata.cooldownEnd > maxEnd) {
+                            sdata = { ...sdata, cooldownEnd: maxEnd };
+                        }
+                    }
+                }
+                fixedSkills[sid] = sdata;
+            }
+            game.player.skills = { ...game.player.skills, ...fixedSkills };
+        }
+        if (game.enemy  && round.enemy_hp  !== undefined) game.enemy.hp  = round.enemy_hp;
+
+        updateUI();
+        updateEnemyUI();
+        updateSkillButtons();
+        checkAutoSell();
+
+        // 等待一个攻速间隔（最后一回合不再 wait，立即进入下一批）
+        if (i < rounds.length - 1) {
+            await new Promise(r => setTimeout(r, aspd));
+        }
+    }
+
+    // 全部回合播完，应用服务端最终 player（确保金币/经验/掉落/装备/技能 cd 等同步）
+    if (result.player) _mergeServerPlayer(result.player);
+    // 应用 inCity/fightingBoss（这些可能在 batch 中变更，但要等所有回合播完才更新 UI）
+    if (result.world) {
+        const w = result.world;
+        if (w.fightingBoss !== undefined) game.fightingBoss = w.fightingBoss;
+        if (w.inCity       !== undefined) game.inCity       = w.inCity;
+    }
+    // 用最终 session.enemy 校准（避免动画期间多次 spawn 显示错位）
+    if (result.session && result.session.enemy) {
+        game.enemy = result.session.enemy;
+    } else if (result.session === null) {
+        game.enemy = null;
+    }
+
+    updateUI();
+    updateEnemyUI();
+    updateSkillButtons();
+    renderAreas();
+    return true;
+}
+
+/**
+ * 解析服务端战斗日志并渲染到前端UI
+ * 保持与本地战斗一致的视觉和日志风格
+ */
+function _renderBattleLogs(logs) {
+    // 单次回包过多时（后台批量结算/页面切回前台），把刷屏类事件折叠成一条摘要，关键事件保留
+    if (logs.length > 30) {
+        const counters = { player_hit: 0, enemy_hit: 0, dot_tick: 0, area_burn: 0, area_lifesteal: 0, area_thorns: 0, player_miss: 0 };
+        const keep = [];
+        let killCount = 0, totalGold = 0, totalExp = 0;
+        for (const e of logs) {
+            if (counters[e.t] !== undefined) { counters[e.t]++; continue; }
+            if (e.t === 'enemy_killed') {
+                killCount++;
+                const d = e.drops || {};
+                totalGold += d.gold || 0; totalExp += d.exp || 0;
+                if (d.items && d.items.length) keep.push(e); // 保留有物品的击杀
+                continue;
+            }
+            keep.push(e);
+        }
+        for (const entry of keep) _dispatchBattleLog(entry);
+        if (killCount > 0) log(`⚔️ 批量结算：击杀 ${killCount} 只敌人，获得 ${formatNumber(totalExp)} 经验 / ${formatNumber(totalGold)} 金币`, 'log-loot');
+        const parts = [];
+        if (counters.player_hit) parts.push(`攻击 ${counters.player_hit}`);
+        if (counters.enemy_hit)  parts.push(`受击 ${counters.enemy_hit}`);
+        if (counters.dot_tick)   parts.push(`DOT ${counters.dot_tick}`);
+        if (counters.area_burn || counters.area_lifesteal || counters.area_thorns) parts.push(`区域被动 ${counters.area_burn + counters.area_lifesteal + counters.area_thorns}`);
+        if (counters.player_miss) parts.push(`闪避 ${counters.player_miss}`);
+        if (parts.length) log(`📊 已折叠：${parts.join(' / ')}`, 'log-loot');
+        return;
+    }
+    for (const entry of logs) _dispatchBattleLog(entry);
+}
+
+function _dispatchBattleLog(entry) {
+        const t = entry.t;
+        switch (t) {
+            // ---- 玩家攻击 ----
+            case 'player_hit': {
+                const name = _enemyDisplayName();
+                const critStr = entry.crit ? '暴击! ' : '';
+                log(`你对${name}造成了 ${formatNumber(entry.dmg)} 点伤害`, entry.crit ? 'log-damage' : 'log-damage');
+                showDamage('enemyChar', entry.dmg, entry.crit);
+                _animateAttack('playerChar', 'enemyChar');
+                break;
+            }
+            case 'player_miss': {
+                log(`🌫️ 你的攻击被${_enemyDisplayName()}闪避了！`, 'log-skill-resist');
+                break;
+            }
+            case 'player_stunned': {
+                log(`😵 你被眩晕了，无法攻击！`, 'log-damage');
+                break;
+            }
+
+            // ---- 敌人攻击 ----
+            case 'enemy_hit': {
+                const name = _enemyDisplayName();
+                log(`${name}对你造成了 ${formatNumber(entry.dmg)} 点伤害`, 'log-damage');
+                showDamage('playerChar', entry.dmg, false);
+                _animateAttack('enemyChar', 'playerChar');
+                break;
+            }
+            case 'enemy_debuff': {
+                const typeMap = { poison: '☠️中毒', bleed: '🩸流血', curse: '💀诅咒', freeze: '❄️冻结', weaken: '💪虚弱', silence: '🔇沉默' };
+                log(`${typeMap[entry.type] || entry.type}！来源：${entry.src || '敌人'}`, 'log-damage');
+                break;
+            }
+
+            // ---- BOSS 技能 ----
+            case 'boss_petrify': {
+                const dur = (entry.dur / 1000).toFixed(1);
+                log(`🗿 ${game.enemy?.name || 'BOSS'} 使用了石化凝视！${entry.earthRes > 0 ? '【土抗减免】' : ''}你被眩晕了 ${dur} 秒！`, 'log-damage');
+                break;
+            }
+            case 'boss_petrify_immune': {
+                log(`🛡️ 霸体免疫了石化凝视！`, 'log-skill');
+                break;
+            }
+            case 'boss_thunder': {
+                log(`⚡ ${game.enemy?.name || 'BOSS'} 召唤了雷霆审判！${entry.lightningRes > 0 ? '【雷抗减免】' : ''}你受到了 ${formatNumber(entry.dmg)} 点闪电伤害！`, 'log-damage');
+                showDamage('playerChar', entry.dmg, false);
+                break;
+            }
+            case 'boss_void_drain': {
+                log(`🌑 ${game.enemy?.name || 'BOSS'} 使用了虚空吞噬！${entry.voidRes > 0 ? '【虚空抗减免】' : ''}你失去了 ${formatNumber(entry.amount)} 点生命！`, 'log-damage');
+                break;
+            }
+            case 'boss_void_shielded': {
+                log(`🛡️ 虚空护盾抵消了 ${game.enemy?.name || 'BOSS'} 的虚空吞噬！`, 'log-skill');
+                break;
+            }
+            case 'boss_poison_aura': {
+                log(`☠️ 毒雾弥漫！${entry.poisonRes > 0 ? '【毒抗减免】' : ''}你受到了 ${formatNumber(entry.dmg)} 点毒伤！`, 'log-damage');
+                break;
+            }
+            case 'boss_chaos_purge': {
+                log(`🌀 ${game.enemy?.name || 'BOSS'} 展开了混沌领域！你的所有增益效果被清除了！`, 'log-damage');
+                break;
+            }
+            case 'boss_chaos_resisted': {
+                log(`🌀 你抵抗了 ${game.enemy?.name || 'BOSS'} 的混沌领域！`, 'log-skill');
+                break;
+            }
+            case 'boss_chaos_reflux': {
+                log(`🌀 混沌逆流反弹！${game.enemy?.name || 'BOSS'} 的混沌领域被反噬！`, 'log-skill');
+                break;
+            }
+            case 'boss_stun': {
+                log(`⚡ ${game.enemy?.name || 'BOSS'} 的雷霆一击附带眩晕效果！你被眩晕了 ${(entry.dur / 1000).toFixed(1)} 秒！`, 'log-damage');
+                break;
+            }
+
+            // ---- 技能 ----
+            case 'skill_hit': {
+                const skill = SKILLS.find(s => s.id === entry.id);
+                const name = skill ? `${skill.emoji}${skill.name}` : entry.id;
+                const elInfo = ELEMENTS[entry.element];
+                let msg = `${name} 对${_enemyDisplayName()}造成 ${formatNumber(entry.dmg)} 点${elInfo ? elInfo.name : ''}伤害`;
+                if (entry.mult > 1) msg += ' ⚡克制！';
+                else if (entry.mult < 1) msg += ' 🛡️被抵抗';
+                log(msg, entry.mult > 1 ? 'log-skill-weak' : entry.mult < 1 ? 'log-skill-resist' : 'log-skill');
+                showDamage('enemyChar', entry.dmg, false);
+                _animateAttack('playerChar', 'enemyChar');
+                break;
+            }
+            case 'skill_heal': {
+                const skill = SKILLS.find(s => s.id === entry.id);
+                const name = skill ? `${skill.emoji}${skill.name}` : entry.id;
+                log(`💚 ${name} 恢复了 ${formatNumber(entry.heal)} 点生命`, 'log-heal');
+                break;
+            }
+            case 'skill_buff': {
+                const skill = SKILLS.find(s => s.id === entry.id);
+                const name = skill ? `${skill.emoji}${skill.name}` : entry.id;
+                log(`🛡️ ${name} 获得 ${formatNumber(entry.defBonus)} 点临时防御（10秒）`, 'log-skill');
+                break;
+            }
+            case 'lifesteal': {
+                log(`🩸 吸血恢复了 ${formatNumber(entry.heal)} 点生命`, 'log-heal');
+                break;
+            }
+            case 'debuff_applied': {
+                const typeMap = { burn: '🔥燃烧', poison: '☠️中毒', freeze: '❄️冻结', curse: '💀诅咒', weaken: '💪虚弱' };
+                log(`${typeMap[entry.type] || entry.type} 施加成功！`, 'log-skill');
+                break;
+            }
+            case 'debuff_resisted': {
+                log(`🛡️ ${_enemyDisplayName()} 抵抗了负面效果！（抗性${Math.round((entry.resist || 0) * 100)}%）`, 'log-skill-resist');
+                break;
+            }
+            case 'counter': {
+                const counterMap = {
+                    'fire_suppress_poison': '🔥 火技能反制！毒雾光环被压制！',
+                    'ice_reset_thunder': '❄️ 冰技能反制！雷霆审判被打断重置！',
+                    'holy_void_shield': '✨ 圣光护盾！下一次虚空吞噬将被抵消！',
+                    'lightning_break_petrify': '⚡ 雷霆打断！石化凝视被打断！',
+                    'dark_chaos_reflux': '🌑 混沌逆流！下一次清buff将反弹给BOSS！',
+                };
+                log(counterMap[entry.effect] || `反制：${entry.effect}`, 'log-skill');
+                break;
+            }
+
+            // ---- DOT / Buff / Debuff ----
+            case 'dot_tick': {
+                const typeMap = { burn: '🔥燃烧', poison: '☠️中毒', bleed: '🩸流血' };
+                const who = entry.who === 'player' ? '你' : _enemyDisplayName();
+                log(`${typeMap[entry.key] || entry.key} 对${who}造成 ${formatNumber(entry.dmg)} 点伤害`, 'log-damage');
+                if (entry.who === 'enemy') showDamage('enemyChar', entry.dmg, false);
+                else showDamage('playerChar', entry.dmg, false);
+                break;
+            }
+            case 'buff_expired': {
+                log(`⏳ 增益效果已过期`, 'log-loot');
+                break;
+            }
+            case 'debuff_expired': {
+                log(`⏳ 负面效果已消退`, 'log-loot');
+                break;
+            }
+
+            // ---- 区域被动 ----
+            case 'area_thorns': {
+                log(`🌵 荆棘反弹！你受到 ${formatNumber(entry.dmg)} 点反伤！`, 'log-damage');
+                showDamage('playerChar', entry.dmg, false);
+                break;
+            }
+            case 'area_lifesteal': {
+                log(`🩸 ${_enemyDisplayName()} 通过区域吸血恢复了 ${formatNumber(entry.heal)} 点生命`, 'log-heal');
+                break;
+            }
+            case 'area_burn': {
+                log(`🔥 燃烧之地！${entry.fireRes > 0 ? '【火抗减免】' : ''}你受到 ${formatNumber(entry.dmg)} 点灼烧伤害！`, 'log-damage');
+                showDamage('playerChar', entry.dmg, false);
+                break;
+            }
+            case 'area_armorpen': {
+                log(`💥 破甲打击！${_enemyDisplayName()} 的护甲穿透效果触发了！`, 'log-damage');
+                break;
+            }
+
+            // ---- 战斗结算 ----
+            case 'enemy_killed': {
+                const drops = entry.drops || {};
+                if (drops.exp !== undefined && drops.gold !== undefined) {
+                    log(`获得 ${formatNumber(drops.exp)} 经验值和 ${formatNumber(drops.gold)} 金币！`, 'log-loot');
+                }
+                if (drops.items && drops.items.length > 0) {
+                    for (const it of drops.items) {
+                        _logDropItem(it);
+                    }
+                }
+                break;
+            }
+            case 'enemy_revived': {
+                log(`💀 ${_enemyDisplayName()} 从死亡中复活了！恢复了30%的生命值！`, 'log-damage');
+                break;
+            }
+            case 'boss_defeated': {
+                game.bossDefeated[entry.area] = true;
+                game.fightingBoss = false;
+                game.clues[entry.area] = 0;
+                renderAreas();
+                updateClueUI();
+                log(`🏆 击败了【BOSS】${game.enemy?.name || ''}！`, 'log-boss');
+                showNotification(`🎉 击败BOSS ${game.enemy?.emoji || ''} ${game.enemy?.name || ''}！`);
+                break;
+            }
+            case 'endless_unlocked': {
+                log('🌌 无尽模式已解锁！', 'log-legendary');
+                showNotification('🌌 无尽模式已解锁！');
+                break;
+            }
+            case 'endless_layer': {
+                log(`♾️ 无尽层数推进！当前第 ${entry.layer} 层`, 'log-boss');
+                showNotification(`♾️ 无尽第 ${entry.layer} 层！`);
+                break;
+            }
+            case 'player_died': {
+                log(`💀 你倒下了... 掉落了 ${formatNumber(entry.gold_lost)} 金币，生命值已恢复`, 'log-death');
+                showNotification('💀 你倒下了...');
+                stopAutoBattle();
+                renderAreas();
+                updateClueUI();
+                break;
+            }
+            case 'boss_fled': {
+                if (typeof entry.area === 'number') {
+                    if (game.bossFled) game.bossFled[entry.area] = true;
+                    if (game.clues)    game.clues[entry.area] = 0;
+                }
+                game.fightingBoss = false;
+                log(`👹 BOSS 趁机逃走了！线索已清空，需重新收集才能再次挑战。`, 'log-death');
+                showNotification('👹 BOSS 逃走，线索清空');
+                renderAreas();
+                updateClueUI();
+                break;
+            }
+
+            default:
+                // 未知日志类型不阻塞，但打 warn 方便排查（前后端字段不齐）
+                if (typeof console !== 'undefined' && console.warn) {
+                    console.warn('[battle-log] 未知事件类型:', t, entry);
+                }
+                break;
+        }
+}
+
+function _enemyDisplayName() {
+    if (!game.enemy) return '敌人';
+    if (game.enemy.isBoss) return `【BOSS】${game.enemy.name}`;
+    if (game.enemy.isElite) return `【精英】${game.enemy.name}`;
+    return game.enemy.name;
+}
+
+function _animateAttack(attackerId, targetId) {
+    const a = document.getElementById(attackerId);
+    const t = document.getElementById(targetId);
+    if (a) { a.classList.add('attacking'); setTimeout(() => a.classList.remove('attacking'), 300); }
+    if (t) { t.classList.add('hit'); setTimeout(() => t.classList.remove('hit'), 300); }
+}
+
+function _logDropItem(it) {
+    const type = it.type;
+    const p = it.payload || it;
+    if (type === 'equipment') {
+        const def = EQUIPMENT_POOL.find(e => e.id === p.id);
+        if (def) {
+            const rc = RARITY_CONFIG[def.rarity];
+            const tag = it.tag === 'boss' ? 'BOSS掉落' : '掉落';
+            log(`🛡️ ${tag} [${rc.label}] ${def.emoji} ${def.name}！`, rc.className || 'log-epic');
+            dropLog(`🛡️ [${rc.label}] ${def.emoji} ${def.name}`);
+        }
+    } else if (type === 'treasure') {
+        const def = TREASURE_POOL.find(x => x.id === p.id);
+        if (def) {
+            const rc = RARITY_CONFIG[p.rarity || def.rarity];
+            log(`🎁 掉落了 [${rc.label}] ${def.emoji} ${def.name}！`, rc.className || 'log-legendary');
+            dropLog(`🎁 [${rc.label}] ${def.emoji} ${def.name}`);
+        }
+    } else if (type === 'skill_book') {
+        const def = SKILL_BOOKS.find(b => b.id === p.id);
+        if (def) {
+            const rc = RARITY_CONFIG[def.rarity];
+            log(`📕 掉落了 [${rc.label}] ${def.emoji} ${def.name}！`, rc.className || 'log-epic');
+            dropLog(`📕 [${rc.label}] ${def.emoji} ${def.name}`);
+        }
+    } else if (type === 'item') {
+        const def = SHOP_ITEMS.find(i => i.id === p.id);
+        if (def) {
+            log(`📦 掉落了 ${def.emoji} ${def.name} ×${p.count || 1}`, 'log-loot');
+        }
+    } else if (type === 'passive_book') {
+        log(`📖 掉落了 被动技能书：${p.id || ''}！`, 'log-legendary');
+    } else if (type === 'clue') {
+        log(`🧩 获得线索！${p.area}号区域 ${p.count}/${p.need}`, 'log-loot');
+    }
+}
+
+
 const AREA_DROP_RATES = [0.005, 0.015, 0.025, 0.035, 0.045, 0.055, 0.065, 0.075, 0.085, 0.095, 0.105, 0.115, 0.125, 0.135, 0.15];
 const BOSS_AREAS = [3, 6, 9, 14];
 const BOSS_CONFIG = {
@@ -397,7 +1262,7 @@ let game = {
     lastPlayerAttack: 0, lastEnemyAttack: 0,
     lastBattleEndTime: null,
     currentArea: 0,
-    inCity: false,
+    inCity: true,
     bossDefeated: Array(15).fill(false),
     bossFled: Array(15).fill(false),
     clues: { 3: 0, 6: 0, 9: 0, 14: 0 },
@@ -492,6 +1357,9 @@ function toggleAutoStrengthen() {
     game.autoStrengthen = !game.autoStrengthen;
     renderBag();
     log(game.autoStrengthen ? '⚡ 自动强化已开启' : '⚡ 自动强化已关闭', 'log-loot');
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        ApiClient.diffSave({ 'world.autoStrengthen': game.autoStrengthen }).catch(_ => {});
+    }
 }
 
 function checkAutoStrengthen() {
@@ -530,6 +1398,9 @@ function toggleAutoSell(type) {
     renderBag();
     const typeLabel = type === 'equipment' ? '装备' : '技能书';
     log(as[type] ? `💰 ${typeLabel}自动出售已开启` : `💰 ${typeLabel}自动出售已关闭`, 'log-loot');
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        ApiClient.diffSave({ 'world.autoSell': as }).catch(_ => {});
+    }
 }
 
 function setAutoSellRarity(type, rarity) {
@@ -692,8 +1563,9 @@ function parseTradeCode(codeStr) {
 }
 
 function saveGame() {
-    const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
+    const data = { player: game.player, currentArea: game.currentArea, inCity: game.inCity, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoRecover: game.autoRecover, autoSell: game.autoSell, savedAt: Date.now() };
     localStorage.setItem(SAVE_KEY, JSON.stringify(wrapSaveData(data)));
+    // 联网模式下服务端是权威；手动保存仅刷新本地缓存，不再 PUT 整存档（避免覆盖服务端权威数据）
     showNotification('💾 游戏已保存！');
     log('游戏进度已保存', 'log-loot');
 }
@@ -708,11 +1580,13 @@ function loadGame() {
         const data = result.data;
         if (data.player) game.player = data.player;
         if (data.currentArea !== undefined) game.currentArea = data.currentArea;
+        if (data.inCity !== undefined) game.inCity = data.inCity;
         if (data.bossDefeated) game.bossDefeated = data.bossDefeated;
         if (data.bossFled) game.bossFled = data.bossFled;
         if (data.clues) game.clues = data.clues;
         if (data.fightingBoss !== undefined) game.fightingBoss = data.fightingBoss;
         if (data.autoStrengthen !== undefined) game.autoStrengthen = data.autoStrengthen;
+        if (data.autoRecover !== undefined) game.autoRecover = data.autoRecover;
         if (data.autoSell !== undefined) {
             game.autoSell = { ...game.autoSell, ...data.autoSell };
             // 兼容旧存档：maxRarity 拆分为 equipMaxRarity / bookMaxRarity
@@ -868,53 +1742,30 @@ function base64ToUtf8(str) {
     }
 }
 
-function exportSave() {
-    const data = { player: game.player, currentArea: game.currentArea, bossDefeated: game.bossDefeated, bossFled: game.bossFled, clues: game.clues, fightingBoss: game.fightingBoss, autoStrengthen: game.autoStrengthen, autoSell: game.autoSell, savedAt: Date.now() };
-    const wrapped = wrapSaveData(data);
-    let base64;
-    try { base64 = utf8ToBase64(JSON.stringify(wrapped)); } catch (e) { alert('存档编码失败：' + e.message); return; }
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(base64).then(() => showNotification('📤 存档已复制到剪贴板！')).catch(() => prompt('请复制以下存档代码（Ctrl+C）：', base64));
-    } else { prompt('请复制以下存档代码（Ctrl+C）：', base64); }
-}
-
-function importSave() {
-    const input = prompt('请输入存档代码：');
-    if (!input) return;
-    try {
-        const cleaned = input.replace(/\s/g, '');
-        const jsonStr = base64ToUtf8(cleaned);
-        const wrapped = JSON.parse(jsonStr);
-        const result = unwrapSaveData(wrapped);
-        if (!result.valid) { alert('存档数据验证失败！\n该存档可能已被篡改或损坏。'); return; }
-        const data = result.data;
-        if (data.player) game.player = data.player;
-        if (data.currentArea !== undefined) game.currentArea = data.currentArea;
-        if (data.bossDefeated) game.bossDefeated = data.bossDefeated;
-        if (data.bossFled) game.bossFled = data.bossFled;
-        if (data.clues) game.clues = data.clues;
-        if (data.fightingBoss !== undefined) game.fightingBoss = data.fightingBoss;
-        if (data.autoStrengthen !== undefined) game.autoStrengthen = data.autoStrengthen;
-        if (data.autoSell !== undefined) {
-            game.autoSell = { ...game.autoSell, ...data.autoSell };
-            // 兼容旧存档：maxRarity 拆分为 equipMaxRarity / bookMaxRarity
-            if (game.autoSell.maxRarity && !game.autoSell.equipMaxRarity) {
-                game.autoSell.equipMaxRarity = game.autoSell.maxRarity;
-            }
-            if (game.autoSell.maxRarity && !game.autoSell.bookMaxRarity) {
-                game.autoSell.bookMaxRarity = game.autoSell.maxRarity;
-            }
-        }
-        migrateOldSave();
-        spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
-        showNotification('📥 存档导入成功！'); log('外部存档已导入', 'log-loot');
-    } catch (e) { alert('存档代码无效！\n错误：' + e.message + '\n请检查是否复制完整，不要有多余空格或换行。'); }
-}
-
 async function resetGame() {
     const confirmed = await showConfirm('确定要重置所有进度吗？此操作不可撤销！');
     if (!confirmed) return;
+
+    // 联网时先清空服务端存档
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            await ApiClient.request('POST', '/save/reset');
+            log('☁️ 服务端存档已清空', 'log-death');
+        } catch (e) {
+            console.warn('服务端存档清空失败:', e);
+        }
+    }
+
+    // 清空本地所有相关存储
     localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem('iqotb_token');
+    localStorage.removeItem('iqotb_device_id');
+    localStorage.removeItem('iqotb_recovery_code');
+
+    // 重置 BattleNet 状态
+    BattleNet.setOffline(false);
+    BattleNet.clearSession();
+
     const defaults = createDefaultSave();
     game.player = defaults.player;
     game.currentArea = defaults.currentArea;
@@ -922,6 +1773,7 @@ async function resetGame() {
     game.bossFled = defaults.bossFled;
     game.clues = defaults.clues;
     game.fightingBoss = defaults.fightingBoss;
+    game.inCity = true;
     stopAutoBattle();
     spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
     log('游戏已重置', 'log-death'); showNotification('游戏已重置');
@@ -1162,6 +2014,7 @@ function toggleTreasureLock(tid) {
         const traderContent = document.getElementById('traderContent');
         if (traderContent) renderTradeSellView(traderContent);
     }
+    _diffSyncPlayer(['treasures']);
 }
 
 function loseRandomTreasure() {
@@ -1186,6 +2039,7 @@ function strengthenTreasure(tid) {
     data.level++;
     log(`✨ ${t.emoji} ${t.name} 强化到 Lv.${data.level}！`, 'log-epic');
     updateUI();
+    _diffSyncPlayer(['treasures', 'gold']);
 }
 
 function sellTreasure(tid) {
@@ -1198,6 +2052,7 @@ function sellTreasure(tid) {
     game.player.gold += t.sellPrice;
     log(`💰 出售了 ${t.emoji} ${t.name}，获得 ${formatNumber(t.sellPrice)} 金币`, 'log-loot');
     updateUI();
+    _diffSyncPlayer(['treasures', 'gold']);
 }
 
 // ========== 线索系统 ==========
@@ -1222,10 +2077,25 @@ function addClue() {
     }
 }
 
-function enterEndlessMode() {
+async function enterEndlessMode() {
     game.currentArea = 15;
     game.fightingBoss = false;
     stopAutoBattle();
+
+    if (BattleNet.isOnline()) {
+        try { await BattleNet.end(); } catch (_) {}
+        const r = await BattleNet.start(15);
+        if (r && r.session) {
+            game.enemy = r.session.enemy;
+            BattleNet.setOffline(false);
+            log('♾️ 进入无尽模式！敌人将无限变强！', 'log-boss');
+            showNotification('♾️ 进入无尽模式！');
+            updateUI(); updateEnemyUI(); showBattleView();
+            return;
+        }
+        BattleNet.setOffline(true);
+    }
+
     spawnEnemy();
     log('♾️ 进入无尽模式！敌人将无限变强！', 'log-boss');
     showNotification('♾️ 进入无尽模式！');
@@ -1237,7 +2107,7 @@ function getEndlessMultiplier(layer) {
     return Math.pow(1.08, layer);
 }
 
-function challengeBoss() {
+async function challengeBoss() {
     if (!hasEnoughClues(game.currentArea)) {
         showNotification('线索不足！继续刷怪收集线索吧！');
         return;
@@ -1245,6 +2115,22 @@ function challengeBoss() {
     game.fightingBoss = true;
     game.bossFled[game.currentArea] = false;
     stopAutoBattle();
+
+    if (BattleNet.isOnline()) {
+        try { await BattleNet.end(); } catch (_) {}
+        const r = await BattleNet.startBoss(game.currentArea);
+        if (r && r.session) {
+            game.enemy = r.session.enemy;
+            BattleNet.setOffline(false);
+            updateClueUI(); updateUI(); updateEnemyUI();
+            const bossCfg = BOSS_CONFIG[game.currentArea];
+            log(`👹 你闯入了BOSS房间！${bossCfg.emoji} ${bossCfg.name} 出现了！`, 'log-boss');
+            showNotification(`👹 BOSS ${bossCfg.emoji} ${bossCfg.name} 出现！`);
+            return;
+        }
+        BattleNet.setOffline(true);
+    }
+
     spawnBoss(game.currentArea);
     updateClueUI();
     const bossCfg = BOSS_CONFIG[game.currentArea];
@@ -1427,18 +2313,26 @@ function init() {
             }
             game.player = data.player || defaults.player;
             game.currentArea = data.currentArea ?? defaults.currentArea;
+            if (data.inCity !== undefined) game.inCity = data.inCity;
             game.bossDefeated = data.bossDefeated || defaults.bossDefeated;
             game.bossFled = data.bossFled || defaults.bossFled;
             game.clues = data.clues || defaults.clues;
             game.fightingBoss = data.fightingBoss || defaults.fightingBoss;
             game.autoStrengthen = data.autoStrengthen || false;
+            game.autoRecover = data.autoRecover || false;
             migrateOldSave();
             log('📂 已自动读取上次存档', 'log-loot');
         } catch (e) { game.player = defaults.player; game.currentArea = defaults.currentArea; game.bossDefeated = defaults.bossDefeated; game.bossFled = defaults.bossFled; game.clues = defaults.clues; game.fightingBoss = defaults.fightingBoss; }
     } else { game.player = defaults.player; game.currentArea = defaults.currentArea; game.bossDefeated = defaults.bossDefeated; game.bossFled = defaults.bossFled; game.clues = defaults.clues; game.fightingBoss = defaults.fightingBoss; log('欢迎来到勇者挂机传说！点击"开始挂机"开始战斗吧！', 'log-loot'); }
     spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
+    if (game.inCity) { showNpcView(); } else { showBattleView(); }
     const verEl = document.getElementById('gameVersion');
     if (verEl) verEl.textContent = GAME_VERSION;
+
+    // 异步联网同步（不阻塞游戏启动）
+    _serverBoot().catch(err => console.warn('server boot failed:', err));
+    // 每 30s 自动推送到服务端
+    setInterval(_serverAutosave, 30000);
 }
 
 function getPlayerStats(includeBuffs = true) {
@@ -1492,15 +2386,19 @@ function getPlayerStats(includeBuffs = true) {
             }
         }
         // 负面状态debuff
+        // 前后端命名兼容：服务端用 curse/weaken/freeze；前端旧命名为 weakness/fragile/slow
         const debuffs = p.debuffs || {};
-        if (debuffs.weakness && debuffs.weakness.endTime > now) {
-            debuffAtkMult = debuffs.weakness.value;
+        const dCurse  = debuffs.curse  || debuffs.weakness;   // 减攻击
+        const dWeaken = debuffs.weaken || debuffs.fragile;    // 减防御
+        const dFreeze = debuffs.freeze || debuffs.slow;       // 减攻速
+        if (dCurse && dCurse.endTime > now) {
+            debuffAtkMult = dCurse.value;
         }
-        if (debuffs.fragile && debuffs.fragile.endTime > now) {
-            debuffDefMult = debuffs.fragile.value;
+        if (dWeaken && dWeaken.endTime > now) {
+            debuffDefMult = dWeaken.value;
         }
-        if (debuffs.slow && debuffs.slow.endTime > now) {
-            debuffAspdMult = debuffs.slow.value;
+        if (dFreeze && dFreeze.endTime > now) {
+            debuffAspdMult = dFreeze.value;
         }
         if (debuffs.silence && debuffs.silence.endTime > now) {
             isSilenced = true;
@@ -1595,9 +2493,30 @@ function showDamage(targetId, damage, isCrit) {
     setTimeout(() => el.remove(), 1000);
 }
 
-function battleRound(skipUI = false) {
+async function battleRound(skipUI = false) {
     if (!game.enemy || game.enemy.hp <= 0) return;
     if (game.player.hp <= 0) { playerDeath(); return; }
+
+    // 联网模式
+    if (BattleNet.isOnline()) {
+        await BattleNet.withLock(async () => {
+            const r = await BattleNet.attack();
+            if (r) {
+                _applyBattleResult(r);
+                if (!game.enemy && game.currentArea >= 0) {
+                    const r2 = await BattleNet.start(game.currentArea);
+                    if (r2 && r2.session) game.enemy = r2.session.enemy;
+                    else spawnEnemy();
+                    updateEnemyUI();
+                }
+            } else {
+                BattleNet.setOffline(true);
+            }
+        });
+        return;
+    }
+
+    // 离线模式：本地计算
     const playerDmg = attack(game.player, game.enemy, true);
     let enemyName;
     if (game.enemy.isBoss) enemyName = `【BOSS】${game.enemy.name}`;
@@ -2212,75 +3131,205 @@ function stopAutoBattle() {
     document.getElementById('autoBattleBtn').textContent = '开始挂机';
 }
 
-function manualAttack() {
-    if (game.player.hp > 0 && game.enemy && game.enemy.hp > 0) {
-        battleRound();
-        setTimeout(() => { if (game.enemy && game.enemy.hp > 0 && game.player.hp > 0) enemyAttack(); }, 400);
+async function manualAttack() {
+    if (game.player.hp <= 0 || !game.enemy || game.enemy.hp <= 0) return;
+
+    // 联网模式：单次攻击由服务端计算（含玩家+敌人反击）
+    if (BattleNet.isOnline()) {
+        const r = await BattleNet.withLock(async () => {
+            const result = await BattleNet.attack();
+            if (result) {
+                _applyBattleResult(result);
+                if (!game.enemy) {
+                    const r2 = await BattleNet.start(game.currentArea);
+                    if (r2 && r2.session) game.enemy = r2.session.enemy;
+                    else spawnEnemy();
+                    updateEnemyUI(); updateUI();
+                }
+            } else {
+                BattleNet.setOffline(true);
+            }
+            return result;
+        });
+        return;
     }
+
+    // 离线模式：本地计算
+    battleRound();
+    setTimeout(() => { if (game.enemy && game.enemy.hp > 0 && game.player.hp > 0) enemyAttack(); }, 400);
 }
 
-function autoBattleLoop() {
+/**
+ * 联网模式自动恢复：检查 hp/mp 是否低于阈值 → 调用 /npc/shop/use 通过服务端扣药水
+ * （离线模式由 autoBattleLoop 内 autoRecover() 处理，那里直接前端扣减）
+ */
+async function _autoRecoverNet() {
+    if (!game.autoRecover) return;
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) return;
+    if (!game.player) return;
+    const stats = getPlayerStats(false);
+    const items = game.player.items || {};
+
+    // 生命低于 30% → 优先大药水
+    if (game.player.hp < stats.maxHp * 0.3) {
+        let potionId = null;
+        if ((items['hp_potion_l']?.count || 0) > 0)       potionId = 'hp_potion_l';
+        else if ((items['hp_potion_s']?.count || 0) > 0)  potionId = 'hp_potion_s';
+        else if ((items['endless_hp_potion']?.count || 0) > 0) potionId = 'endless_hp_potion';
+        else if ((items['phoenix_feather']?.count || 0) > 0)   potionId = 'phoenix_feather';
+        if (potionId) {
+            try {
+                const r = await ApiClient.request('POST', '/npc/shop/use', { item_id: potionId, count: 1 });
+                if (r && r.player) _mergeServerPlayer(r.player);
+                const def = SHOP_ITEMS.find(i => i.id === potionId);
+                log(`🩹 自动使用了 ${def ? def.emoji : ''} ${def ? def.name : potionId}`, 'log-heal');
+            } catch (_) { /* 静默：可能服务端 hp 已被恢复或药水已没 */ }
+        }
+    }
+
+    // 魔力低于 30%
+    if (game.player.mp < stats.maxMp * 0.3) {
+        let mpId = null;
+        if ((items['mp_potion']?.count || 0) > 0)              mpId = 'mp_potion';
+        else if ((items['endless_mp_potion']?.count || 0) > 0) mpId = 'endless_mp_potion';
+        if (mpId) {
+            try {
+                const r = await ApiClient.request('POST', '/npc/shop/use', { item_id: mpId, count: 1 });
+                if (r && r.player) _mergeServerPlayer(r.player);
+                const def = SHOP_ITEMS.find(i => i.id === mpId);
+                log(`💧 自动使用了 ${def ? def.emoji : ''} ${def ? def.name : mpId}`, 'log-heal');
+            } catch (_) { /* 静默 */ }
+        }
+    }
+
+    // 药水耗尽 → 关闭自动恢复
+    const fresh = game.player.items || {};
+    const hasHp = (fresh['hp_potion_l']?.count || 0) > 0
+               || (fresh['hp_potion_s']?.count || 0) > 0
+               || (fresh['endless_hp_potion']?.count || 0) > 0
+               || (fresh['phoenix_feather']?.count || 0) > 0;
+    const hasMp = (fresh['mp_potion']?.count || 0) > 0
+               || (fresh['endless_mp_potion']?.count || 0) > 0;
+    if (!hasHp && !hasMp) {
+        game.autoRecover = false;
+        const btn = document.getElementById('autoRecoverBtn');
+        if (btn) {
+            btn.textContent = '🩹 自动恢复: 关';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+        }
+        log('🩹 药水已耗尽，自动恢复已关闭', 'log-damage');
+    }
+    renderBag();
+    updateUI();
+}
+
+async function autoBattleLoop() {
     if (!game.autoBattle) return;
-    const now = Date.now();
-    const stats = getPlayerStats();
-    const maxBatch = document.hidden ? 500 : 5;
+    try {
+        // 联网模式：调用服务端 /battle/tick 批量计算 30 回合并按攻速节奏逐步回放
+        if (BattleNet.isOnline()) {
+            const r = await BattleNet.tick(30);
+            // batch_in_progress：上次批量还没播完，等服务端给的 wait_ms 后再试
+            if (r && r._waitMs) {
+                game.autoBattleTimer = setTimeout(autoBattleLoop, r._waitMs);
+                return;
+            }
+            if (r) {
+                // 服务端已自动推进到下一个敌人或结束战斗
+                if (!game.enemy && !r.rounds?.length && game.player.hp > 0 && game.currentArea >= 0) {
+                    const r2 = await BattleNet.start(game.currentArea);
+                    if (r2 && r2.session) game.enemy = r2.session.enemy;
+                    else spawnEnemy();
+                    updateEnemyUI();
+                }
+                // 按 aspd 节奏逐回合回放（_playBattleRounds 会等到全部回合播完才 resolve）
+                await _playBattleRounds(r);
 
-    // 自动恢复生命和魔力
-    if (game.autoRecover) {
-        autoRecover(stats);
-    }
+                // batch 播完后检查是否需要自动喝药（联网模式走服务端扣药水）
+                await _autoRecoverNet();
 
-    // 自动释放技能
-    if (!document.hidden) {
-        tryAutoCastSkill();
-    }
+                // 提前结束（boss 被打败 / 玩家死了 / inCity 切换）→ 停止挂机
+                if (r.ended_early && (!r.session || game.inCity || game.player.hp <= 0)) {
+                    stopAutoBattle();
+                    return;
+                }
+                if (game.autoBattle) {
+                    // 立即请求下一批（服务端的节流确保不会真的"过早"）
+                    game.autoBattleTimer = setTimeout(autoBattleLoop, 50);
+                }
+                return;
+            }
+            BattleNet.setOffline(true);
+        }
 
-    const playerElapsed = now - game.lastPlayerAttack;
-    const playerAttacks = Math.min(Math.floor(playerElapsed / stats.aspd), maxBatch);
-    for (let i = 0; i < playerAttacks; i++) {
-        if (!game.enemy) spawnEnemy();
-        if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
-        battleRound(true);
-    }
-    if (playerAttacks > 0) game.lastPlayerAttack += playerAttacks * stats.aspd;
+        // 离线模式：本地计算
+        const now = Date.now();
+        const stats = getPlayerStats();
+        const maxBatch = document.hidden ? 500 : 5;
 
-    // 敌人debuff持续伤害结算
-    if (game.enemy && game.enemy.hp > 0) {
-        processEnemyDebuffDamage();
-    }
+        // 自动恢复生命和魔力
+        if (game.autoRecover) {
+            autoRecover(stats);
+        }
 
-    // 玩家眩晕时跳过攻击
-    if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
-        game.lastPlayerAttack = now;
-    }
-    const enemyInterval = game.enemy ? getEnemyEffectiveAspd() : 900;
-    const enemyElapsed = now - game.lastEnemyAttack;
-    const enemyAttacks = Math.min(Math.floor(enemyElapsed / enemyInterval), maxBatch);
-    for (let i = 0; i < enemyAttacks; i++) {
-        if (!game.enemy) spawnEnemy();
-        if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
-        enemyAttack(true);
-    }
-    if (enemyAttacks > 0) game.lastEnemyAttack += enemyAttacks * enemyInterval;
+        // 自动释放技能
+        if (!document.hidden) {
+            tryAutoCastSkill();
+        }
 
-    // 批量攻击结束后统一更新一次UI
-    if (playerAttacks > 0 || enemyAttacks > 0) {
-        updateUI();
-    }
+        const playerElapsed = now - game.lastPlayerAttack;
+        const playerAttacks = Math.min(Math.floor(playerElapsed / stats.aspd), maxBatch);
+        for (let i = 0; i < playerAttacks; i++) {
+            if (!game.enemy) spawnEnemy();
+            if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
+            battleRound(true);
+        }
+        if (playerAttacks > 0) game.lastPlayerAttack += playerAttacks * stats.aspd;
 
-    // 持续更新技能冷却进度条
-    updateSkillButtons();
+        // 敌人debuff持续伤害结算
+        if (game.enemy && game.enemy.hp > 0) {
+            processEnemyDebuffDamage();
+        }
 
-    // 自动出售（战斗中获得的物品立即处理）
-    checkAutoSell();
+        // 玩家眩晕时跳过攻击
+        if (game.player.stunnedUntil && now < game.player.stunnedUntil) {
+            game.lastPlayerAttack = now;
+        }
+        const enemyInterval = game.enemy ? getEnemyEffectiveAspd() : 900;
+        const enemyElapsed = now - game.lastEnemyAttack;
+        const enemyAttacks = Math.min(Math.floor(enemyElapsed / enemyInterval), maxBatch);
+        for (let i = 0; i < enemyAttacks; i++) {
+            if (!game.enemy) spawnEnemy();
+            if (!game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) break;
+            enemyAttack(true);
+        }
+        if (enemyAttacks > 0) game.lastEnemyAttack += enemyAttacks * enemyInterval;
 
-    // 链式调度下一次执行，确保固定间隔
-    if (game.autoBattle) {
-        game.autoBattleTimer = setTimeout(autoBattleLoop, 300);
+        // 批量攻击结束后统一更新一次UI
+        if (playerAttacks > 0 || enemyAttacks > 0) {
+            updateUI();
+        }
+
+        // 持续更新技能冷却进度条
+        updateSkillButtons();
+
+        // 自动出售（战斗中获得的物品立即处理）
+        checkAutoSell();
+
+        // 链式调度下一次执行，确保固定间隔
+        if (game.autoBattle) {
+            game.autoBattleTimer = setTimeout(autoBattleLoop, 300);
+        }
+    } catch (err) {
+        console.error('autoBattleLoop error:', err);
+        // 出错后停止自动战斗，避免无限崩溃循环
+        stopAutoBattle();
+        showNotification('⚠️ 战斗循环出错，已自动停止');
     }
 }
 
-function toggleAutoBattle() {
+async function toggleAutoBattle() {
     game.autoBattle = !game.autoBattle;
     const btn = document.getElementById('autoBattleBtn');
     if (game.autoBattle) {
@@ -2288,6 +3337,19 @@ function toggleAutoBattle() {
         game.lastPlayerAttack = Date.now();
         game.lastEnemyAttack = Date.now();
         log('开始自动战斗！', 'log-loot');
+        // 立即触发首次攻击，确保用户不需要额外点击手动攻击
+        if (game.player.hp > 0 && game.enemy && game.enemy.hp > 0) {
+            if (BattleNet.isOnline()) {
+                try {
+                    await BattleNet.withLock(async () => {
+                        const result = await BattleNet.attack();
+                        if (result) _applyBattleResult(result);
+                    });
+                } catch (_) {}
+            } else {
+                battleRound(true);
+            }
+        }
         autoBattleLoop();
     } else { stopAutoBattle(); log('停止自动战斗', 'log-loot'); }
 }
@@ -2304,6 +3366,10 @@ function toggleAutoRecover() {
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
         log('🩹 已关闭自动恢复', 'log-loot');
+    }
+    // 同步到服务端 world.autoRecover，避免下次 _serverBoot 拉回旧值覆盖
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        ApiClient.diffSave({ 'world.autoRecover': game.autoRecover }).catch(_ => {});
     }
 }
 
@@ -2434,6 +3500,30 @@ function buyUpgrade(upgradeId) {
             log(`购买了 ${upgrade.name} Lv.${level + 1}！+${formatNumber(bonus)}！`, 'log-loot');
         }
         updateUI(); renderUpgrades();
+
+        // 联网模式：用 /save/diff 把变更字段同步到服务端，避免刷新后丢失
+        if (ApiClient.isOnline() && ApiClient.isReady()) {
+            const changes = {
+                'player.gold': game.player.gold,
+                [`player.${levelKey}`]: game.player[levelKey],
+            };
+            // 把所有可能被改的属性都打包，防止漏（不同 upgrade type 改的字段不同）
+            if (upgrade.type === 'crit') {
+                changes['player.crit']    = game.player.crit;
+                changes['player.critDmg'] = game.player.critDmg;
+            } else if (upgrade.type === 'aspd') {
+                // aspd 等级已包含在 levelKey，运行时由 getPlayerStats 算实际 aspd
+            } else if (upgrade.type === 'vamp') {
+                changes['player.vamp']    = game.player.vamp;
+            } else {
+                // atk / def / maxHp / spi
+                changes[`player.${upgrade.type}`] = game.player[upgrade.type];
+            }
+            ApiClient.diffSave(changes).catch(e => {
+                console.warn('upgrade diff failed:', e && e.message);
+                showNotification('⚠️ 升级同步失败，刷新后可能丢失');
+            });
+        }
     } else { log('金币不足！', 'log-damage'); }
 }
 
@@ -2446,28 +3536,43 @@ function getMaxAllowedArea() {
     return 14;
 }
 
-function changeArea(index) {
+async function changeArea(index) {
     const area = game.areas[index];
-    if (game.player.level >= area.level) {
-        const maxAllowed = getMaxAllowedArea();
-        if (index > maxAllowed) {
-            const nextBoss = BOSS_AREAS.find(a => a >= maxAllowed && !isBossDefeated(a));
-            if (nextBoss !== undefined) {
-                const bossCfg = BOSS_CONFIG[nextBoss];
-                showNotification(`⚠️ 必须先击败 ${bossCfg.emoji} ${bossCfg.name} 才能进入下一关！`);
-                log(`进入${area.name}需要先击败${bossCfg.name}！`, 'log-death');
-                return;
-            }
+    if (game.player.level < area.level) return;
+    const maxAllowed = getMaxAllowedArea();
+    if (index > maxAllowed) {
+        const nextBoss = BOSS_AREAS.find(a => a >= maxAllowed && !isBossDefeated(a));
+        if (nextBoss !== undefined) {
+            const bossCfg = BOSS_CONFIG[nextBoss];
+            showNotification(`⚠️ 必须先击败 ${bossCfg.emoji} ${bossCfg.name} 才能进入下一关！`);
+            log(`进入${area.name}需要先击败${bossCfg.name}！`, 'log-death');
+            return;
         }
-        game.currentArea = index;
-        game.fightingBoss = false;
-        stopAutoBattle();
-        spawnEnemy();
-        log(`进入${area.name}！`, 'log-loot');
-        updateClueUI();
-        updateUI();
-        showBattleView();
     }
+    game.currentArea = index;
+    game.fightingBoss = false;
+    stopAutoBattle();
+
+    // 联网模式：先结束旧战斗，再启动新战斗
+    if (BattleNet.isOnline()) {
+        try { await BattleNet.end(); } catch (_) {}
+        const r = await BattleNet.start(index);
+        if (r && r.session) {
+            game.enemy = r.session.enemy;
+            BattleNet.setOffline(false);
+            log(`进入${area.name}！`, 'log-loot');
+            updateClueUI(); updateUI(); updateEnemyUI(); showBattleView();
+            return;
+        }
+        // 联网失败：回退到本地模式
+        BattleNet.setOffline(true);
+    }
+
+    spawnEnemy();
+    log(`进入${area.name}！`, 'log-loot');
+    updateClueUI();
+    updateUI();
+    showBattleView();
 }
 
 function renderAreas() {
@@ -3342,7 +4447,7 @@ function _applyItemEffect(item, now) {
     }
 }
 
-function useItem(itemId) {
+async function useItem(itemId) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
     if (item.type === 'enhance_stone') { log('🔮 强化石只能在铁匠铺锻造时使用！', 'log-damage'); return; }
@@ -3350,6 +4455,19 @@ function useItem(itemId) {
     const data = playerItems[itemId];
     if (!data || data.count <= 0) { log('道具数量不足！', 'log-damage'); return; }
 
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/use', { item_id: itemId, count: 1 });
+            if (r.player) _mergeServerPlayer(r.player);
+            const logs = (r.result && r.result.log) ? r.result.log : [];
+            for (const msg of logs) log(msg, 'log-heal');
+            renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`使用失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     data.count--;
     if (data.count <= 0) delete playerItems[itemId];
 
@@ -3371,6 +4489,21 @@ async function useAllItems(itemId) {
     const confirmed = await showConfirm(`确定要一次性使用全部 ${count} 个 ${item.name} 吗？`);
     if (!confirmed) return;
 
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/use', { item_id: itemId, count });
+            if (r.player) _mergeServerPlayer(r.player);
+            const logs = (r.result && r.result.log) ? r.result.log : [];
+            for (const msg of logs) log(msg, 'log-heal');
+            log(`🏪 批量使用了 ${item.emoji} ${item.name} ×${count}！`, 'log-epic');
+            showNotification(`🏪 已使用 ${item.name} ×${count}`);
+            renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`使用失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     delete playerItems[itemId];
     const now = Date.now();
     for (let i = 0; i < count; i++) {
@@ -3396,6 +4529,7 @@ function sellItem(itemId) {
     log(`💰 出售了 ${item.emoji} ${item.name}，获得 ${formatNumber(sellPrice)} 金币`, 'log-loot');
     renderBag();
     updateUI();
+    _diffSyncPlayer(['items', 'gold']);
 }
 
 function getActiveBuffs() {
@@ -3430,7 +4564,14 @@ function cleanExpiredDebuffs() {
     const debuffs = game.player.debuffs || {};
     const now = Date.now();
     let expired = false;
-    const names = { bleed: '🩸 流血', poison: '☠️ 中毒', weakness: '💔 虚弱', slow: '🐢 迟缓', fragile: '💥 脆弱', silence: '🔇 沉默' };
+    // 兼容前后端两套命名：weakness/fragile/slow 为前端旧名，weaken/freeze/curse 为服务端名
+    const names = {
+        bleed: '🩸 流血', poison: '☠️ 中毒', burn: '🔥 燃烧',
+        weakness: '💔 虚弱', curse: '💔 虚弱',
+        fragile: '💥 脆弱', weaken: '💥 脆弱',
+        slow: '🐢 迟缓', freeze: '🐢 迟缓',
+        silence: '🔇 沉默'
+    };
     for (const [key, debuff] of Object.entries(debuffs)) {
         if (debuff.endTime && debuff.endTime <= now) {
             delete debuffs[key];
@@ -3445,13 +4586,18 @@ function getActiveDebuffs() {
     const debuffs = game.player.debuffs || {};
     const now = Date.now();
     const active = [];
+    // 兼容前后端两套命名
     const meta = {
-        bleed: { name: '流血', emoji: '🩸', isPercent: true },
-        poison: { name: '中毒', emoji: '☠️', isPercent: true },
+        bleed:    { name: '流血', emoji: '🩸', isPercent: true },
+        poison:   { name: '中毒', emoji: '☠️', isPercent: true },
+        burn:     { name: '燃烧', emoji: '🔥', isPercent: true },
         weakness: { name: '虚弱', emoji: '💔', isPercent: true },
-        slow: { name: '迟缓', emoji: '🐢', isPercent: true },
-        fragile: { name: '脆弱', emoji: '💥', isPercent: true },
-        silence: { name: '沉默', emoji: '🔇', isPercent: false }
+        curse:    { name: '虚弱', emoji: '💔', isPercent: true },
+        fragile:  { name: '脆弱', emoji: '💥', isPercent: true },
+        weaken:   { name: '脆弱', emoji: '💥', isPercent: true },
+        slow:     { name: '迟缓', emoji: '🐢', isPercent: true },
+        freeze:   { name: '迟缓', emoji: '🐢', isPercent: true },
+        silence:  { name: '沉默', emoji: '🔇', isPercent: false }
     };
     for (const [key, debuff] of Object.entries(debuffs)) {
         if (debuff.endTime && debuff.endTime > now) {
@@ -4053,7 +5199,7 @@ function calculateSkillDamage(skill, skillLevel) {
     return Math.floor((skill.baseDmg + atkBonus) * levelMult * spiMult);
 }
 
-function castSkill(skillId) {
+async function castSkill(skillId) {
     const skill = SKILLS.find(s => s.id === skillId);
     if (!skill || !game.enemy || game.enemy.hp <= 0 || game.player.hp <= 0) return;
     const skillData = game.player.skills[skillId];
@@ -4075,6 +5221,26 @@ function castSkill(skillId) {
         return;
     }
 
+    // 联网模式：服务端权威计算
+    if (BattleNet.isOnline()) {
+        await BattleNet.withLock(async () => {
+            const r = await BattleNet.castSkill(skillId);
+            if (r) {
+                _applyBattleResult(r);
+                if (!game.enemy && game.currentArea >= 0) {
+                    const r2 = await BattleNet.start(game.currentArea);
+                    if (r2 && r2.session) game.enemy = r2.session.enemy;
+                    else spawnEnemy();
+                    updateEnemyUI();
+                }
+            } else {
+                BattleNet.setOffline(true);
+            }
+        });
+        return;
+    }
+
+    // 离线模式：本地计算
     game.player.mp -= skill.mpCost;
     skillData.cooldownEnd = now + skill.cooldown;
 
@@ -4222,7 +5388,11 @@ function updateSkillButtons() {
         const skill = SKILLS.find(s => s.id === skillId);
         if (!skill) return;
         activeSkillIds.add(skillId);
-        const cdRemaining = Math.max(0, data.cooldownEnd - now);
+        // 服务端 cooldownEnd 用的是服务器时钟 + 批量战斗的 simulated time，
+        // 可能因为网络延迟 / 时钟偏移使得 (cooldownEnd - now) > skill.cooldown，
+        // 这里 clamp 到 [0, cooldown]，避免进度条超过 100%
+        const rawRemaining = (data.cooldownEnd || 0) - now;
+        const cdRemaining = Math.max(0, Math.min(skill.cooldown, rawRemaining));
         const cdPercent = skill.cooldown > 0 ? (cdRemaining / skill.cooldown) * 100 : 0;
         const canUse = cdRemaining <= 0 && game.player.mp >= skill.mpCost;
         const elInfo = ELEMENTS[skill.element];
@@ -4282,6 +5452,8 @@ function equipItem(bagIndex) {
     if (item.appraised === false) { log('该装备尚未鉴定，无法穿戴！', 'log-damage'); return; }
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
+    // 防御：服务端把空对象序列化为 [] 数组，本地必须强制转回 {} 才能用 obj[slotKey] 赋值
+    _normalizePlayerObjectFields(game.player);
     const slotKey = getSlotKeyForEquipment(eqDef);
     game.player.equipments = game.player.equipments || {};
     // 如果槽位已有装备，卸下旧装备到背包
@@ -4297,6 +5469,8 @@ function equipItem(bagIndex) {
     renderEquipments();
     renderBag();
     renderBlacksmithContent();
+    // 联网模式：同步装备槽位 + 背包到服务端，防止刷新后回到旧状态
+    _diffSyncPlayer(['equipments', 'equipmentBag']);
 }
 
 function unequipItem(slotKey) {
@@ -4316,6 +5490,8 @@ function unequipItem(slotKey) {
     renderEquipments();
     renderBag();
     renderBlacksmithContent();
+    // 联网模式：同步装备槽位 + 背包到服务端
+    _diffSyncPlayer(['equipments', 'equipmentBag']);
 }
 
 function sellEquipment(bagIndex) {
@@ -4330,14 +5506,19 @@ function sellEquipment(bagIndex) {
     updateUI();
     renderBag();
     renderBlacksmithContent();
+    _diffSyncPlayer(['equipmentBag', 'gold']);
 }
 
 // ========== 主城/NPC系统 ==========
 let currentNpcTab = 'learn';
 
-function showNpcView() {
+async function showNpcView() {
     game.inCity = true;
     stopAutoBattle();
+    // 结束联网战斗会话
+    if (BattleNet.isOnline()) {
+        try { await BattleNet.end(); } catch (_) {}
+    }
     document.getElementById('battleView').style.display = 'none';
     document.getElementById('npcView').style.display = '';
     document.getElementById('npcSelectView').style.display = '';
@@ -4463,7 +5644,20 @@ function renderInnContent() {
     }
 }
 
-function restAtInn() {
+async function restAtInn() {
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/inn/rest');
+            if (r.player) _mergeServerPlayer(r.player);
+            log('🏨 在客栈好好休息了一番，状态完全恢复！', 'log-heal');
+            showNotification('🏨 休息完毕，状态全满！');
+            renderInnContent(); updateUI();
+            return;
+        } catch (e) { showNotification(`休息失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const stats = getPlayerStats();
     game.player.hp = stats.maxHp;
     game.player.mp = stats.maxMp;
@@ -4760,7 +5954,31 @@ function renderBlacksmithForge(container) {
     container.innerHTML = html;
 }
 
-function forgeEquipment() {
+async function forgeEquipment() {
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/blacksmith/forge');
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            const eq = res.equipment || {};
+            const eqDef = EQUIPMENT_POOL.find(e => e.id === eq.id);
+            const rc = eqDef ? RARITY_CONFIG[eqDef.rarity] : null;
+            if (eqDef && rc) {
+                if (eqDef.rarity === 'divine') {
+                    log(`⚒️ 铁匠打造了 [${rc.label}] ${eqDef.emoji} ${eqDef.name}！属性完美！`, 'log-legendary');
+                    showNotification(`⚒️ 奇迹！打造了${rc.label}装备：${eqDef.name}！`);
+                } else {
+                    log(`⚒️ 铁匠打造了 [${rc.label}] ${eqDef.emoji} ${eqDef.name}！`, 'log-epic');
+                    showNotification(`⚒️ 打造了${rc.label}装备：${eqDef.name}！`);
+                }
+            }
+            renderBlacksmithContent(); renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`打造失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const playerLevel = game.player.level;
     const levelMult = 1 + (playerLevel - 1) * 0.15;
     const forgeCost = Math.floor(FORGE_BASE_COST * levelMult);
@@ -4768,12 +5986,10 @@ function forgeEquipment() {
 
     game.player.gold -= forgeCost;
 
-    // 万分之一概率打造神器
     let selectedRarity;
     if (Math.random() < 0.0001) {
         selectedRarity = 'divine';
     } else {
-        // 根据等级决定品质
         const rarityWeights = [];
         rarityWeights.push({ rarity: 'common', weight: Math.max(10, 100 - playerLevel * 3) });
         if (playerLevel >= 5) rarityWeights.push({ rarity: 'rare', weight: Math.min(50, playerLevel * 2) });
@@ -4793,7 +6009,6 @@ function forgeEquipment() {
     const eqDef = pool[Math.floor(Math.random() * pool.length)];
     if (!eqDef) { log('打造失败，请重试', 'log-damage'); return; }
 
-    // 铁匠打造装备不需要鉴定，非神器属性浮动50%-120%
     const attrMult = selectedRarity === 'divine' ? 1 : 0.5 + Math.random() * 0.7;
     const forgedItem = { id: eqDef.id, level: 1, appraised: true, attrMult: parseFloat(attrMult.toFixed(2)) };
     game.player.equipmentBag = game.player.equipmentBag || [];
@@ -4933,7 +6148,20 @@ function updateRefineRate(index, baseRate) {
     }
 }
 
-function refineEquipment(bagIndex) {
+// 简单串行锁：用于 NPC 类操作（铁匠/鉴定/技能等），防止 await 期间用户快点导致 bagIndex 错位
+let _npcCallLock = false;
+async function _withNpcLock(fn) {
+    if (_npcCallLock) return null;
+    _npcCallLock = true;
+    try { return await fn(); } finally { _npcCallLock = false; }
+}
+
+async function refineEquipment(bagIndex) {
+    if (_npcCallLock) { showNotification('⏳ 操作进行中，请稍候'); return; }
+    return _withNpcLock(() => _refineEquipmentImpl(bagIndex));
+}
+
+async function _refineEquipmentImpl(bagIndex) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
@@ -4943,7 +6171,6 @@ function refineEquipment(bagIndex) {
 
     const refineLevel = item.refine || 0;
     const refineCost = Math.floor(eqDef.sellPrice * 0.5 * Math.pow(1.5, refineLevel));
-    let baseRate = Math.max(10, 100 - refineLevel * 15);
 
     const stoneInput = document.getElementById(`stone-${bagIndex}`);
     let useStones = 0;
@@ -4951,9 +6178,33 @@ function refineEquipment(bagIndex) {
         useStones = parseInt(stoneInput.value) || 0;
         if (useStones < 0) useStones = 0;
     }
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/blacksmith/refine', { bag_index: bagIndex, use_stones: useStones });
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            const eqDef2 = EQUIPMENT_POOL.find(e => e.id === bag[bagIndex]?.id);
+            if (res.success) {
+                log(`🔥 锻造成功！${eqDef2 ? eqDef2.emoji : ''} ${eqDef2 ? eqDef2.name : ''} 锻造+${res.refine}！`, 'log-epic');
+                showNotification(`🔥 锻造成功！${eqDef2 ? eqDef2.name : ''} +${res.refine}`);
+            } else if (res.destroyed) {
+                log(`💥 锻造失败！${eqDef2 ? eqDef2.emoji : ''} ${eqDef2 ? eqDef2.name : ''} 在火焰中化为灰烬...`, 'log-death');
+                showNotification('💥 锻造失败，装备已损毁');
+            } else {
+                log(`💥 锻造失败！${eqDef2 ? eqDef2.emoji : ''} ${eqDef2 ? eqDef2.name : ''} 锻造等级降至+${res.refine}`, 'log-death');
+                showNotification(`💥 锻造失败，锻造等级-1`);
+            }
+            renderBlacksmithContent(); renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`锻造失败：${e.message}`); return; }
+    }
+
+    // 离线模式
+    let baseRate = Math.max(10, 100 - refineLevel * 15);
     const playerStoneCount = (game.player.items && game.player.items['enhance_stone']) ? game.player.items['enhance_stone'].count : 0;
     if (useStones > playerStoneCount) useStones = playerStoneCount;
-
     const successRate = Math.min(100, baseRate + useStones * 5);
 
     if (game.player.gold < refineCost) { log('金币不足，无法锻造！', 'log-damage'); return; }
@@ -4967,7 +6218,6 @@ function refineEquipment(bagIndex) {
     const roll = Math.random() * 100;
     if (roll <= successRate) {
         item.refine = refineLevel + 1;
-        const rc = RARITY_CONFIG[eqDef.rarity];
         log(`🔥 锻造成功！${eqDef.emoji} ${eqDef.name} 锻造+${item.refine}！`, 'log-epic');
         showNotification(`🔥 锻造成功！${eqDef.name} +${item.refine}`);
     } else {
@@ -5033,9 +6283,23 @@ function renderShopContent() {
     });
 }
 
-function buyShopItem(itemId, count = 1) {
+async function buyShopItem(itemId, count = 1) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/buy', { item_id: itemId, count });
+            if (r.player) _mergeServerPlayer(r.player);
+            log(`🏪 购买了 ${item.emoji} ${item.name} ×${count}`, 'log-loot');
+            showNotification(`🏪 购买成功！${item.name} ×${count}`);
+            renderShopContent(); renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`购买失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const playerLevel = game.player.level;
     const levelMult = 1 + (playerLevel - 1) * 0.1;
     const price = Math.floor(item.basePrice * levelMult);
@@ -5044,8 +6308,6 @@ function buyShopItem(itemId, count = 1) {
     if (game.player.gold < totalPrice) { log('金币不足！', 'log-damage'); return; }
 
     game.player.gold -= totalPrice;
-
-    // 存入背包
     game.player.items = game.player.items || {};
     if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
     game.player.items[item.id].count += count;
@@ -5124,7 +6386,7 @@ function _renderTradeEquipmentList(container) {
             <div style="font-size:0.7em;color:#aaa;margin-bottom:4px;">${formatEqStat(eqDef, item)}${multTag}</div>
             ${setTag}
             <div style="margin-top:8px;">
-                <button class="btn btn-primary" onclick="sellTradeEquipment(${index})" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                <button class="btn btn-primary" onclick="sellTradeEquipment(${index})" style="padding:4px 12px;font-size:0.8em;">🏪 挂售</button>
             </div>
         `;
         container.appendChild(card);
@@ -5156,7 +6418,7 @@ function _renderTradeTreasureList(container) {
                 <div style="font-size:0.75em;color:#f1c40f;margin-bottom:4px;">Lv.${level} ×1</div>
                 <div style="font-size:0.7em;color:#aaa;margin-bottom:4px;">${formatValue(t.stat, t.value)}</div>
                 <div style="margin-top:8px;">
-                    <button class="btn btn-primary" onclick="sellTradeTreasure('${tid}', ${level}, 1, true)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                    <button class="btn btn-primary" onclick="sellTradeTreasure('${tid}', ${level}, 1, true)" style="padding:4px 12px;font-size:0.8em;">🏪 挂售</button>
                 </div>
             `;
             container.appendChild(highCard);
@@ -5173,7 +6435,7 @@ function _renderTradeTreasureList(container) {
                 <div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">Lv.1 ×${baseCount}</div>
                 <div style="font-size:0.7em;color:#aaa;margin-bottom:4px;">${formatValue(t.stat, t.value)}</div>
                 <div style="margin-top:8px;">
-                    <button class="btn btn-primary" onclick="sellTradeTreasure('${tid}', 1, 1, false)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                    <button class="btn btn-primary" onclick="sellTradeTreasure('${tid}', 1, 1, false)" style="padding:4px 12px;font-size:0.8em;">🏪 挂售</button>
                 </div>
             `;
             container.appendChild(baseCard);
@@ -5199,7 +6461,7 @@ function _renderTradeItemList(container) {
             <div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">${item.desc}</div>
             <div style="font-size:0.8em;color:#f1c40f;margin-bottom:4px;">×${data.count}</div>
             <div style="margin-top:8px;">
-                <button class="btn btn-primary" onclick="sellTradeItem('${itemId}', 1)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                <button class="btn btn-primary" onclick="sellTradeItem('${itemId}', 1)" style="padding:4px 12px;font-size:0.8em;">🏪 挂售</button>
             </div>
         `;
         container.appendChild(card);
@@ -5225,7 +6487,7 @@ function _renderTradeSkillBookList(container) {
             <div style="font-size:0.75em;color:#aaa;margin-bottom:4px;">${data.appraised ? '已鉴定' : '未鉴定'}</div>
             <div style="font-size:0.8em;color:#f1c40f;margin-bottom:4px;">×${data.count}</div>
             <div style="margin-top:8px;">
-                <button class="btn btn-primary" onclick="sellTradeSkillBook('${bookId}', 1)" style="padding:4px 12px;font-size:0.8em;">📤 生成交易码</button>
+                <button class="btn btn-primary" onclick="sellTradeSkillBook('${bookId}', 1)" style="padding:4px 12px;font-size:0.8em;">🏪 挂售</button>
             </div>
         `;
         container.appendChild(card);
@@ -5239,100 +6501,125 @@ function _isTradeCodePending() {
     return resultPanel && resultPanel.style.display !== 'none';
 }
 
-function sellTradeEquipment(bagIndex) {
-    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
+// 让玩家输入价格的简化弹窗（共用）
+function _promptListingPrice(itemName) {
+    const s = prompt(`挂售 ${itemName}：输入金币售价（1 ~ 100000000）`, '100');
+    if (s === null || s === '') return null;
+    const p = parseInt(s, 10);
+    if (!Number.isFinite(p) || p < 1 || p > 100000000) {
+        showNotification('价格无效（1 ~ 1e8）');
+        return null;
+    }
+    return p;
+}
+
+async function sellTradeEquipment(bagIndex) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) { showNotification('📴 服务端未就绪，无法挂售'); return; }
     const bag = game.player.equipmentBag;
     if (!bag || bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
-
-    const code = generateTradeCode({
-        type: 'eq',
+    const price = _promptListingPrice(eqDef.name);
+    if (price === null) return;
+    const payload = {
         id: item.id,
         level: item.level || 1,
         appraised: item.appraised || false,
         refine: item.refine || 0,
-        attrMult: item.attrMult || 1
-    });
-    if (!code) { showNotification('生成交易码失败'); return; }
-
-    // 扣除物品
-    bag.splice(bagIndex, 1);
-
-    _showTradeCode(code, `${eqDef.emoji} ${eqDef.name}`);
-    renderBag();
-    updateUI();
-    log(`🏪 生成了 ${eqDef.emoji} ${eqDef.name} 的交易码`, 'log-loot');
-    showNotification(`🏪 ${eqDef.name} 交易码已生成并复制到剪贴板！`);
+        attrMult: item.attrMult || 1,
+    };
+    try {
+        const r = await ApiClient.marketCreate({ type: 'eq', payload, price_gold: price });
+        bag.splice(bagIndex, 1);
+        renderBag();
+        updateUI();
+        const traderContent = document.getElementById('traderContent');
+        if (traderContent) renderTradeSellView(traderContent);
+        log(`🏪 ${eqDef.emoji} ${eqDef.name} 已上架，价格 ${formatNumber(price)} 金币`, 'log-loot');
+        showNotification(`🏪 ${eqDef.name} 已上架到联网市场！`);
+    } catch (e) {
+        showNotification(`挂售失败：${e.message}`);
+    }
 }
 
-function sellTradeTreasure(tid, level, count, isHighLevel) {
-    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
+async function sellTradeTreasure(tid, level, count, isHighLevel) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) { showNotification('📴 服务端未就绪，无法挂售'); return; }
     const data = game.player.treasures?.[tid];
     if (!data || data.count < count) { showNotification('宝物数量不足'); return; }
     const t = TREASURE_POOL.find(x => x.id === tid);
     if (!t) return;
-
-    const code = generateTradeCode({ type: 'tr', id: tid, level });
-    if (!code) { showNotification('生成交易码失败'); return; }
-
-    // 扣除物品
-    data.count -= count;
-    if (isHighLevel) data.level = 1; // 高等级出售后清零
-    if (data.count <= 0) delete game.player.treasures[tid];
-
-    _showTradeCode(code, `${t.emoji} ${t.name} Lv.${level}`);
-    renderBag();
-    updateUI();
-    log(`🏪 生成了 ${t.emoji} ${t.name}(Lv.${level}) 的交易码`, 'log-loot');
-    showNotification(`🏪 ${t.name}(Lv.${level}) 交易码已生成并复制到剪贴板！`);
+    const price = _promptListingPrice(`${t.name} Lv.${level}`);
+    if (price === null) return;
+    try {
+        await ApiClient.marketCreate({ type: 'tr', payload: { id: tid, level }, price_gold: price });
+        data.count -= count;
+        if (isHighLevel) data.level = 1;
+        if (data.count <= 0) delete game.player.treasures[tid];
+        renderBag();
+        updateUI();
+        const traderContent = document.getElementById('traderContent');
+        if (traderContent) renderTradeSellView(traderContent);
+        log(`🏪 ${t.emoji} ${t.name}(Lv.${level}) 已上架，价格 ${formatNumber(price)} 金币`, 'log-loot');
+        showNotification(`🏪 ${t.name}(Lv.${level}) 已上架到联网市场！`);
+    } catch (e) {
+        showNotification(`挂售失败：${e.message}`);
+    }
 }
 
-function sellTradeItem(itemId, count) {
-    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
+async function sellTradeItem(itemId, count) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) { showNotification('📴 服务端未就绪，无法挂售'); return; }
     const data = game.player.items?.[itemId];
     if (!data || data.count < count) { showNotification('道具数量不足'); return; }
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
-
-    const code = generateTradeCode({ type: 'it', id: itemId, count });
-    if (!code) { showNotification('生成交易码失败'); return; }
-
-    data.count -= count;
-    if (data.count <= 0) delete game.player.items[itemId];
-
-    _showTradeCode(code, `${item.emoji} ${item.name} ×${count}`);
-    renderBag();
-    updateUI();
-    log(`🏪 生成了 ${item.emoji} ${item.name} ×${count} 的交易码`, 'log-loot');
-    showNotification(`🏪 ${item.name} ×${count} 交易码已生成并复制到剪贴板！`);
+    const price = _promptListingPrice(`${item.name} ×${count}`);
+    if (price === null) return;
+    try {
+        await ApiClient.marketCreate({ type: 'it', payload: { id: itemId, count }, price_gold: price });
+        data.count -= count;
+        if (data.count <= 0) delete game.player.items[itemId];
+        renderBag();
+        updateUI();
+        const traderContent = document.getElementById('traderContent');
+        if (traderContent) renderTradeSellView(traderContent);
+        log(`🏪 ${item.emoji} ${item.name} ×${count} 已上架，价格 ${formatNumber(price)} 金币`, 'log-loot');
+        showNotification(`🏪 ${item.name} ×${count} 已上架到联网市场！`);
+    } catch (e) {
+        showNotification(`挂售失败：${e.message}`);
+    }
 }
 
-function sellTradeSkillBook(bookId, count) {
-    if (_isTradeCodePending()) { showNotification('⚠️ 请先复制当前交易码或点击"我已复制"后再出售下一件'); return; }
+async function sellTradeSkillBook(bookId, count) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) { showNotification('📴 服务端未就绪，无法挂售'); return; }
     const data = game.player.skillBooks?.[bookId];
     if (!data || data.count < count) { showNotification('技能书数量不足'); return; }
     const book = SKILL_BOOKS.find(b => b.id === bookId);
     if (!book) return;
-
-    const code = generateTradeCode({
-        type: 'sb',
-        id: bookId,
-        skillId: data.skillId || book.skillId,
-        appraised: data.appraised || false,
-        count
-    });
-    if (!code) { showNotification('生成交易码失败'); return; }
-
-    data.count -= count;
-    if (data.count <= 0) delete game.player.skillBooks[bookId];
-
-    _showTradeCode(code, `${book.emoji} ${book.name} ×${count}`);
-    renderBag();
-    updateUI();
-    log(`🏪 生成了 ${book.emoji} ${book.name} 的交易码`, 'log-loot');
-    showNotification(`🏪 ${book.name} 交易码已生成并复制到剪贴板！`);
+    const price = _promptListingPrice(`${book.name} ×${count}`);
+    if (price === null) return;
+    try {
+        await ApiClient.marketCreate({
+            type: 'sb',
+            payload: {
+                id: bookId,
+                count,
+                appraised: data.appraised || false,
+                skillId: data.skillId || book.skillId || null,
+            },
+            price_gold: price,
+        });
+        data.count -= count;
+        if (data.count <= 0) delete game.player.skillBooks[bookId];
+        renderBag();
+        updateUI();
+        const traderContent = document.getElementById('traderContent');
+        if (traderContent) renderTradeSellView(traderContent);
+        log(`🏪 ${book.emoji} ${book.name} ×${count} 已上架，价格 ${formatNumber(price)} 金币`, 'log-loot');
+        showNotification(`🏪 ${book.name} ×${count} 已上架到联网市场！`);
+    } catch (e) {
+        showNotification(`挂售失败：${e.message}`);
+    }
 }
 
 function _showTradeCode(code, itemDesc) {
@@ -5371,105 +6658,141 @@ function copyTradeCode() {
 }
 
 // 购买界面
+let currentTradeBuySubTab = 'eq';
+
 function renderTradeBuyView(container) {
     if (!container.querySelector('.trade-buy-panel')) {
         container.innerHTML = `
             <div class="trade-buy-panel">
-                <div style="text-align:center;padding:10px 0;">
-                    <div style="font-size:3em;margin-bottom:10px;">📥</div>
-                    <div style="font-weight:bold;color:#f1c40f;margin-bottom:8px;">输入交易码领取物品</div>
-                    <div style="color:#aaa;font-size:0.85em;margin-bottom:15px;">将他人给你的交易码粘贴到下方，即可领取对应物品</div>
+                <div class="trade-sub-tab-bar">
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeBuySubTab === 'eq' ? 'active' : ''}" onclick="switchTradeBuySubTab('eq')" style="padding:4px 12px;font-size:0.8em;">🛡️ 装备</button>
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeBuySubTab === 'tr' ? 'active' : ''}" onclick="switchTradeBuySubTab('tr')" style="padding:4px 12px;font-size:0.8em;">🎁 宝物</button>
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeBuySubTab === 'it' ? 'active' : ''}" onclick="switchTradeBuySubTab('it')" style="padding:4px 12px;font-size:0.8em;">📦 道具</button>
+                    <button class="btn btn-secondary trade-sub-tab ${currentTradeBuySubTab === 'sb' ? 'active' : ''}" onclick="switchTradeBuySubTab('sb')" style="padding:4px 12px;font-size:0.8em;">📕 技能书</button>
+                    <button class="btn btn-primary" onclick="refreshTradeBuyList()" style="padding:4px 12px;font-size:0.8em;">🔄 刷新</button>
                 </div>
-                <div style="max-width:500px;margin:0 auto;">
-                    <textarea class="trade-input" placeholder="在此粘贴交易码..." style="width:100%;min-height:80px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;color:#fff;font-family:monospace;font-size:0.85em;resize:vertical;box-sizing:border-box;"></textarea>
-                    <button class="btn btn-primary" onclick="processTradeBuy()" style="width:100%;margin-top:10px;padding:8px;">📥 领取物品</button>
-                </div>
-                <div class="trade-buy-result" style="margin-top:15px;display:none;">
-                    <div style="background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.3);border-radius:8px;padding:12px;">
-                        <div class="trade-buy-msg" style="color:#2ecc71;font-weight:bold;"></div>
-                    </div>
+                <div class="trade-sell-scroll">
+                    <div class="trade-buy-content" style="text-align:center;color:#aaa;padding:20px;">点击刷新加载市场列表...</div>
                 </div>
             </div>
         `;
     }
+    // 首次渲染时主动拉一次
+    refreshTradeBuyList();
 }
 
-function processTradeBuy() {
+function switchTradeBuySubTab(type) {
+    currentTradeBuySubTab = type;
     const container = document.getElementById('traderContent');
-    const input = container?.querySelector('.trade-input');
-    const resultPanel = container?.querySelector('.trade-buy-result');
-    const msgEl = container?.querySelector('.trade-buy-msg');
-    if (!input || !resultPanel || !msgEl) return;
+    if (!container) return;
+    container.querySelectorAll('#npcTraderView .trade-sub-tab').forEach(b => {
+        // 仅更新 buy 面板的 sub-tab；sell 面板有自己的 sub-tab
+    });
+    // 重新渲染 buy 面板
+    if (currentTraderTab === 'buy') {
+        const inner = container.querySelector('.trade-buy-panel');
+        if (inner) inner.remove();
+        renderTradeBuyView(container);
+    }
+}
 
-    const code = input.value.trim();
-    if (!code) { showNotification('请输入交易码'); return; }
-
-    const result = parseTradeCode(code);
-    if (!result.valid) {
-        resultPanel.style.display = 'block';
-        msgEl.style.color = '#e74c3c';
-        msgEl.textContent = `❌ ${result.error || '交易码无效'}`;
+async function refreshTradeBuyList() {
+    const container = document.getElementById('traderContent');
+    const content   = container?.querySelector('.trade-buy-content');
+    if (!content) return;
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) {
+        content.innerHTML = '<div style="color:#e74c3c;padding:20px;">📴 服务端未就绪，无法加载市场</div>';
         return;
     }
-
-    const item = result.item;
-    let itemName = '';
-    let itemEmoji = '';
-
-    if (item.type === 'eq') {
-        const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
-        if (!eqDef) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 装备数据不存在'; return; }
-        game.player.equipmentBag = game.player.equipmentBag || [];
-        game.player.equipmentBag.push({
-            id: item.id,
-            level: item.level || 1,
-            appraised: item.appraised !== undefined ? item.appraised : true,
-            refine: item.refine || 0,
-            attrMult: item.attrMult || 1
-        });
-        itemName = eqDef.name;
-        itemEmoji = eqDef.emoji;
-    } else if (item.type === 'tr') {
-        const t = TREASURE_POOL.find(x => x.id === item.id);
-        if (!t) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 宝物数据不存在'; return; }
-        game.player.treasures = game.player.treasures || {};
-        if (!game.player.treasures[item.id]) game.player.treasures[item.id] = { count: 0, level: 1, locked: false };
-        game.player.treasures[item.id].count++;
-        if (item.level > 1) game.player.treasures[item.id].level = item.level;
-        itemName = t.name;
-        itemEmoji = t.emoji;
-    } else if (item.type === 'it') {
-        const shopItem = SHOP_ITEMS.find(i => i.id === item.id);
-        if (!shopItem) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 道具数据不存在'; return; }
-        game.player.items = game.player.items || {};
-        if (!game.player.items[item.id]) game.player.items[item.id] = { count: 0 };
-        game.player.items[item.id].count += item.count || 1;
-        itemName = shopItem.name;
-        itemEmoji = shopItem.emoji;
-    } else if (item.type === 'sb') {
-        const book = SKILL_BOOKS.find(b => b.id === item.id);
-        if (!book) { resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 技能书数据不存在'; return; }
-        game.player.skillBooks = game.player.skillBooks || {};
-        if (!game.player.skillBooks[item.id]) game.player.skillBooks[item.id] = { count: 0, appraised: false, skillId: null };
-        game.player.skillBooks[item.id].count += item.count || 1;
-        if (item.appraised) {
-            game.player.skillBooks[item.id].appraised = true;
-            game.player.skillBooks[item.id].skillId = item.skillId || book.skillId;
+    content.innerHTML = '<div style="color:#aaa;padding:20px;">⏳ 加载中...</div>';
+    try {
+        const r = await ApiClient.marketList(currentTradeBuySubTab);
+        const list = r.listings || [];
+        if (list.length === 0) {
+            content.innerHTML = '<div style="color:#888;padding:20px;">该分类暂无挂售</div>';
+            return;
         }
-        itemName = book.name;
-        itemEmoji = book.emoji;
-    } else {
-        resultPanel.style.display = 'block'; msgEl.style.color = '#e74c3c'; msgEl.textContent = '❌ 未知的物品类型'; return;
+        const myHash = ApiClient.deviceId(); // 卖家用 hash 比对（device_id 不等于 hash，仅做辅助显示）
+        content.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">' +
+            list.map(l => _renderListingCard(l)).join('') +
+            '</div>';
+    } catch (e) {
+        content.innerHTML = `<div style="color:#e74c3c;padding:20px;">加载失败：${e.message}</div>`;
     }
+}
 
-    resultPanel.style.display = 'block';
-    msgEl.style.color = '#2ecc71';
-    msgEl.textContent = `✅ 成功领取 ${itemEmoji} ${itemName}！`;
-    input.value = '';
-    renderBag();
-    updateUI();
-    log(`💱 通过交易码获得了 ${itemEmoji} ${itemName}`, 'log-loot');
-    showNotification(`💱 获得 ${itemName}！`);
+function _renderListingCard(listing) {
+    const t = listing.type;
+    const p = listing.payload || {};
+    let name = '?', emoji = '?', sub = '';
+    if (t === 'eq') {
+        const def = EQUIPMENT_POOL.find(e => e.id === p.id);
+        if (def) { name = def.name; emoji = def.emoji; sub = `Lv.${p.level||1} +${p.refine||0} (${Math.round((p.attrMult||1)*100)}%)`; }
+    } else if (t === 'tr') {
+        const def = TREASURE_POOL.find(x => x.id === p.id);
+        if (def) { name = def.name; emoji = def.emoji; sub = `Lv.${p.level||1}`; }
+    } else if (t === 'it') {
+        const def = SHOP_ITEMS.find(i => i.id === p.id);
+        if (def) { name = def.name; emoji = def.emoji; sub = `×${p.count||1}`; }
+    } else if (t === 'sb') {
+        const def = SKILL_BOOKS.find(b => b.id === p.id);
+        if (def) { name = def.name; emoji = def.emoji; sub = `×${p.count||1}${p.appraised?'（已鉴定）':''}`; }
+    }
+    const isMine = !!listing.is_mine;
+    const action = isMine
+        ? `<button class="btn btn-danger" onclick="cancelListing('${t}','${listing.id}')" style="padding:4px 12px;font-size:0.75em;">↩️ 取消挂售</button>`
+        : `<button class="btn btn-primary" onclick="buyListing('${t}','${listing.id}')" style="padding:4px 12px;font-size:0.75em;">📥 购买</button>`;
+    const badge = isMine
+        ? `<div style="position:absolute;top:4px;right:4px;background:#f1c40f;color:#000;font-size:0.65em;padding:1px 6px;border-radius:8px;font-weight:bold;">我的</div>`
+        : '';
+    return `
+        <div style="position:relative;background:rgba(255,255,255,0.03);border:1px solid ${isMine ? 'rgba(241,196,15,0.4)' : 'rgba(255,255,255,0.08)'};border-radius:10px;padding:10px;text-align:center;">
+            ${badge}
+            <div style="font-size:2em;">${emoji}</div>
+            <div style="font-weight:bold;font-size:0.85em;margin:4px 0;">${name}</div>
+            <div style="font-size:0.7em;color:#aaa;">${sub}</div>
+            <div style="font-size:0.85em;color:#f1c40f;margin:4px 0;">💰 ${formatNumber(listing.price_gold)}</div>
+            ${action}
+        </div>`;
+}
+
+async function cancelListing(type, id) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) { showNotification('📴 服务端未就绪'); return; }
+    if (!confirm('确认取消挂售？物品会归还到背包。')) return;
+    try {
+        await ApiClient.marketCancel(type, id);
+        // 拉新存档刷新本地背包
+        const fresh = await ApiClient.getSave();
+        _applyServerSave(fresh);
+        renderBag(); updateUI();
+        log('↩️ 已取消挂售，物品已归还背包', 'log-loot');
+        showNotification('↩️ 取消成功');
+        refreshTradeBuyList();
+    } catch (e) {
+        showNotification(`取消失败：${e.message}`);
+    }
+}
+
+async function buyListing(type, id) {
+    if (!ApiClient.isOnline() || !ApiClient.isReady()) { showNotification('📴 服务端未就绪'); return; }
+    if (!confirm('确认购买这个挂售？金币会从你账户扣除。')) return;
+    try {
+        const r = await ApiClient.marketBuy(type, id);
+        // 拉新存档刷新本地视图
+        const fresh = await ApiClient.getSave();
+        _applyServerSave(fresh);
+        renderBag(); updateUI();
+        log(`💱 已购买挂售，剩余金币 ${formatNumber(r.player_gold)}`, 'log-loot');
+        showNotification(`💱 购买成功！`);
+        refreshTradeBuyList();
+    } catch (e) {
+        showNotification(`购买失败：${e.message}`);
+    }
+}
+
+// 兼容旧代码：保留 processTradeBuy 但提示已迁移到联网市场
+function processTradeBuy() {
+    showNotification('💡 联网市场已上线，使用上方刷新查看挂售');
 }
 
 // ========== 技能系统 ==========
@@ -5673,9 +6996,24 @@ function renderTrainSpirit(container) {
     btn.disabled = !canAfford;
 }
 
-function learnSkill(skillId) {
+async function learnSkill(skillId) {
     const skill = SKILLS.find(s => s.id === skillId);
     if (!skill) return;
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/skills/learn', { skill_id: skillId });
+            if (r.skills) game.player.skills = { ...game.player.skills, ...r.skills };
+            if (r.gold !== undefined) game.player.gold = r.gold;
+            log(`📖 学会了 ${skill.emoji} ${skill.name}！`, 'log-skill');
+            showNotification(`📖 学会了 ${skill.name}！`);
+            renderNpcContent(); updateUI(); updateSkillButtons();
+            return;
+        } catch (e) { showNotification(`学习失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     if (game.player.gold < skill.learnCost) { log('金币不足！', 'log-damage'); return; }
     game.player.gold -= skill.learnCost;
     game.player.skills[skillId] = { level: 1, cooldownEnd: 0 };
@@ -5686,11 +7024,27 @@ function learnSkill(skillId) {
     updateSkillButtons();
 }
 
-function upgradeSkill(skillId) {
+async function upgradeSkill(skillId) {
     const skill = SKILLS.find(s => s.id === skillId);
     const data = game.player.skills[skillId];
     if (!skill || !data) return;
     if (data.level >= skill.maxLevel) { log('已达到最高等级！', 'log-damage'); return; }
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/skills/upgrade', { skill_id: skillId });
+            if (r.skills) game.player.skills = { ...game.player.skills, ...r.skills };
+            if (r.gold !== undefined) game.player.gold = r.gold;
+            const newLevel = (game.player.skills[skillId] && game.player.skills[skillId].level) || data.level + 1;
+            log(`⬆️ ${skill.emoji} ${skill.name} 升级到 Lv.${newLevel}！伤害: ${calculateSkillDamage(skill, newLevel)}`, 'log-skill');
+            showNotification(`⬆️ ${skill.name} Lv.${newLevel}！`);
+            renderNpcContent(); updateUI();
+            return;
+        } catch (e) { showNotification(`升级失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const cost = Math.floor(skill.upgradeCost * Math.pow(1.3, data.level - 1));
     if (game.player.gold < cost) { log('金币不足！', 'log-damage'); return; }
     game.player.gold -= cost;
@@ -5701,13 +7055,27 @@ function upgradeSkill(skillId) {
     updateUI();
 }
 
-function appraiseEquipment(bagIndex) {
+async function appraiseEquipment(bagIndex) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
     if (item.appraised !== false) return;
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
+
+    // 联网模式：服务端基于权威存档鉴定，不再前置 putSave（会触发竞态丢失刚刚的装备/金币）
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/appraiser/equipment', { bag_index: bagIndex });
+            _mergeServerPlayer(r.player);
+            log(`🔍 鉴定成功！${eqDef.emoji} ${eqDef.name} 已可以穿戴`, 'log-skill');
+            showNotification(`🔍 鉴定成功: ${eqDef.name}！`);
+            renderAppraiserContent(); renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`鉴定失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const cost = Math.floor(eqDef.sellPrice * 0.5);
     if (game.player.gold < cost) { log('金币不足，无法鉴定！', 'log-damage'); return; }
     game.player.gold -= cost;
@@ -5719,10 +7087,26 @@ function appraiseEquipment(bagIndex) {
     updateUI();
 }
 
-function appraiseBook(bookId) {
+async function appraiseBook(bookId) {
     const book = SKILL_BOOKS.find(b => b.id === bookId);
     const data = game.player.skillBooks?.[bookId];
     if (!book || !data || data.count <= 0) return;
+
+    // 联网模式：服务端基于权威存档鉴定，不再前置 putSave（会触发竞态丢失刚刚的装备/金币）
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/appraiser/skillbook', { book_id: bookId });
+            _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            const skill = SKILLS.find(s => s.id === (res.skillId || book.skillId));
+            log(`🔍 鉴定成功！${book.emoji} ${book.name} 内含技能: ${skill ? skill.emoji : ''} ${skill ? skill.name : ''}`, 'log-skill');
+            showNotification(`🔍 鉴定成功: ${skill ? skill.name : ''}！`);
+            renderAppraiserContent(); renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`鉴定失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const cost = Math.floor(book.sellPrice * 0.8);
     if (game.player.gold < cost) { log('金币不足，无法鉴定！', 'log-damage'); return; }
     game.player.gold -= cost;
@@ -5766,9 +7150,24 @@ function sellSkillBook(bookId) {
     renderAppraiserContent();
     renderBag();
     updateUI();
+    _diffSyncPlayer(['skillBooks', 'gold']);
 }
 
-function trainSpirit() {
+async function trainSpirit() {
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/spirit/train');
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            log(`🧘 精神修炼成功！精神+${res.spi || 2}，消耗 ${formatNumber(res.cost || 0)} 金币`, 'log-skill');
+            showNotification('🧘 精神修炼成功！');
+            renderNpcContent(); updateUI();
+            return;
+        } catch (e) { showNotification(`修炼失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     const level = game.player.spiLevel || 0;
     const cost = Math.floor(80 * Math.pow(1.2, level));
     if (game.player.gold < cost) { log('金币不足！', 'log-damage'); return; }

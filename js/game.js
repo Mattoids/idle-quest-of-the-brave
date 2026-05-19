@@ -228,7 +228,7 @@ function _diffSyncPlayer(fields) {
         changes[`player.${f}`] = game.player[f];
     }
     ApiClient.diffSave(changes).catch(e => {
-        console.warn('diff sync failed:', f, e && e.message);
+        console.warn('diff sync failed:', fields, e && e.message);
         showNotification('⚠️ 数据同步失败，刷新后可能丢失');
     });
 }
@@ -1248,7 +1248,12 @@ function createDefaultSave() {
         bossDefeated: Array(15).fill(false),
         bossFled: Array(15).fill(false),
         clues: { 3: 0, 6: 0, 9: 0, 14: 0 },
-        fightingBoss: false
+        fightingBoss: false,
+        inCity: true,
+        lastBattleEndTime: null,
+        autoStrengthen: false,
+        autoRecover: false,
+        autoSell: { equipment: false, skillBooks: false, equipMaxRarity: 'rare', bookMaxRarity: 'rare' }
     };
 }
 
@@ -2078,12 +2083,21 @@ function addClue() {
 }
 
 async function enterEndlessMode() {
-    game.currentArea = 15;
     game.fightingBoss = false;
     stopAutoBattle();
 
     if (BattleNet.isOnline()) {
         try { await BattleNet.end(); } catch (_) {}
+        try {
+            const enterR = await ApiClient.request('POST', '/endless/enter');
+            if (enterR && enterR.currentArea !== undefined) game.currentArea = enterR.currentArea;
+            if (enterR && enterR.player) _mergeServerPlayer(enterR.player);
+        } catch (e) {
+            const msg = e.message === 'endless_not_unlocked' ? '需要先击败混沌核心 BOSS' : '进入无尽模式失败';
+            showNotification(`❌ ${msg}`);
+            log(`进入无尽模式失败: ${msg}`, 'log-death');
+            return;
+        }
         const r = await BattleNet.start(15);
         if (r && r.session) {
             game.enemy = r.session.enemy;
@@ -2096,6 +2110,7 @@ async function enterEndlessMode() {
         BattleNet.setOffline(true);
     }
 
+    game.currentArea = 15;
     spawnEnemy();
     log('♾️ 进入无尽模式！敌人将无限变强！', 'log-boss');
     showNotification('♾️ 进入无尽模式！');
@@ -2320,6 +2335,9 @@ function init() {
             game.fightingBoss = data.fightingBoss || defaults.fightingBoss;
             game.autoStrengthen = data.autoStrengthen || false;
             game.autoRecover = data.autoRecover || false;
+            if (data.autoSell !== undefined) {
+                game.autoSell = { ...game.autoSell, ...data.autoSell };
+            }
             migrateOldSave();
             log('📂 已自动读取上次存档', 'log-loot');
         } catch (e) { game.player = defaults.player; game.currentArea = defaults.currentArea; game.bossDefeated = defaults.bossDefeated; game.bossFled = defaults.bossFled; game.clues = defaults.clues; game.fightingBoss = defaults.fightingBoss; }

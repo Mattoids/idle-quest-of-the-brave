@@ -15,6 +15,11 @@
 #   - server-data：所有存档 / 市场 / 缓存 / 日志（必须保留）
 #   - mysql-data ：MySQL 数据目录
 #   - redis-data ：Redis AOF/RDB 数据
+#
+# 配置方式：
+#   1) cp .env.example .env
+#   2) 编辑 .env 文件修改密码和盐值
+#   3) docker compose up -d
 
 version: "3.9"
 
@@ -29,21 +34,21 @@ services:
     ports:
       - "8080:80"
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
       # 设备 ID 哈希盐（生产环境务必修改！）
-      AUTH_DEVICE_SALT: "change-this-in-production"
+      AUTH_DEVICE_SALT: ${AUTH_DEVICE_SALT:-change-this-in-production}
       # --- Redis ---
-      REDIS_ENABLED: "true"
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_ENABLED: ${REDIS_ENABLED:-true}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
       # --- MySQL ---
-      MYSQL_ENABLED: "true"
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_DATABASE: iqotb
-      MYSQL_USERNAME: iqotb
-      MYSQL_PASSWORD: iqotb_pwd_change_me
+      MYSQL_ENABLED: ${MYSQL_ENABLED:-true}
+      MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-iqotb}
+      MYSQL_USERNAME: ${MYSQL_USERNAME:-iqotb}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-iqotb_pwd_change_me}
     volumes:
       - server-data:/var/www/html/server/data
     depends_on:
@@ -69,10 +74,10 @@ services:
     container_name: iqotb-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_pwd_change_me
-      MYSQL_DATABASE: iqotb
-      MYSQL_USER: iqotb
-      MYSQL_PASSWORD: iqotb_pwd_change_me
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_pwd_change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-iqotb}
+      MYSQL_USER: ${MYSQL_USERNAME:-iqotb}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-iqotb_pwd_change_me}
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
@@ -83,7 +88,7 @@ services:
       # 启动时自动跑 migration（CREATE TABLE IF NOT EXISTS，幂等）
       - ./server/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot_pwd_change_me"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root_pwd_change_me}"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -7,6 +7,7 @@ use App\Http\HttpException;
 use App\Http\JsonResponse;
 use App\Http\Request;
 use App\Http\Response;
+use App\Util\EnvLoader;
 use Throwable;
 
 /**
@@ -22,6 +23,8 @@ final class Bootstrap
         self::$basePath = rtrim($basePath, '/');
 
         self::registerAutoloader();
+        EnvLoader::load(self::$basePath . '/.env');                      // server/.env 默认配置
+        EnvLoader::load(dirname(self::$basePath) . '/.env', true);       // 根目录 .env 覆盖（用户自定义优先）
         self::loadConfig();
         self::handleCors();
 

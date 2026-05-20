@@ -510,17 +510,22 @@ BOSS 的专属技能不再是无解的秒杀手段。通过收集套装、宝物
 一键启动整套服务（前端 + 后端 + Redis 缓存 + MySQL 持久化）：
 
 ```bash
+# 1. 复制环境变量模板并修改（生产环境务必修改密码和盐值）
+cp .env.example .env
+# vim .env
+
+# 2. 启动服务
 docker compose up -d
 # 浏览器访问 http://localhost:8080
 ```
 
 涉及文件：
 - `Dockerfile`：基于 `php:8.2-apache`，预装 `pdo_mysql / redis / opcache` 扩展，含健康检查
-- `docker/apache.conf`：Apache vhost，前端静态 + `/game/idle-quest-of-the-brave/*` API 路由
 - `docker-compose.yml`：编排 `web / redis / mysql` 三个服务，含数据卷与健康依赖
+- `.env`：环境变量配置（被 `.gitignore` 排除，需从 `.env.example` 复制）
 - `.dockerignore`：排除 `.git / server/data / 本地配置` 等
 
-环境变量（在 `docker-compose.yml` 中调整）：
+环境变量（在 `.env` 中调整，`docker-compose.yml` 引用）：
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -529,6 +534,7 @@ docker compose up -d
 | `AUTH_DEVICE_SALT` | `change-this-in-production` | **务必修改**，设备 ID 哈希盐 |
 | `REDIS_ENABLED` / `REDIS_HOST` / `REDIS_PORT` | `true / redis / 6379` | Redis 缓存层 |
 | `MYSQL_ENABLED` / `MYSQL_HOST` / `MYSQL_DATABASE` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | `true / mysql / iqotb / iqotb / iqotb_pwd_change_me` | MySQL 持久层 |
+| `MYSQL_ROOT_PASSWORD` | `root_pwd_change_me` | MySQL root 密码 |
 
 只跑独立 web（不要 Redis / MySQL）：
 
@@ -565,14 +571,15 @@ docker run -p 8080:80 \
 ├── js/game.js              # 游戏逻辑（约 7000 行）
 ├── build.js                # 构建脚本：合并压缩为单文件
 ├── dist/index.html         # 合并 + 压缩后的单文件版（可直接打开离线游玩）
+├── .env.example            # Docker 部署环境变量模板
 ├── server/                 # PHP 后端（v4.0 联网架构）
 │   ├── public/index.php    #   入口（Apache document root 之一）
 │   ├── src/                #   业务代码（Auth / Game / Market / Storage / Controllers）
-│   ├── config/app.php      #   主配置（环境变量优先）
-│   ├── config/local.example.php  #   本地配置模板
+│   ├── config/app.php      #   主配置（环境变量 / .env 优先）
+│   ├── config/local.example.php  #   本地 PHP 配置覆盖模板（可选）
+│   ├── .env.example        #   本地开发环境变量模板
 │   ├── migrations/         #   MySQL 表 schema
 │   └── data/               #   运行时存档 / 市场 / 缓存（挂载 volume）
-├── docker/apache.conf      # Apache vhost
 ├── Dockerfile              # 容器构建
 ├── docker-compose.yml      # 编排（web / redis / mysql）
 └── README.md               # 本说明文档
@@ -613,7 +620,7 @@ node build.js
   - **MySQL**（可选启用）：仅持久化"存档信息"（与功能拆分一致：market / auth 不走 MySQL）
   - **File**（始终启用）：本地权威 + 互斥锁（`flock(LOCK_EX)`）
   - 任一层异常自动降级，存档不丢；自动建表（`CREATE TABLE IF NOT EXISTS`）
-  - 配置：`config/app.php → storage.redis / storage.mysql`，或在 `config/local.php` 覆盖
+  - 配置：环境变量 / `.env` 文件（`server/.env` 或根目录 `.env`）> `config/local.php` > `config/app.php` 默认值
 - **⚔️ 批量战斗回放（30 回合 / 节奏播放）**
   - 一次 `/battle/tick` 服务端固定计算 30 回合，每回合带 `ts_offset_ms / player_hp / player_mp / enemy_hp / skills / player_state` 等
   - 前端按 `aspd_ms` 节奏逐回合渲染日志 + 同步状态，营造"连续战斗"动画
@@ -651,14 +658,34 @@ node build.js
 
 #### 部署提示
 
+**Docker 部署**（推荐）：
+
 ```bash
-# 启动 PHP 服务（开发）
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑 .env 修改密码和盐值
+
+# 2. 启动
+docker compose up -d
+```
+
+**本地 PHP 开发**：
+
+```bash
+# 启动 PHP 内置服务器
 php -S 127.0.0.1:8787 -t server/public
 
-# 启用 Redis + MySQL（可选）
+# 可选：启用 Redis + MySQL（二选一）
+# 方式 A：通过 .env 文件
+cp server/.env.example server/.env
+# 编辑 server/.env 填入 host/port/credentials
+
+# 方式 B：通过 local.php（适合复杂配置覆盖）
 cp server/config/local.example.php server/config/local.php
-# 编辑 local.php 填入 host/port/credentials；MysqlStore 自动建表
+# 编辑 local.php 覆盖任意配置项
 ```
+
+> 配置优先级：系统环境变量 > 根目录 `.env` > `server/.env` > `config/local.php` > `config/app.php` 默认值
 
 ---
 

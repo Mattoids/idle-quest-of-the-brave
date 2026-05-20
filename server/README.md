@@ -38,13 +38,15 @@ server/
 │   ├── index.php          # 统一入口
 │   └── .htaccess          # Apache 重写
 ├── config/
-│   └── app.php            # 配置；可创建 local.php 覆盖
+│   ├── app.php            # 主配置（环境变量 / .env 优先）
+│   └── local.example.php  # 本地 PHP 配置覆盖模板（可选）
+├── .env.example           # 本地开发环境变量模板
 ├── src/
-│   ├── Bootstrap.php      # 启动器：autoload / 配置 / CORS / dispatch
+│   ├── Bootstrap.php      # 启动器：autoload / .env / 配置 / CORS / dispatch
 │   ├── Router.php         # 极简路由（:param + middleware）
 │   ├── Routes.php         # 路由表
 │   ├── Http/              # Request / Response / JsonResponse / HttpException
-│   ├── Util/              # Random（CSPRNG） / Uuid / Json
+│   ├── Util/              # Random（CSPRNG） / Uuid / Json / EnvLoader
 │   ├── Storage/
 │   │   ├── FileStore.php          # 原子读写 + flock
 │   │   ├── Cache.php              # APCu→file fallback
@@ -197,7 +199,41 @@ Authorization: Bearer <token>
 
 ## ⚙️ 配置
 
-`config/app.php` 关键项：
+### 方式一：.env 文件（推荐）
+
+启动时会自动加载 `server/.env`（默认）和项目根目录 `.env`（覆盖）。
+
+```bash
+cp .env.example .env
+# 编辑 .env 修改以下关键项
+```
+
+常用环境变量：
+
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `APP_ENV` | 运行环境 | `development` / `production` |
+| `APP_DEBUG` | 调试模式 | `true` / `false` |
+| `AUTH_DEVICE_SALT` | 设备哈希盐（**生产务必修改**） | `your-random-salt` |
+| `REDIS_ENABLED` | 是否启用 Redis | `false` / `true` |
+| `REDIS_HOST` / `REDIS_PORT` | Redis 地址 | `127.0.0.1` / `6379` |
+| `MYSQL_ENABLED` | 是否启用 MySQL | `false` / `true` |
+| `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DATABASE` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | MySQL 连接信息 | `127.0.0.1` / `3306` / `iqotb` / `iqotb` / `your-password` |
+
+### 方式二：local.php（复杂配置覆盖）
+
+如需更细粒度的配置覆盖（如自定义路径、CORS 规则等）：
+
+```bash
+cp config/local.example.php config/local.php
+# 编辑 local.php，返回部分配置数组即可覆盖
+```
+
+### 配置优先级
+
+系统环境变量 > 根目录 `.env` > `server/.env` > `config/local.php` > `config/app.php` 默认值
+
+### `config/app.php` 关键项（代码级默认值）
 
 ```php
 'auth' => [
@@ -217,13 +253,11 @@ Authorization: Bearer <token>
 ],
 ```
 
-环境变量：`APP_ENV`、`APP_DEBUG`、`AUTH_DEVICE_SALT`。
-
-生产部署清单：
-- [ ] 修改 `AUTH_DEVICE_SALT`
-- [ ] `APP_DEBUG=false`
+### 生产部署清单
+- [ ] 修改 `.env` 中的 `AUTH_DEVICE_SALT`
+- [ ] `.env` 中设置 `APP_DEBUG=false`
 - [ ] 启用 OPcache + APCu
-- [ ] data/ 目录写权限给 web 用户
+- [ ] `data/` 目录写权限给 web 用户
 - [ ] CORS 白名单收紧到游戏域名
 - [ ] Nginx 限频（`limit_req`）作为节流后备
 

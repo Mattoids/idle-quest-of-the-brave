@@ -30,6 +30,8 @@ const ApiClient = (() => {
     async function request(method, path, body) {
         const opts = { method, headers: { 'Content-Type': 'application/json' } };
         if (token()) opts.headers['Authorization'] = `Bearer ${token()}`;
+        const devId = deviceId();
+        if (devId) opts.headers['X-Device-ID'] = devId;
         if (body !== undefined) opts.body = JSON.stringify(body);
 
         let resp;
@@ -66,7 +68,8 @@ const ApiClient = (() => {
         // URL 携带 device_hash 时，强制用该 hash 登录（覆盖本地 token）
         const params = new URLSearchParams(location.search);
         const urlHash = (params.get('device_hash') || '').trim().toLowerCase();
-        if (urlHash && /^[a-f0-9]{32,128}$/.test(urlHash)) {
+        // 支持标准 SHA256 哈希（32~128 位 hex）以及自定义短标识（如 mattoid）
+        if (urlHash && /^[a-z0-9_-]{1,128}$/.test(urlHash)) {
             try {
                 const r = await request('POST', '/auth/by-hash', { device_hash: urlHash });
                 if (r && r.token) {
@@ -101,9 +104,13 @@ const ApiClient = (() => {
             try { await request('GET', '/save'); _online = true; return token(); } catch (e) {
                 if (e.status === 401) {
                     const id = deviceId();
-                    // 若当前 deviceId 是 device_hash（非 UUID），无法走 /auth/login，直接注册新账号
+                    // 若当前 deviceId 是 device_hash（非 UUID），尝试 /auth/by-hash 重新登录
                     if (id && !isUuid(id)) {
-                        log(`🔁 当前为 device_hash 登录，token 过期后需重新通过 URL 登录，注册新账号...`, 'log-loot');
+                        try {
+                            const r = await request('POST', '/auth/by-hash', { device_hash: id });
+                            localStorage.setItem(TOKEN_KEY, r.token);
+                            return r.token;
+                        } catch (_) { /* fall through to register */ }
                     } else if (id) {
                         // token 过期 → 用 device_id 重新登录
                         try {

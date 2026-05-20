@@ -119,4 +119,12 @@ final class Request
         }
         return null;
     }
+
+    /**
+     * 读取前端传来的 X-Device-ID 头部（优先于 token 解析出的 deviceId）
+     */
+    public function deviceIdHeader(): ?string
+    {
+        return $this->header('x-device-id');
+    }
 }

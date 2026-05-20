@@ -145,30 +145,44 @@ final class AuthService
      *
      * 安全模型：device_hash 是 sha256(device_id + salt)，知道 hash 即认为持有该账号；
      * 类似一个长效"凭证"，与 recovery_code 等价。便于本地测试 / 跨设备分享存档。
-     * 若该 hash 对应的设备/存档都不存在，抛 404。
+     *
+     * 2026-05-20 扩展：支持自定义短标识（如 mattoid），设备不存在时自动创建。
      *
      * @return array{device_hash:string, token:string}
      */
     public function loginByHash(string $deviceHash): array
     {
         $deviceHash = strtolower(trim($deviceHash));
-        if (!preg_match('/^[a-f0-9]{32,128}$/', $deviceHash)) {
+        if (!preg_match('/^[a-z0-9_-]{1,128}$/', $deviceHash)) {
             throw HttpException::badRequest('invalid_device_hash');
         }
         // 优先按设备记录验证；若设备记录缺失但存档存在（人工迁移），同样允许 issue token
         $deviceExists = $this->files->exists($this->devicePath($deviceHash));
         $saveExists   = $this->saves->exists($deviceHash);
+
+        // 设备不存在时自动创建（懒注册），支持自定义标识
         if (!$deviceExists && !$saveExists) {
-            throw HttpException::notFound('device_not_found');
-        }
-        // 更新最后登录时间（如有设备记录）
-        if ($deviceExists) {
-            $record = $this->files->readJson($this->devicePath($deviceHash));
-            if (is_array($record)) {
-                $record['last_login_at'] = time();
-                $this->files->writeJson($this->devicePath($deviceHash), $record);
+            $now = time();
+            $deviceRecord = [
+                'device_hash'   => $deviceHash,
+                'recovery_hash' => '',
+                'created_at'    => $now,
+                'last_login_at' => $now,
+                'meta'          => ['auto_created' => true],
+            ];
+            $this->files->writeJson($this->devicePath($deviceHash), $deviceRecord);
+            $this->saves->create($deviceHash, Defaults::player(), Defaults::world());
+        } else {
+            // 更新最后登录时间（如有设备记录）
+            if ($deviceExists) {
+                $record = $this->files->readJson($this->devicePath($deviceHash));
+                if (is_array($record)) {
+                    $record['last_login_at'] = time();
+                    $this->files->writeJson($this->devicePath($deviceHash), $record);
+                }
             }
         }
+
         $token = $this->tokens->issue($deviceHash);
         return [
             'device_hash' => $deviceHash,
@@ -226,7 +240,7 @@ final class AuthService
 
     public function devicePath(string $deviceHash): string
     {
-        if (!preg_match('/^[a-f0-9]{32,128}$/', $deviceHash)) {
+        if (!preg_match('/^[a-z0-9_-]{1,128}$/', $deviceHash)) {
             throw new \InvalidArgumentException('invalid device hash');
         }
         return $this->authDir . '/devices/' . substr($deviceHash, 0, 2) . '/' . $deviceHash . '.json';

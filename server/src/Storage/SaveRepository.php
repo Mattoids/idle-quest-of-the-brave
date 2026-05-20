@@ -189,7 +189,7 @@ final class SaveRepository
     public function pathFor(string $deviceHash): string
     {
         $deviceHash = strtolower($deviceHash);
-        if (!preg_match('/^[a-f0-9]{32,128}$/', $deviceHash)) {
+        if (!preg_match('/^[a-z0-9_-]{1,128}$/', $deviceHash)) {
             throw new \InvalidArgumentException('invalid device hash');
         }
         $prefix = substr($deviceHash, 0, 2);

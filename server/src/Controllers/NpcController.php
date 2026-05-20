@@ -111,6 +111,26 @@ final class NpcController
         });
     }
 
+    public function sell(Request $req): array
+    {
+        $type   = (string) $req->require('type');
+        $target = (string) $req->require('target');
+        $count  = (int) ($req->input('count') ?? 0);
+        return $this->mutate($req, function (array $save) use ($type, $target, $count): array {
+            $r = ShopService::sell($save['player'], $type, $target, $count);
+            $save['player'] = $r['player'];
+            $save['_result'] = [
+                'type'    => $r['type'],
+                'target'  => $r['target'],
+                'count'   => $r['count'],
+                'gold'    => $r['gold'],
+                'name'    => $r['name'],
+                'emoji'   => $r['emoji'],
+            ];
+            return $save;
+        });
+    }
+
     /* ---- 客栈 / 精神 ---- */
 
     public function rest(Request $req): array

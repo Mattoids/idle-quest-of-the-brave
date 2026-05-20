@@ -9,6 +9,7 @@ use App\Controllers\BattleController;
 use App\Controllers\HealthController;
 use App\Controllers\MarketController;
 use App\Controllers\NpcController;
+use App\Controllers\OAuthController;
 use App\Controllers\ProgressController;
 use App\Controllers\SaveController;
 use App\Controllers\SkillController;
@@ -30,6 +31,10 @@ final class Routes
         $r->post('/auth/login',     [AuthController::class, 'login']);
         $r->post('/auth/recover',   [AuthController::class, 'recover']);
         $r->post('/auth/by-hash',   [AuthController::class, 'loginByHash']);
+
+        // ---- oauth (药丸 / invites.fun) ----
+        $r->get('/auth/oauth/redirect',  [OAuthController::class, 'redirect']);
+        $r->get('/auth/oauth/callback',  [OAuthController::class, 'callback']);
 
         // 需要 token
         $r->post('/auth/logout',           [AuthController::class, 'logout'])->middleware(AuthMiddleware::class);
@@ -62,6 +67,7 @@ final class Routes
         $r->post('/npc/appraiser/skillbook',  [NpcController::class, 'appraiseSkillBook'])->middleware(AuthMiddleware::class);
         $r->post('/npc/shop/buy',             [NpcController::class, 'buy'])->middleware(AuthMiddleware::class);
         $r->post('/npc/shop/use',             [NpcController::class, 'useItem'])->middleware(AuthMiddleware::class);
+        $r->post('/npc/shop/sell',            [NpcController::class, 'sell'])->middleware(AuthMiddleware::class);
         $r->post('/npc/inn/rest',             [NpcController::class, 'rest'])->middleware(AuthMiddleware::class);
         $r->post('/npc/spirit/train',         [NpcController::class, 'trainSpirit'])->middleware(AuthMiddleware::class);
 

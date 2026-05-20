@@ -59,4 +59,9 @@ class HttpException extends Exception
     {
         return new self($msg, 429, $details);
     }
+
+    public static function serviceUnavailable(string $msg = 'service_unavailable', ?array $details = null): self
+    {
+        return new self($msg, 503, $details);
+    }
 }

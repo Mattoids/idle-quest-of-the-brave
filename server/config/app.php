@@ -86,6 +86,16 @@ $base = [
         'listing_per_user_max' => 30,
     ],
 
+    // OAuth 授权配置（药丸 / invites.fun）
+    'oauth' => [
+        'enabled'       => filter_var(getenv('OAUTH_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN),
+        'client_id'     => getenv('OAUTH_CLIENT_ID') ?: '',
+        'client_secret' => getenv('OAUTH_CLIENT_SECRET') ?: '',
+        'base_url'      => rtrim(getenv('OAUTH_BASE_URL') ?: 'https://www.invites.fun', '/'),
+        'redirect_uri'  => getenv('OAUTH_REDIRECT_URI') ?: '',
+        'scope'         => getenv('OAUTH_SCOPE') ?: 'user.read',
+    ],
+
     // CORS 允许的来源（开发期可放宽）
     'cors' => [
         'allow_origins' => ['*'],

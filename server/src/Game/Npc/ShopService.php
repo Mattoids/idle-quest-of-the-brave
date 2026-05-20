@@ -142,6 +142,118 @@ final class ShopService
         return ['player' => $player, 'log' => $log];
     }
 
+    /**
+     * 出售物品（道具 / 装备 / 宝物 / 技能书）
+     *
+     * @param array  $player 玩家数据
+     * @param string $type   物品类型：item | equipment | treasure | skillbook
+     * @param string $target 目标标识：item_id | treasure_id | book_id（equipment 时用 bag_index）
+     * @param int    $count  出售数量，默认全部（equipment 固定为 1）
+     */
+    public static function sell(array $player, string $type, string $target, int $count = 0): array
+    {
+        $totalGold = 0;
+        $soldName  = '';
+        $soldEmoji = '';
+
+        switch ($type) {
+            case 'item':
+                $entry = ($player['items'] ?? [])[$target] ?? null;
+                if (!$entry || ($entry['count'] ?? 0) <= 0) {
+                    throw HttpException::badRequest('insufficient_item');
+                }
+                $def = Constants::findShopItem($target);
+                if (!$def) throw HttpException::badRequest('invalid_item');
+                $maxCount = $entry['count'];
+                $sellCount = $count > 0 ? min($count, $maxCount) : $maxCount;
+                $unitPrice = (int) floor(((int) ($def['basePrice'] ?? 0)) * 0.3);
+                $totalGold = $unitPrice * $sellCount;
+                $soldName  = (string) ($def['name'] ?? $target);
+                $soldEmoji = (string) ($def['emoji'] ?? '');
+                $entry['count'] -= $sellCount;
+                if ($entry['count'] <= 0) {
+                    unset($player['items'][$target]);
+                } else {
+                    $player['items'][$target] = $entry;
+                }
+                break;
+
+            case 'equipment':
+                $bag = $player['equipmentBag'] ?? [];
+                $idx = (int) $target;
+                if ($idx < 0 || $idx >= count($bag)) {
+                    throw HttpException::badRequest('invalid_bag_index');
+                }
+                $eq = $bag[$idx];
+                $eqDef = Constants::findEquipment($eq['id'] ?? '');
+                if (!$eqDef) throw HttpException::badRequest('invalid_equipment');
+                $totalGold = (int) ($eqDef['sellPrice'] ?? 0);
+                $soldName  = (string) ($eqDef['name'] ?? '');
+                $soldEmoji = (string) ($eqDef['emoji'] ?? '');
+                array_splice($bag, $idx, 1);
+                $player['equipmentBag'] = $bag;
+                break;
+
+            case 'treasure':
+                $entry = ($player['treasures'] ?? [])[$target] ?? null;
+                if (!$entry || ($entry['count'] ?? 0) <= 0) {
+                    throw HttpException::badRequest('insufficient_item');
+                }
+                if (!empty($entry['locked'])) {
+                    throw HttpException::forbidden('treasure_locked');
+                }
+                $def = Constants::findTreasure($target);
+                if (!$def) throw HttpException::badRequest('invalid_treasure');
+                $maxCount = $entry['count'];
+                $sellCount = $count > 0 ? min($count, $maxCount) : $maxCount;
+                $totalGold = ((int) ($def['sellPrice'] ?? 0)) * $sellCount;
+                $soldName  = (string) ($def['name'] ?? '');
+                $soldEmoji = (string) ($def['emoji'] ?? '');
+                $entry['count'] -= $sellCount;
+                if ($entry['count'] <= 0) {
+                    unset($player['treasures'][$target]);
+                } else {
+                    $player['treasures'][$target] = $entry;
+                }
+                break;
+
+            case 'skillbook':
+                $entry = ($player['skillBooks'] ?? [])[$target] ?? null;
+                if (!$entry || ($entry['count'] ?? 0) <= 0) {
+                    throw HttpException::badRequest('insufficient_item');
+                }
+                $def = Constants::findSkillBook($target);
+                if (!$def) throw HttpException::badRequest('invalid_skillbook');
+                $maxCount = $entry['count'];
+                $sellCount = $count > 0 ? min($count, $maxCount) : $maxCount;
+                $totalGold = ((int) ($def['sellPrice'] ?? 0)) * $sellCount;
+                $soldName  = (string) ($def['name'] ?? '');
+                $soldEmoji = (string) ($def['emoji'] ?? '');
+                $entry['count'] -= $sellCount;
+                if ($entry['count'] <= 0) {
+                    unset($player['skillBooks'][$target]);
+                } else {
+                    $player['skillBooks'][$target] = $entry;
+                }
+                break;
+
+            default:
+                throw HttpException::badRequest('unsupported_sell_type', ['type' => $type]);
+        }
+
+        $player['gold'] = ((int) ($player['gold'] ?? 0)) + $totalGold;
+
+        return [
+            'player'     => $player,
+            'type'       => $type,
+            'target'     => $target,
+            'count'      => $sellCount ?? 1,
+            'gold'       => $totalGold,
+            'name'       => $soldName,
+            'emoji'      => $soldEmoji,
+        ];
+    }
+
     private static function priceOf(array $item, int $level): int
     {
         return (int) floor(((int) $item['basePrice']) * (1 + ($level - 1) * 0.1));

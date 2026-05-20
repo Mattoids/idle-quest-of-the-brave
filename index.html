@@ -41,13 +41,6 @@
             <div id="loginStatus" style="font-size:0.9em;color:#aaa;margin-bottom:15px;"></div>
 
             <div style="text-align:left;margin-bottom:15px;">
-                <button class="btn btn-primary" onclick="doYaowanLogin()" style="width:100%;background:linear-gradient(45deg,#e94560,#ff6b6b);border:none;">
-                    💊 药丸授权登录
-                </button>
-                <div style="font-size:0.75em;color:#888;margin-top:5px;text-align:center;">通过 invites.fun 一键授权登录</div>
-            </div>
-
-            <div style="text-align:left;margin-bottom:15px;">
                 <label style="display:block;font-size:0.85em;color:#aaa;margin-bottom:5px;">恢复码登录</label>
                 <input type="text" id="loginRecoveryInput" placeholder="输入恢复码（如 ABCD-EFGH-IJKL-MNOP）"
                        style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:#fff;font-size:0.9em;box-sizing:border-box;">
@@ -63,7 +56,10 @@
 
             <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:15px;margin-top:15px;">
                 <div style="font-size:0.85em;color:#888;margin-bottom:10px;">支持授权的站点</div>
-                <div id="authSites" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div>
+                <button class="btn btn-primary" onclick="doYaowanLogin()" style="width:100%;background:linear-gradient(45deg,#e94560,#ff6b6b);border:none;">
+                    💊 邀玩授权登录
+                </button>
+                <div style="font-size:0.75em;color:#888;margin-top:5px;text-align:center;">通过 invites.fun 一键授权登录</div>
             </div>
 
             <button class="btn btn-secondary" onclick="hideLoginModal()" style="margin-top:15px;min-width:80px;">关闭</button>

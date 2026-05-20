@@ -1411,15 +1411,9 @@ function resolveConfirm(result) {
 }
 
 // ========== 登录弹窗 ==========
-const AUTH_SITES = [
-    { name: '🏠 本地开发', url: 'http://localhost:8080', desc: '本地测试环境' },
-    { name: '🌐 官方站点', url: 'https://iqotb.mattoid.cn', desc: '官方运营服务器' },
-];
-
 function showLoginModal() {
     const modal = document.getElementById('loginModal');
     const status = document.getElementById('loginStatus');
-    const sites = document.getElementById('authSites');
     if (!modal) return;
 
     // 显示当前登录状态
@@ -1430,18 +1424,6 @@ function showLoginModal() {
     } else {
         status.textContent = '当前为离线模式，未登录账号';
     }
-
-    // 渲染授权站点
-    sites.innerHTML = AUTH_SITES.map(s => `
-        <a href="${s.url}" target="_blank" rel="noopener noreferrer"
-           style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;
-                  font-size:0.8em;color:#eee;text-decoration:none;background:rgba(0,0,0,0.4);
-                  border:1px solid rgba(255,255,255,0.1);transition:all .15s ease;"
-           onmouseover="this.style.background='rgba(0,0,0,0.6)';this.style.borderColor='rgba(255,255,255,0.25)';"
-           onmouseout="this.style.background='rgba(0,0,0,0.4)';this.style.borderColor='rgba(255,255,255,0.1)';">
-            <span>${s.name}</span>
-        </a>
-    `).join('');
 
     modal.style.display = 'flex';
 }

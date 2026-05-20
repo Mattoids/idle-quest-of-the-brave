@@ -7,9 +7,22 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <!-- 登录按钮 -->
+    <button id="loginBtn" onclick="showLoginModal()"
+            style="position:fixed;top:14px;right:14px;z-index:9999;display:inline-flex;align-items:center;gap:6px;
+                   padding:6px 14px;border-radius:20px;font-size:0.85em;color:#eee;cursor:pointer;
+                   background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);
+                   backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:transform .15s ease;"
+            onmouseover="this.style.transform='translateY(-1px)';this.style.background='rgba(0,0,0,0.75)';"
+            onmouseout="this.style.transform='';this.style.background='rgba(0,0,0,0.55)';">
+        <span>🔐</span>
+        <span>登录</span>
+    </button>
+
+    <!-- GitHub 仓库 -->
     <a href="https://github.com/Mattoids/idle-quest-of-the-brave" target="_blank" rel="noopener noreferrer"
        title="GitHub 仓库"
-       style="position:fixed;top:14px;right:14px;z-index:9999;display:inline-flex;align-items:center;gap:6px;
+       style="position:fixed;bottom:14px;right:14px;z-index:9999;display:inline-flex;align-items:center;gap:6px;
               padding:6px 12px;border-radius:20px;text-decoration:none;font-size:0.85em;color:#eee;
               background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);
               backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:transform .15s ease;"
@@ -20,6 +33,42 @@
         </svg>
         <span>GitHub</span>
     </a>
+
+    <!-- 登录弹窗 -->
+    <div id="loginModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:3000;justify-content:center;align-items:center;backdrop-filter:blur(5px);">
+        <div style="background:linear-gradient(135deg, #1a1a2e, #16213e);border-radius:15px;border:1px solid rgba(255,255,255,0.15);padding:25px 30px;max-width:420px;width:90%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.5);margin:20px;">
+            <div style="font-size:1.3em;font-weight:bold;margin-bottom:15px;color:#f1c40f;">🔐 账号登录</div>
+            <div id="loginStatus" style="font-size:0.9em;color:#aaa;margin-bottom:15px;"></div>
+
+            <div style="text-align:left;margin-bottom:15px;">
+                <button class="btn btn-primary" onclick="doYaowanLogin()" style="width:100%;background:linear-gradient(45deg,#e94560,#ff6b6b);border:none;">
+                    💊 药丸授权登录
+                </button>
+                <div style="font-size:0.75em;color:#888;margin-top:5px;text-align:center;">通过 invites.fun 一键授权登录</div>
+            </div>
+
+            <div style="text-align:left;margin-bottom:15px;">
+                <label style="display:block;font-size:0.85em;color:#aaa;margin-bottom:5px;">恢复码登录</label>
+                <input type="text" id="loginRecoveryInput" placeholder="输入恢复码（如 ABCD-EFGH-IJKL-MNOP）"
+                       style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:#fff;font-size:0.9em;box-sizing:border-box;">
+                <button class="btn btn-primary" onclick="doLoginByRecovery()" style="margin-top:8px;width:100%;">使用恢复码登录</button>
+            </div>
+
+            <div style="text-align:left;margin-bottom:15px;">
+                <label style="display:block;font-size:0.85em;color:#aaa;margin-bottom:5px;">设备标识登录</label>
+                <input type="text" id="loginHashInput" placeholder="输入 device_hash 或自定义标识"
+                       style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.3);color:#fff;font-size:0.9em;box-sizing:border-box;">
+                <button class="btn btn-success" onclick="doLoginByHash()" style="margin-top:8px;width:100%;">切换账号</button>
+            </div>
+
+            <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:15px;margin-top:15px;">
+                <div style="font-size:0.85em;color:#888;margin-bottom:10px;">支持授权的站点</div>
+                <div id="authSites" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div>
+            </div>
+
+            <button class="btn btn-secondary" onclick="hideLoginModal()" style="margin-top:15px;min-width:80px;">关闭</button>
+        </div>
+    </div>
     <div class="game-container">
         <h1>⚔️ 勇者挂机传说 ⚔️</h1>
         <div style="text-align:center;margin-top:-10px;margin-bottom:10px;">

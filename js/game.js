@@ -65,8 +65,48 @@ const ApiClient = (() => {
      * URL 注入：?device_hash=xxx 时，优先尝试用该 hash 换 token（跨设备恢复存档）
      */
     async function ensureSession() {
-        // URL 携带 device_hash 时，强制用该 hash 登录（覆盖本地 token）
         const params = new URLSearchParams(location.search);
+
+        // URL 携带 oauth_token 时（药丸 OAuth 回调），直接保存并登录
+        const oauthToken = (params.get('oauth_token') || '').trim();
+        const oauthError = params.get('oauth_error');
+        if (oauthError) {
+            log(`❌ 药丸授权失败：${oauthError}`, 'log-death');
+            showNotification(`药丸授权失败：${oauthError}`);
+            params.delete('oauth_error');
+            params.delete('oauth_details');
+            const qs = params.toString();
+            const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, '', newUrl);
+            }
+        } else if (oauthToken) {
+            try {
+                // 验证 token 有效性
+                const r = await request('GET', '/save');
+                _online = true;
+                localStorage.setItem(TOKEN_KEY, oauthToken);
+                log(`🔐 已通过药丸授权登录`, 'log-loot');
+                showNotification('药丸授权登录成功！');
+                params.delete('oauth_token');
+                const qs = params.toString();
+                const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, '', newUrl);
+                }
+                return oauthToken;
+            } catch (e) {
+                log(`❌ 药丸授权 token 无效：${e.message}`, 'log-death');
+                params.delete('oauth_token');
+                const qs = params.toString();
+                const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, '', newUrl);
+                }
+            }
+        }
+
+        // URL 携带 device_hash 时，强制用该 hash 登录（覆盖本地 token）
         const urlHash = (params.get('device_hash') || '').trim().toLowerCase();
         // 支持标准 SHA256 哈希（32~128 位 hex）以及自定义短标识（如 mattoid）
         if (urlHash && /^[a-z0-9_-]{1,128}$/.test(urlHash)) {
@@ -1370,6 +1410,98 @@ function resolveConfirm(result) {
     }
 }
 
+// ========== 登录弹窗 ==========
+const AUTH_SITES = [
+    { name: '🏠 本地开发', url: 'http://localhost:8080', desc: '本地测试环境' },
+    { name: '🌐 官方站点', url: 'https://iqotb.mattoid.cn', desc: '官方运营服务器' },
+];
+
+function showLoginModal() {
+    const modal = document.getElementById('loginModal');
+    const status = document.getElementById('loginStatus');
+    const sites = document.getElementById('authSites');
+    if (!modal) return;
+
+    // 显示当前登录状态
+    const devId = ApiClient.deviceId();
+    const token = ApiClient.token();
+    if (token && devId) {
+        status.innerHTML = `当前已登录<br><span style="font-size:0.8em;color:#2ecc71;">标识: ${devId.slice(0, 12)}...</span>`;
+    } else {
+        status.textContent = '当前为离线模式，未登录账号';
+    }
+
+    // 渲染授权站点
+    sites.innerHTML = AUTH_SITES.map(s => `
+        <a href="${s.url}" target="_blank" rel="noopener noreferrer"
+           style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;
+                  font-size:0.8em;color:#eee;text-decoration:none;background:rgba(0,0,0,0.4);
+                  border:1px solid rgba(255,255,255,0.1);transition:all .15s ease;"
+           onmouseover="this.style.background='rgba(0,0,0,0.6)';this.style.borderColor='rgba(255,255,255,0.25)';"
+           onmouseout="this.style.background='rgba(0,0,0,0.4)';this.style.borderColor='rgba(255,255,255,0.1)';">
+            <span>${s.name}</span>
+        </a>
+    `).join('');
+
+    modal.style.display = 'flex';
+}
+
+function hideLoginModal() {
+    const modal = document.getElementById('loginModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function doYaowanLogin() {
+    try {
+        const r = await ApiClient.request('GET', '/auth/oauth/redirect');
+        if (r && r.url) {
+            window.location.href = r.url;
+        } else {
+            showNotification('药丸授权未配置，请联系管理员');
+        }
+    } catch (e) {
+        showNotification(`药丸授权跳转失败：${e.message}`);
+    }
+}
+
+async function doLoginByRecovery() {
+    const input = document.getElementById('loginRecoveryInput');
+    const code = (input?.value || '').trim();
+    if (!code) { showNotification('请输入恢复码'); return; }
+    try {
+        const r = await ApiClient.request('POST', '/auth/recover', { recovery_code: code });
+        if (r.token) {
+            localStorage.setItem('iqotb_token', r.token);
+            localStorage.setItem('iqotb_device_id', r.device_hash);
+            log(`🔐 已通过恢复码恢复账号`, 'log-loot');
+            showNotification('登录成功！');
+            hideLoginModal();
+            location.reload();
+        }
+    } catch (e) {
+        showNotification(`恢复失败：${e.message}`);
+    }
+}
+
+async function doLoginByHash() {
+    const input = document.getElementById('loginHashInput');
+    const hash = (input?.value || '').trim().toLowerCase();
+    if (!hash) { showNotification('请输入设备标识'); return; }
+    try {
+        const r = await ApiClient.request('POST', '/auth/by-hash', { device_hash: hash });
+        if (r.token) {
+            localStorage.setItem('iqotb_token', r.token);
+            localStorage.setItem('iqotb_device_id', r.device_hash);
+            log(`🔐 已切换至账号 ${hash.slice(0, 12)}...`, 'log-loot');
+            showNotification('切换账号成功！');
+            hideLoginModal();
+            location.reload();
+        }
+    } catch (e) {
+        showNotification(`切换失败：${e.message}`);
+    }
+}
+
 function switchBagTab(tab) {
     currentBagTab = tab;
     document.querySelectorAll('.bag-tab').forEach(btn => {
@@ -2067,16 +2199,40 @@ function strengthenTreasure(tid) {
     _diffSyncPlayer(['treasures', 'gold']);
 }
 
-function sellTreasure(tid) {
+async function sellTreasure(tid, sellAll = false) {
     const data = game.player.treasures?.[tid];
     const t = TREASURE_POOL.find(x => x.id === tid);
     if (!data || !t || data.count <= 0) return;
     if (data.locked) { log('❌ 该宝物已锁定（红色标签），无法出售！请先点击解锁', 'log-death'); return; }
-    data.count--;
-    if (data.count <= 0) delete game.player.treasures[tid];
-    game.player.gold += t.sellPrice;
-    log(`💰 出售了 ${t.emoji} ${t.name}，获得 ${formatNumber(t.sellPrice)} 金币`, 'log-loot');
+
+    const count = sellAll ? data.count : 1;
+    const totalGold = t.sellPrice * count;
+    const confirmed = await showConfirm(`确定要出售${sellAll ? '全部' : '1个'} ${t.emoji} ${t.name} 吗？\n获得 ${formatNumber(totalGold)} 金币`);
+    if (!confirmed) return;
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/sell', { type: 'treasure', target: tid, count: sellAll ? 0 : 1 });
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            log(`💰 出售了 ${res.emoji || t.emoji} ${res.name || t.name} ×${res.count || count}，获得 ${formatNumber(res.gold || totalGold)} 金币`, 'log-loot');
+            renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`出售失败：${e.message}`); return; }
+    }
+
+    // 离线模式
+    if (sellAll) {
+        delete game.player.treasures[tid];
+    } else {
+        data.count--;
+        if (data.count <= 0) delete game.player.treasures[tid];
+    }
+    game.player.gold += totalGold;
+    log(`💰 出售了 ${t.emoji} ${t.name} ×${count}，获得 ${formatNumber(totalGold)} 金币`, 'log-loot');
     updateUI();
+    renderBag();
     _diffSyncPlayer(['treasures', 'gold']);
 }
 
@@ -3892,6 +4048,42 @@ function renderBagTreasures(container) {
     const filterBar = pane.querySelector('[data-filter]');
     const content = pane.querySelector('[data-content]');
 
+    // 初始化出售按钮事件委托（单击确认 / 长按出售全部）
+    if (!content._sellDelegated) {
+        content._sellDelegated = true;
+        let lpTimer = null;
+        let lpTriggered = false;
+        const clearLp = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+        const startLp = (btn) => {
+            clearLp();
+            lpTriggered = false;
+            lpTimer = setTimeout(() => {
+                lpTriggered = true;
+                lpTimer = null;
+                const tid = btn.dataset.tid;
+                if (tid) sellTreasure(tid, true);
+            }, 600);
+        };
+        content.addEventListener('mousedown', (e) => {
+            const btn = e.target.closest('[data-action="sell-tr"]');
+            if (btn && !btn.disabled) startLp(btn);
+        });
+        content.addEventListener('touchstart', (e) => {
+            const btn = e.target.closest('[data-action="sell-tr"]');
+            if (btn && !btn.disabled) startLp(btn);
+        }, { passive: true });
+        content.addEventListener('mouseup', clearLp);
+        content.addEventListener('mouseleave', clearLp);
+        content.addEventListener('touchend', clearLp);
+        content.addEventListener('touchcancel', clearLp);
+        content.addEventListener('click', (e) => {
+            if (lpTriggered) { lpTriggered = false; e.stopPropagation(); e.preventDefault(); return; }
+            const btn = e.target.closest('[data-action="sell-tr"]');
+            if (!btn || btn.disabled) return;
+            sellTreasure(btn.dataset.tid, false);
+        });
+    }
+
     _bagBtn(toolbar, 'autoStrengthen', `⚡ 自动强化: ${game.autoStrengthen ? '开' : '关'}`, toggleAutoStrengthen, game.autoStrengthen, 'linear-gradient(45deg,#2ecc71,#27ae60)');
 
     const treasureFilterBtns = [
@@ -3987,7 +4179,7 @@ function renderBagTreasures(container) {
             <div class="treasure-stat">基础 ${formatValue(t.stat, t.value)}</div>
             <div class="treasure-actions">
                 <button class="btn btn-success" onclick="strengthenTreasure('${tid}')" ${!canStrengthen ? 'disabled' : ''} title="消耗1个+${formatNumber(strengthenCost)}金币强化">🔨 强化</button>
-                <button class="btn btn-warning" onclick="sellTreasure('${tid}')" ${isLocked ? 'disabled' : ''}>💰 ${formatNumber(t.sellPrice)}</button>
+                <button class="btn btn-warning" data-action="sell-tr" data-tid="${tid}" ${isLocked ? 'disabled' : ''}>💰 ${formatNumber(t.sellPrice)}</button>
             </div>
         `;
     });
@@ -4005,6 +4197,44 @@ function renderBagEquipments(container) {
     const toolbar = pane.querySelector('[data-toolbar]');
     const filterBar = pane.querySelector('[data-filter]');
     const content = pane.querySelector('[data-content]');
+
+    // 初始化出售按钮事件委托（单击确认 / 长按出售全部）
+    if (!content._sellDelegated) {
+        content._sellDelegated = true;
+        let lpTimer = null;
+        let lpTriggered = false;
+        const clearLp = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+        const startLp = (btn) => {
+            clearLp();
+            lpTriggered = false;
+            lpTimer = setTimeout(() => {
+                lpTriggered = true;
+                lpTimer = null;
+                const idx = btn.dataset.index;
+                if (idx !== undefined) sellEquipment(parseInt(idx, 10), true);
+            }, 600);
+        };
+        content.addEventListener('mousedown', (e) => {
+            const btn = e.target.closest('[data-action="sell-eq"]');
+            if (btn) startLp(btn);
+        });
+        content.addEventListener('touchstart', (e) => {
+            const btn = e.target.closest('[data-action="sell-eq"]');
+            if (btn) startLp(btn);
+        }, { passive: true });
+        content.addEventListener('mouseup', clearLp);
+        content.addEventListener('mouseleave', clearLp);
+        content.addEventListener('touchend', clearLp);
+        content.addEventListener('touchcancel', clearLp);
+        content.addEventListener('click', (e) => {
+            if (lpTriggered) { lpTriggered = false; e.stopPropagation(); e.preventDefault(); return; }
+            const btn = e.target.closest('[data-action="sell-eq"]');
+            if (!btn) return;
+            const idx = parseInt(btn.dataset.index, 10);
+            sellEquipment(idx, false);
+        });
+    }
+
     filterBar.style.gap = '6px';
 
     const as = game.autoSell;
@@ -4093,7 +4323,7 @@ function renderBagEquipments(container) {
             <div class="eq-bag-stat">${isAppraised ? formatEqStat(eqDef, item) : '需要鉴定后才能使用'}</div>
             <div class="eq-bag-actions">
                 ${isAppraised ? `<button class="btn btn-success" onclick="equipItem(${index})">穿戴</button>` : ''}
-                <button class="btn btn-warning" onclick="sellEquipment(${index})">💰 ${formatNumber(eqDef.sellPrice)}</button>
+                <button class="btn btn-warning" data-action="sell-eq" data-index="${index}">💰 ${formatNumber(eqDef.sellPrice)}</button>
             </div>
         `;
     });
@@ -4198,29 +4428,42 @@ function renderBagItems(container) {
         content._delegated = true;
         let lpTimer = null;
         let lpTriggered = false;
+        let lpAction = '';
 
         const clearLp = () => {
             if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+            lpAction = '';
         };
 
-        const startLp = (btn) => {
+        const startLp = (btn, action) => {
             clearLp();
             lpTriggered = false;
+            lpAction = action;
             lpTimer = setTimeout(() => {
                 lpTriggered = true;
                 lpTimer = null;
                 const id = btn.dataset.id;
-                useAllItems(id);
+                if (action === 'use') useAllItems(id);
+                else if (action === 'sell') sellItem(id, true);
+                else if (action === 'sell-book') sellSkillBook(id, true);
             }, 600);
         };
 
         content.addEventListener('mousedown', (e) => {
-            const btn = e.target.closest('[data-action="use"]');
-            if (btn) startLp(btn);
+            const btnUse = e.target.closest('[data-action="use"]');
+            if (btnUse) { startLp(btnUse, 'use'); return; }
+            const btnSell = e.target.closest('[data-action="sell"]');
+            if (btnSell) { startLp(btnSell, 'sell'); return; }
+            const btnSellBook = e.target.closest('[data-action="sell-book"]');
+            if (btnSellBook) { startLp(btnSellBook, 'sell-book'); }
         });
         content.addEventListener('touchstart', (e) => {
-            const btn = e.target.closest('[data-action="use"]');
-            if (btn) { startLp(btn); }
+            const btnUse = e.target.closest('[data-action="use"]');
+            if (btnUse) { startLp(btnUse, 'use'); return; }
+            const btnSell = e.target.closest('[data-action="sell"]');
+            if (btnSell) { startLp(btnSell, 'sell'); return; }
+            const btnSellBook = e.target.closest('[data-action="sell-book"]');
+            if (btnSellBook) { startLp(btnSellBook, 'sell-book'); }
         }, { passive: true });
         content.addEventListener('mouseup', clearLp);
         content.addEventListener('mouseleave', clearLp);
@@ -4239,9 +4482,9 @@ function renderBagItems(container) {
             const action = btn.dataset.action;
             const id = btn.dataset.id;
             if (action === 'use') useItem(id);
-            else if (action === 'sell') sellItem(id);
+            else if (action === 'sell') sellItem(id, false);
             else if (action === 'learn') learnFromBook(id);
-            else if (action === 'sell-book') sellSkillBook(id);
+            else if (action === 'sell-book') sellSkillBook(id, false);
         });
     }
 
@@ -4554,17 +4797,40 @@ async function useAllItems(itemId) {
     updateUI();
 }
 
-function sellItem(itemId) {
+async function sellItem(itemId, sellAll = false) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
     const playerItems = game.player.items || {};
     const data = playerItems[itemId];
     if (!data || data.count <= 0) return;
-    data.count--;
-    if (data.count <= 0) delete playerItems[itemId];
-    const sellPrice = Math.floor(item.basePrice * 0.3);
-    game.player.gold += sellPrice;
-    log(`💰 出售了 ${item.emoji} ${item.name}，获得 ${formatNumber(sellPrice)} 金币`, 'log-loot');
+
+    const count = sellAll ? data.count : 1;
+    const unitPrice = Math.floor(item.basePrice * 0.3);
+    const totalGold = unitPrice * count;
+    const confirmed = await showConfirm(`确定要出售${sellAll ? '全部' : '1个'} ${item.emoji} ${item.name} 吗？\n获得 ${formatNumber(totalGold)} 金币`);
+    if (!confirmed) return;
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/sell', { type: 'item', target: itemId, count: sellAll ? 0 : 1 });
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            log(`💰 出售了 ${res.emoji || item.emoji} ${res.name || item.name} ×${res.count || count}，获得 ${formatNumber(res.gold || totalGold)} 金币`, 'log-loot');
+            renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`出售失败：${e.message}`); return; }
+    }
+
+    // 离线模式
+    if (sellAll) {
+        delete playerItems[itemId];
+    } else {
+        data.count--;
+        if (data.count <= 0) delete playerItems[itemId];
+    }
+    game.player.gold += totalGold;
+    log(`💰 出售了 ${item.emoji} ${item.name} ×${count}，获得 ${formatNumber(totalGold)} 金币`, 'log-loot');
     renderBag();
     updateUI();
     _diffSyncPlayer(['items', 'gold']);
@@ -5532,12 +5798,29 @@ function unequipItem(slotKey) {
     _diffSyncPlayer(['equipments', 'equipmentBag']);
 }
 
-function sellEquipment(bagIndex) {
+async function sellEquipment(bagIndex, sellAll = false) {
     const bag = game.player.equipmentBag || [];
     if (bagIndex < 0 || bagIndex >= bag.length) return;
     const item = bag[bagIndex];
     const eqDef = EQUIPMENT_POOL.find(e => e.id === item.id);
     if (!eqDef) return;
+
+    const confirmed = await showConfirm(`确定要出售 ${eqDef.emoji} ${eqDef.name} 吗？\n获得 ${formatNumber(eqDef.sellPrice)} 金币`);
+    if (!confirmed) return;
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/sell', { type: 'equipment', target: String(bagIndex) });
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            log(`💰 出售了 ${res.emoji || eqDef.emoji} ${res.name || eqDef.name}，获得 ${formatNumber(res.gold || eqDef.sellPrice)} 金币`, 'log-loot');
+            renderBag(); renderBlacksmithContent(); updateUI();
+            return;
+        } catch (e) { showNotification(`出售失败：${e.message}`); return; }
+    }
+
+    // 离线模式
     bag.splice(bagIndex, 1);
     game.player.gold += eqDef.sellPrice;
     log(`💰 出售了 ${eqDef.emoji} ${eqDef.name}，获得 ${formatNumber(eqDef.sellPrice)} 金币`, 'log-loot');
@@ -7176,14 +7459,37 @@ function learnFromBook(bookId) {
     updateSkillButtons();
 }
 
-function sellSkillBook(bookId) {
+async function sellSkillBook(bookId, sellAll = false) {
     const book = SKILL_BOOKS.find(b => b.id === bookId);
     const data = game.player.skillBooks?.[bookId];
     if (!book || !data || data.count <= 0) return;
-    data.count--;
-    if (data.count <= 0) delete game.player.skillBooks[bookId];
-    game.player.gold += book.sellPrice;
-    log(`💰 出售了 ${book.emoji} ${book.name}，获得 ${formatNumber(book.sellPrice)} 金币`, 'log-loot');
+
+    const count = sellAll ? data.count : 1;
+    const totalGold = book.sellPrice * count;
+    const confirmed = await showConfirm(`确定要出售${sellAll ? '全部' : '1个'} ${book.emoji} ${book.name} 吗？\n获得 ${formatNumber(totalGold)} 金币`);
+    if (!confirmed) return;
+
+    // 联网模式
+    if (ApiClient.isOnline() && ApiClient.isReady()) {
+        try {
+            const r = await ApiClient.request('POST', '/npc/shop/sell', { type: 'skillbook', target: bookId, count: sellAll ? 0 : 1 });
+            if (r.player) _mergeServerPlayer(r.player);
+            const res = r.result || {};
+            log(`💰 出售了 ${res.emoji || book.emoji} ${res.name || book.name} ×${res.count || count}，获得 ${formatNumber(res.gold || totalGold)} 金币`, 'log-loot');
+            renderNpcContent(); renderAppraiserContent(); renderBag(); updateUI();
+            return;
+        } catch (e) { showNotification(`出售失败：${e.message}`); return; }
+    }
+
+    // 离线模式
+    if (sellAll) {
+        delete game.player.skillBooks[bookId];
+    } else {
+        data.count--;
+        if (data.count <= 0) delete game.player.skillBooks[bookId];
+    }
+    game.player.gold += totalGold;
+    log(`💰 出售了 ${book.emoji} ${book.name} ×${count}，获得 ${formatNumber(totalGold)} 金币`, 'log-loot');
     renderNpcContent();
     renderAppraiserContent();
     renderBag();

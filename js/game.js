@@ -51,6 +51,13 @@ const ApiClient = (() => {
     }
 
     /**
+     * 判断字符串是否为 UUID（device_id 格式），而非 device_hash
+     */
+    function isUuid(s) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s));
+    }
+
+    /**
      * 确保有有效会话；无 token 时自动注册。返回 token 或 null（注册失败 = 离线）
      *
      * URL 注入：?device_hash=xxx 时，优先尝试用该 hash 换 token（跨设备恢复存档）
@@ -64,8 +71,8 @@ const ApiClient = (() => {
                 const r = await request('POST', '/auth/by-hash', { device_hash: urlHash });
                 if (r && r.token) {
                     localStorage.setItem(TOKEN_KEY, r.token);
-                    // device_id 此时未知（只有 hash），清掉旧 device_id 避免 fallback 时混淆
-                    localStorage.removeItem(DEVICE_KEY);
+                    // 将 device_hash 记录为当前设备标识，替代 device_id
+                    localStorage.setItem(DEVICE_KEY, r.device_hash);
                     localStorage.removeItem(RECOVERY_KEY);
                     log(`🔁 已通过 URL 切换账号（device_hash=${urlHash.slice(0,8)}...）`, 'log-loot');
                     // 从 URL 中清除该参数，避免后续刷新重复触发
@@ -93,12 +100,18 @@ const ApiClient = (() => {
             // 验证 token 是否仍有效
             try { await request('GET', '/save'); _online = true; return token(); } catch (e) {
                 if (e.status === 401) {
-                    // token 过期 → 用 device_id 重新登录
-                    try {
-                        const r = await request('POST', '/auth/login', { device_id: deviceId() });
-                        localStorage.setItem(TOKEN_KEY, r.token);
-                        return r.token;
-                    } catch (_) { /* fall through to register */ }
+                    const id = deviceId();
+                    // 若当前 deviceId 是 device_hash（非 UUID），无法走 /auth/login，直接注册新账号
+                    if (id && !isUuid(id)) {
+                        log(`🔁 当前为 device_hash 登录，token 过期后需重新通过 URL 登录，注册新账号...`, 'log-loot');
+                    } else if (id) {
+                        // token 过期 → 用 device_id 重新登录
+                        try {
+                            const r = await request('POST', '/auth/login', { device_id: id });
+                            localStorage.setItem(TOKEN_KEY, r.token);
+                            return r.token;
+                        } catch (_) { /* fall through to register */ }
+                    }
                 }
                 if (e.message === 'offline') return null;
             }

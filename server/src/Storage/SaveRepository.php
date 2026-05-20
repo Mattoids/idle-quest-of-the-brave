@@ -62,6 +62,8 @@ final class SaveRepository
 
     /**
      * 三级读取：Redis → File → MySQL（命中后回填上层）
+     *
+     * File hit 时若 MySQL 缺失或过期，自动回填 MySQL，确保持久层始终最新。
      */
     public function load(string $deviceHash): ?array
     {
@@ -75,6 +77,8 @@ final class SaveRepository
         if ($hit !== null) {
             // 回填 Redis（仅缓存，失败静默）
             $this->redis->set($deviceHash, $hit);
+            // 若 MySQL 缺失或文件比 MySQL 新，同步到 MySQL
+            $this->backfillMysqlIfStale($deviceHash, $hit);
             return $hit;
         }
         // 3. MySQL 持久层（File 丢失后的最后救援）
@@ -218,11 +222,128 @@ final class SaveRepository
 
     /**
      * 文件写入成功后，同步刷新 Redis + MySQL（失败不影响主流程）
+     *
+     * MySQL 写入失败时将 device_hash 记录到待同步队列，供后续补偿。
      */
     private function fanoutWrite(string $deviceHash, array $save): void
     {
         // RedisStore / MysqlStore 内部已 try/catch + disable 旗标，这里直接调用即可
         $this->redis->set($deviceHash, $save);
-        $this->mysql->set($deviceHash, $save);
+        $ok = $this->mysql->set($deviceHash, $save);
+        if (!$ok) {
+            $this->queuePending($deviceHash);
+        }
+    }
+
+    /**
+     * 强制将文件存档同步到 MySQL（单条）
+     */
+    public function syncToMysql(string $deviceHash): bool
+    {
+        $save = $this->files->readJson($this->pathFor($deviceHash));
+        if ($save === null) return false;
+        return $this->mysql->set($deviceHash, $save);
+    }
+
+    /**
+     * 批量同步：扫描所有文件存档，将缺失 / 过期的记录同步到 MySQL
+     *
+     * @return array{total:int, synced:int, failed:int}
+     */
+    public function syncAllToMysql(): array
+    {
+        $total  = 0;
+        $synced = 0;
+        $failed = 0;
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->rootDir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($it as $file) {
+            if ($file->getExtension() !== 'json') continue;
+            $name = $file->getBasename('.json');
+            if (!preg_match('/^[a-z0-9_-]{1,128}$/', $name)) continue;
+            $total++;
+            $save = $this->files->readJson($file->getPathname());
+            if ($save === null) { $failed++; continue; }
+            $ok = $this->mysql->set($name, $save);
+            $ok ? $synced++ : $failed++;
+        }
+        // 同时清空待同步队列
+        $this->clearPending();
+        return ['total' => $total, 'synced' => $synced, 'failed' => $failed];
+    }
+
+    /**
+     * 同步待同步队列中的存档（MySQL 曾经写入失败的补偿）
+     *
+     * @return array{total:int, synced:int, failed:int}
+     */
+    public function syncPendingToMysql(): array
+    {
+        $pending = $this->getPending();
+        $synced  = 0;
+        $failed  = 0;
+        foreach ($pending as $deviceHash) {
+            $save = $this->files->readJson($this->pathFor($deviceHash));
+            if ($save === null) { $failed++; continue; }
+            $ok = $this->mysql->set($deviceHash, $save);
+            $ok ? $synced++ : $failed++;
+        }
+        if ($synced > 0) {
+            $this->clearPending();
+        }
+        return ['total' => count($pending), 'synced' => $synced, 'failed' => $failed];
+    }
+
+    // ---------- 内部：MySQL 回填与待同步队列 ----------
+
+    /**
+     * 若 MySQL 中无此存档，或文件比 MySQL 更新，则同步到 MySQL
+     */
+    private function backfillMysqlIfStale(string $deviceHash, array $fileSave): void
+    {
+        if (!$this->mysql->isAvailable()) return;
+        $mysqlSave = $this->mysql->get($deviceHash);
+        if ($mysqlSave === null) {
+            // MySQL 缺失，直接同步
+            $this->mysql->set($deviceHash, $fileSave);
+            return;
+        }
+        $fileUpdated = (int) ($fileSave['updated_at'] ?? 0);
+        $mysqlUpdated = (int) ($mysqlSave['updated_at'] ?? 0);
+        if ($fileUpdated > $mysqlUpdated) {
+            $this->mysql->set($deviceHash, $fileSave);
+        }
+    }
+
+    private function queuePending(string $deviceHash): void
+    {
+        $path = $this->rootDir . '/.mysql_pending.json';
+        $list = [];
+        if (is_file($path)) {
+            $raw = @file_get_contents($path);
+            $list = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
+        }
+        if (!is_array($list)) $list = [];
+        if (!in_array($deviceHash, $list, true)) {
+            $list[] = $deviceHash;
+        }
+        @file_put_contents($path, json_encode($list), LOCK_EX);
+    }
+
+    private function getPending(): array
+    {
+        $path = $this->rootDir . '/.mysql_pending.json';
+        if (!is_file($path)) return [];
+        $raw = @file_get_contents($path);
+        $list = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
+        return is_array($list) ? $list : [];
+    }
+
+    private function clearPending(): void
+    {
+        $path = $this->rootDir . '/.mysql_pending.json';
+        if (is_file($path)) @unlink($path);
     }
 }

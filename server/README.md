@@ -53,7 +53,8 @@ server/
 │   │   ├── SaveRepository.php     # 每用户一个文件
 │   │   └── MarketRepository.php   # 按 type 分文件
 │   ├── Auth/
-│   │   ├── AuthService.php        # 设备 ID + 恢复码
+│   │   ├── AuthService.php        # 设备 ID + 恢复码 + device_hash 登录
+│   │   ├── OAuthService.php       # 药丸（invites.fun）OAuth：授权 URL / code 换 token / 获取用户
 │   │   ├── TokenStore.php         # token → device_hash 缓存
 │   │   └── AuthMiddleware.php
 │   ├── Game/
@@ -130,6 +131,31 @@ Authorization: Bearer <token>
 
 `device_hash = sha256(device_id + salt)`，存档与挂售都以 hash 为主键，**服务端不保存 device_id 原文**。
 
+### OAuth 登录（药丸 / invites.fun）
+
+前端点击"邀玩授权登录"后触发以下流程：
+
+1. 前端 `GET /auth/oauth/redirect` → 后端生成 state 并返回药丸授权 URL
+2. 浏览器跳转药丸授权页
+3. 药丸授权后 `302` 回跳 `GET /auth/oauth/callback?code=xxx&state=xxx`
+4. 后端：
+   - 验证 state
+   - 用 code 换 access_token（`POST invites.fun/oauth/token`）
+   - 用 token 获取用户信息（`GET invites.fun/api/user`）
+   - 以 `yaowan_${userId}` 作为 device_hash 调用 `loginByHash`
+   - 重定向回前端 `/?device_hash=yaowan_xxx&nickname=xxx`
+5. 前端 `ensureSession` 检测到 `device_hash`，调用 `POST /auth/by-hash` 获取 token 并登录
+
+### device_hash 直接登录
+
+```bash
+curl -X POST .../auth/by-hash -d '{"device_hash":"yaowan_123"}'
+```
+
+- 设备不存在时**自动懒注册**（创建设备记录 + 默认存档）
+- 支持自定义短标识（如 `mattoid`）
+- 返回 `device_hash` + `token`
+
 ---
 
 ## 📦 API 一览
@@ -140,9 +166,12 @@ Authorization: Bearer <token>
 | GET  | `/data/constants`    | -  | 暴露只读常量（区域、稀有度权重、爆率） |
 | POST | `/auth/register`     | -  | 注册新账号，返回 device_id + recovery_code + token |
 | POST | `/auth/login`        | -  | 凭 device_id 登录，获取 token |
+| POST | `/auth/by-hash`      | -  | 凭 device_hash 直接登录（含懒注册），返回 token |
 | POST | `/auth/recover`      | -  | 凭 recovery_code 恢复账号 |
 | POST | `/auth/logout`       | ✅ | 注销当前 token |
 | POST | `/auth/rotate-recovery` | ✅ | 重置恢复码（旧码失效） |
+| GET  | `/auth/oauth/redirect` | -  | 返回药丸（invites.fun）授权跳转 URL |
+| GET  | `/auth/oauth/callback` | -  | 药丸 OAuth 回调：code → token → user → 重定向前端 |
 | GET  | `/save`              | ✅ | 获取存档 |
 | PUT  | `/save`              | ✅ | 覆盖存档（仅调试/迁移用） |
 | POST | `/save/diff`         | ✅ | 局部更新：`{ "changes": { "player.gold": 100 } }` |
@@ -219,6 +248,10 @@ cp .env.example .env
 | `REDIS_HOST` / `REDIS_PORT` | Redis 地址 | `127.0.0.1` / `6379` |
 | `MYSQL_ENABLED` | 是否启用 MySQL | `false` / `true` |
 | `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DATABASE` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | MySQL 连接信息 | `127.0.0.1` / `3306` / `iqotb` / `iqotb` / `your-password` |
+| `OAUTH_ENABLED` | 是否启用药丸 OAuth | `false` / `true` |
+| `OAUTH_BASE_URL` | 药丸 OAuth 基础 URL | `https://invites.fun` |
+| `OAUTH_CLIENT_ID` | 药丸客户端 ID | `your-client-id` |
+| `OAUTH_CLIENT_SECRET` | 药丸客户端密钥 | `your-client-secret` |
 
 ### 方式二：local.php（复杂配置覆盖）
 
@@ -241,6 +274,14 @@ cp config/local.example.php config/local.php
     'device_salt'      => 'change-me',    // 哈希盐，生产务必改
     'recovery_length'  => 24,
 ],
+'oauth' => [
+    'enabled'       => true,
+    'base_url'      => 'https://invites.fun',
+    'client_id'     => 'your-client-id',
+    'client_secret' => 'your-client-secret',
+    'scope'         => 'user.read',
+    'redirect_uri'  => '',  // 留空则自动推断
+],
 'game' => [
     'min_action_interval_ms' => 80,       // 攻击下限间隔
     'max_tick_batch'         => 200,      // 单次 tick 模拟上限
@@ -256,6 +297,7 @@ cp config/local.example.php config/local.php
 ### 生产部署清单
 - [ ] 修改 `.env` 中的 `AUTH_DEVICE_SALT`
 - [ ] `.env` 中设置 `APP_DEBUG=false`
+- [ ] 若使用药丸 OAuth：配置 `OAUTH_ENABLED=true` + `OAUTH_CLIENT_ID` + `OAUTH_CLIENT_SECRET`
 - [ ] 启用 OPcache + APCu
 - [ ] `data/` 目录写权限给 web 用户
 - [ ] CORS 白名单收紧到游戏域名

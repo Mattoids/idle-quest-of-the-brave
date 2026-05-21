@@ -43,8 +43,8 @@ final class OAuthController
      */
     public function callback(Request $req): void
     {
-        $code  = (string) ($req->input('code') ?? '');
-        $state = (string) ($req->input('state') ?? '');
+        $code  = (string) ($req->query('code') ?? '');
+        $state = (string) ($req->query('state') ?? '');
 
         if ($code === '' || $state === '') {
             $this->redirectFront(['oauth_error' => 'missing_code_or_state']);

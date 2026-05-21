@@ -76,11 +76,7 @@ final class OAuthController
      */
     private function redirectFront(array $params): void
     {
-        $frontendUrl = '/index.html';
-        $sep = strpos($frontendUrl, '?') === false ? '?' : '&';
-        $query = http_build_query($params);
-        $location = $frontendUrl . $sep . $query;
-
+        $location = '/index.html?device_hash=' . $params['device_hash'];
         header('Location: ' . $location, true, 302);
         exit;
     }

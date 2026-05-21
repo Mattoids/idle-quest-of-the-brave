@@ -86,9 +86,32 @@ const ApiClient = (() => {
                 const r = await request('GET', '/save');
                 _online = true;
                 localStorage.setItem(TOKEN_KEY, oauthToken);
-                log(`🔐 已通过药丸授权登录`, 'log-loot');
-                showNotification('药丸授权登录成功！');
+
+                // 解析并保存药丸用户信息
+                const oauthUserB64 = params.get('oauth_user');
+                if (oauthUserB64) {
+                    try {
+                        const oauthUser = JSON.parse(atob(oauthUserB64));
+                        localStorage.setItem('iqotb_oauth_user', JSON.stringify(oauthUser));
+                        const nickname = oauthUser.nickname || oauthUser.username || '';
+                        if (nickname) {
+                            log(`🔐 已通过药丸授权登录：${nickname}`, 'log-loot');
+                            showNotification(`药丸授权登录成功！欢迎 ${nickname}`);
+                        } else {
+                            log(`🔐 已通过药丸授权登录`, 'log-loot');
+                            showNotification('药丸授权登录成功！');
+                        }
+                    } catch (_) {
+                        log(`🔐 已通过药丸授权登录`, 'log-loot');
+                        showNotification('药丸授权登录成功！');
+                    }
+                } else {
+                    log(`🔐 已通过药丸授权登录`, 'log-loot');
+                    showNotification('药丸授权登录成功！');
+                }
+
                 params.delete('oauth_token');
+                params.delete('oauth_user');
                 const qs = params.toString();
                 const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
                 if (window.history && window.history.replaceState) {
@@ -98,6 +121,7 @@ const ApiClient = (() => {
             } catch (e) {
                 log(`❌ 药丸授权 token 无效：${e.message}`, 'log-death');
                 params.delete('oauth_token');
+                params.delete('oauth_user');
                 const qs = params.toString();
                 const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
                 if (window.history && window.history.replaceState) {

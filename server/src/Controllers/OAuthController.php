@@ -61,7 +61,13 @@ final class OAuthController
             return;
         }
 
-        $this->redirectFront(['oauth_token' => $result['token']]);
+        // 把用户信息精简后传给前端，避免 query string 过长
+        $user = $result['user'] ?? [];
+        $oauthUser = array_intersect_key($user, array_flip(['id', 'nickname', 'username', 'avatar', 'email']));
+        $this->redirectFront([
+            'oauth_token' => $result['token'],
+            'oauth_user'  => base64_encode(json_encode($oauthUser)),
+        ]);
     }
 
     /**
@@ -107,7 +113,7 @@ final class OAuthController
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $script = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
-        $base = preg_replace('#/server/public/index\.php$#', '', $script);
+        $base = preg_replace('#(?:/server/public)?/index\.php$#', '', $script);
         if ($base === '') $base = '/game/idle-quest-of-the-brave';
 
         return $scheme . '://' . $host . $base . '/';

@@ -144,29 +144,23 @@ const ApiClient = (() => {
 
                     // 药丸 OAuth 回调（device_hash 以 yaowan_ 开头）
                     if (urlHash.startsWith('yaowan_')) {
-                        const oauthUserB64 = params.get('oauth_user');
-                        let nickname = '';
-                        if (oauthUserB64) {
-                            try {
-                                const oauthUser = JSON.parse(atob(oauthUserB64));
-                                localStorage.setItem('iqotb_oauth_user', JSON.stringify(oauthUser));
-                                nickname = oauthUser.nickname || oauthUser.username || '';
-                            } catch (_) { /* ignore */ }
-                        }
+                        const nickname = (params.get('nickname') || '').trim();
                         if (nickname) {
+                            localStorage.setItem('iqotb_nickname', nickname);
                             log(`🔐 已通过药丸授权登录：${nickname}`, 'log-loot');
                             showNotification(`药丸授权登录成功！欢迎 ${nickname}`);
                         } else {
                             log(`🔐 已通过药丸授权登录`, 'log-loot');
                             showNotification('药丸授权登录成功！');
                         }
+                        updateLoginBtn();
                     } else {
                         log(`🔁 已通过 URL 切换账号（device_hash=${urlHash.slice(0, 8)}...）`, 'log-loot');
                     }
 
                     // 从 URL 中清除该参数，避免后续刷新重复触发
                     params.delete('device_hash');
-                    params.delete('oauth_user');
+                    params.delete('nickname');
                     const qs = params.toString();
                     const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
                     if (window.history && window.history.replaceState) {
@@ -188,7 +182,7 @@ const ApiClient = (() => {
 
         if (token()) {
             // 验证 token 是否仍有效
-            try { await request('GET', '/save'); _online = true; return token(); } catch (e) {
+            try { await request('GET', '/save'); _online = true; updateLoginBtn(); return token(); } catch (e) {
                 if (e.status === 401) {
                     const id = deviceId();
                     // 若当前 deviceId 是 device_hash（非 UUID），尝试 /auth/by-hash 重新登录
@@ -196,6 +190,7 @@ const ApiClient = (() => {
                         try {
                             const r = await request('POST', '/auth/by-hash', { device_hash: id });
                             localStorage.setItem(TOKEN_KEY, r.token);
+                            updateLoginBtn();
                             return r.token;
                         } catch (_) { /* fall through to register */ }
                     } else if (id) {
@@ -203,6 +198,7 @@ const ApiClient = (() => {
                         try {
                             const r = await request('POST', '/auth/login', { device_id: id });
                             localStorage.setItem(TOKEN_KEY, r.token);
+                            updateLoginBtn();
                             return r.token;
                         } catch (_) { /* fall through to register */ }
                     }
@@ -216,6 +212,7 @@ const ApiClient = (() => {
             localStorage.setItem(DEVICE_KEY,   r.device_id);
             localStorage.setItem(RECOVERY_KEY, r.recovery_code);
             log(`🔐 已联网创建账号，恢复码：${r.recovery_code}（妥善保管，跨设备登录用）`, 'log-loot');
+            updateLoginBtn();
             return r.token;
         } catch (e) {
             return null;
@@ -1457,7 +1454,26 @@ function resolveConfirm(result) {
     }
 }
 
-// ========== 登录弹窗 ==========
+// ========== 登录按钮 / 弹窗 ==========
+
+/** 更新顶部登录按钮的显示文本（昵称或"登录"） */
+function updateLoginBtn() {
+    const btnText = document.getElementById('loginText');
+    const btnIcon = document.getElementById('loginIcon');
+    if (!btnText) return;
+    const nickname = localStorage.getItem('iqotb_nickname') || '';
+    if (nickname) {
+        btnText.textContent = nickname;
+        if (btnIcon) btnIcon.textContent = '👤';
+    } else if (ApiClient.token()) {
+        btnText.textContent = '已登录';
+        if (btnIcon) btnIcon.textContent = '🔓';
+    } else {
+        btnText.textContent = '登录';
+        if (btnIcon) btnIcon.textContent = '🔐';
+    }
+}
+
 function showLoginModal() {
     const modal = document.getElementById('loginModal');
     const status = document.getElementById('loginStatus');
@@ -1465,9 +1481,15 @@ function showLoginModal() {
 
     // 显示当前登录状态
     const devId = ApiClient.deviceId();
-    const token = ApiClient.token();
-    if (token && devId) {
-        status.innerHTML = `当前已登录<br><span style="font-size:0.8em;color:#2ecc71;">标识: ${devId.slice(0, 12)}...</span>`;
+    const tok = ApiClient.token();
+    const nickname = localStorage.getItem('iqotb_nickname') || '';
+    if (tok && devId) {
+        let html = '当前已登录';
+        if (nickname) {
+            html += `<br><span style="font-size:1em;color:#f1c40f;font-weight:bold;">👤 ${nickname}</span>`;
+        }
+        html += `<br><span style="font-size:0.8em;color:#2ecc71;">标识: ${devId.slice(0, 12)}...</span>`;
+        status.innerHTML = html;
     } else {
         status.textContent = '当前为离线模式，未登录账号';
     }
@@ -2547,7 +2569,7 @@ function init() {
             log('📂 已自动读取上次存档', 'log-loot');
         } catch (e) { game.player = defaults.player; game.currentArea = defaults.currentArea; game.bossDefeated = defaults.bossDefeated; game.bossFled = defaults.bossFled; game.clues = defaults.clues; game.fightingBoss = defaults.fightingBoss; }
     } else { game.player = defaults.player; game.currentArea = defaults.currentArea; game.bossDefeated = defaults.bossDefeated; game.bossFled = defaults.bossFled; game.clues = defaults.clues; game.fightingBoss = defaults.fightingBoss; log('欢迎来到勇者挂机传说！点击"开始挂机"开始战斗吧！', 'log-loot'); }
-    spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons();
+    spawnEnemy(); renderAreas(); renderUpgrades(); renderBag(); updateClueUI(); updateUI(); updateSkillButtons(); updateLoginBtn();
     if (game.inCity) { showNpcView(); } else { showBattleView(); }
     const verEl = document.getElementById('gameVersion');
     if (verEl) verEl.textContent = GAME_VERSION;

@@ -61,12 +61,14 @@ final class OAuthController
             return;
         }
 
-        // 把用户信息精简后传给前端，避免 query string 过长
+        // 传 device_hash（yaowan_前缀）+ 昵称给前端
         $user = $result['user'] ?? [];
-        $oauthUser = array_intersect_key($user, array_flip(['id', 'nickname', 'username', 'avatar', 'email']));
-        $this->redirectFront([
-            'device_hash'  => base64_encode(json_encode($oauthUser)),
-        ]);
+        $nickname = (string) ($user['nickname'] ?? $user['username'] ?? '');
+        $params = ['device_hash' => $result['device_hash']];
+        if ($nickname !== '') {
+            $params['nickname'] = $nickname;
+        }
+        $this->redirectFront($params);
     }
 
     /**
@@ -76,7 +78,12 @@ final class OAuthController
      */
     private function redirectFront(array $params): void
     {
-        $location = '/index.html?device_hash=' . $params['device_hash'];
+        $frontendUrl = '/index.html';
+
+        $sep = strpos($frontendUrl, '?') === false ? '?' : '&';
+        $query = http_build_query($params);
+        $location = $frontendUrl . $sep . $query;
+
         header('Location: ' . $location, true, 302);
         exit;
     }

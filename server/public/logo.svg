@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <!-- 外环发光渐变 -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.4"/>
+      <stop offset="60%" stop-color="#e94560" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 剑身渐变 -->
+    <linearGradient id="blade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="50%" stop-color="#e94560"/>
+      <stop offset="100%" stop-color="#c0392b"/>
+    </linearGradient>
+
+    <!-- 金色高光 -->
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f1c40f"/>
+      <stop offset="100%" stop-color="#f39c12"/>
+    </linearGradient>
+
+    <!-- 盾牌底色 -->
+    <linearGradient id="shield" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+
+    <!-- 外发光滤镜 -->
+    <filter id="neon" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- 强发光 -->
+    <filter id="strongGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景发光圆 -->
+  <circle cx="200" cy="190" r="160" fill="url(#glow)"/>
+
+  <!-- 外装饰环 -->
+  <circle cx="200" cy="190" r="150" fill="none" stroke="#e94560" stroke-width="2" opacity="0.3"/>
+  <circle cx="200" cy="190" r="142" fill="none" stroke="#e94560" stroke-width="1" opacity="0.15" stroke-dasharray="8 6"/>
+
+  <!-- 四角星装饰 -->
+  <g opacity="0.4">
+    <path d="M200 25 L204 35 L200 45 L196 35 Z" fill="#f1c40f"/>
+    <path d="M200 335 L204 345 L200 355 L196 345 Z" fill="#f1c40f"/>
+    <path d="M45 190 L55 194 L45 198 L35 194 Z" fill="#f1c40f"/>
+    <path d="M355 190 L365 194 L355 198 L345 194 Z" fill="#f1c40f"/>
+  </g>
+
+  <!-- 盾牌 -->
+  <path d="M200 75
+           C240 75, 280 95, 300 130
+           C320 170, 310 230, 280 270
+           C250 310, 220 330, 200 340
+           C180 330, 150 310, 120 270
+           C90 230, 80 170, 100 130
+           C120 95, 160 75, 200 75 Z"
+        fill="url(#shield)"
+        stroke="#e94560"
+        stroke-width="2.5"
+        opacity="0.9"/>
+
+  <!-- 盾牌内边框 -->
+  <path d="M200 88
+           C235 88, 268 105, 285 135
+           C302 170, 294 222, 268 258
+           C242 294, 216 312, 200 322
+           C184 312, 158 294, 132 258
+           C106 222, 98 170, 115 135
+           C132 105, 165 88, 200 88 Z"
+        fill="none"
+        stroke="#e94560"
+        stroke-width="1"
+        opacity="0.4"/>
+
+  <!-- 交叉双剑 - 左剑 -->
+  <g transform="rotate(-35 200 210)">
+    <!-- 剑柄 -->
+    <rect x="194" y="280" width="12" height="35" rx="2" fill="#8b4513"/>
+    <rect x="188" y="280" width="24" height="6" rx="2" fill="url(#gold)"/>
+    <circle cx="200" cy="320" r="7" fill="url(#gold)"/>
+    <!-- 剑身 -->
+    <path d="M196 110 L200 75 L204 110 L204 280 L196 280 Z" fill="url(#blade)" filter="url(#neon)"/>
+    <!-- 剑刃高光 -->
+    <path d="M198 110 L200 80 L200 280 L198 280 Z" fill="#fff" opacity="0.3"/>
+  </g>
+
+  <!-- 交叉双剑 - 右剑 -->
+  <g transform="rotate(35 200 210)">
+    <!-- 剑柄 -->
+    <rect x="194" y="280" width="12" height="35" rx="2" fill="#8b4513"/>
+    <rect x="188" y="280" width="24" height="6" rx="2" fill="url(#gold)"/>
+    <circle cx="200" cy="320" r="7" fill="url(#gold)"/>
+    <!-- 剑身 -->
+    <path d="M196 110 L200 75 L204 110 L204 280 L196 280 Z" fill="url(#blade)" filter="url(#neon)"/>
+    <!-- 剑刃高光 -->
+    <path d="M198 110 L200 80 L200 280 L198 280 Z" fill="#fff" opacity="0.3"/>
+  </g>
+
+  <!-- 中心宝石 -->
+  <circle cx="200" cy="210" r="16" fill="#1a1a2e" stroke="url(#gold)" stroke-width="2.5"/>
+  <circle cx="200" cy="210" r="10" fill="url(#gold)" filter="url(#strongGlow)"/>
+  <circle cx="197" cy="207" r="3" fill="#fff" opacity="0.6"/>
+
+  <!-- 顶部装饰纹章 -->
+  <path d="M185 55 L200 40 L215 55 L210 68 L200 62 L190 68 Z" fill="url(#gold)" opacity="0.8"/>
+
+  <!-- 底部文字 -->
+  <text x="200" y="385" text-anchor="middle" font-family="'Microsoft YaHei', 'PingFang SC', sans-serif" font-size="26" font-weight="bold" fill="#e94560" filter="url(#neon)">勇者挂机传说</text>
+  <text x="200" y="385" text-anchor="middle" font-family="'Microsoft YaHei', 'PingFang SC', sans-serif" font-size="26" font-weight="bold" fill="url(#blade)">勇者挂机传说</text>
+</svg>

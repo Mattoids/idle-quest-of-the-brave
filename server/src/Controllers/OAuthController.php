@@ -61,13 +61,8 @@ final class OAuthController
             return;
         }
 
-        // 把用户信息精简后传给前端，避免 query string 过长
-        $user = $result['user'] ?? [];
-        $oauthUser = array_intersect_key($user, array_flip(['id', 'nickname', 'username', 'avatar', 'email']));
-        $this->redirectFront([
-            'oauth_token' => $result['token'],
-            'oauth_user'  => base64_encode(json_encode($oauthUser)),
-        ]);
+        // 用药丸用户唯一标识作为 device_hash，让前端走统一登录入口
+        $this->redirectFront(['device_hash' => $result['device_hash']]);
     }
 
     /**

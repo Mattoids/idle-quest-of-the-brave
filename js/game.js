@@ -141,9 +141,32 @@ const ApiClient = (() => {
                     // 将 device_hash 记录为当前设备标识，替代 device_id
                     localStorage.setItem(DEVICE_KEY, r.device_hash);
                     localStorage.removeItem(RECOVERY_KEY);
-                    log(`🔁 已通过 URL 切换账号（device_hash=${urlHash.slice(0,8)}...）`, 'log-loot');
+
+                    // 药丸 OAuth 回调（device_hash 以 yaowan_ 开头）
+                    if (urlHash.startsWith('yaowan_')) {
+                        const oauthUserB64 = params.get('oauth_user');
+                        let nickname = '';
+                        if (oauthUserB64) {
+                            try {
+                                const oauthUser = JSON.parse(atob(oauthUserB64));
+                                localStorage.setItem('iqotb_oauth_user', JSON.stringify(oauthUser));
+                                nickname = oauthUser.nickname || oauthUser.username || '';
+                            } catch (_) { /* ignore */ }
+                        }
+                        if (nickname) {
+                            log(`🔐 已通过药丸授权登录：${nickname}`, 'log-loot');
+                            showNotification(`药丸授权登录成功！欢迎 ${nickname}`);
+                        } else {
+                            log(`🔐 已通过药丸授权登录`, 'log-loot');
+                            showNotification('药丸授权登录成功！');
+                        }
+                    } else {
+                        log(`🔁 已通过 URL 切换账号（device_hash=${urlHash.slice(0, 8)}...）`, 'log-loot');
+                    }
+
                     // 从 URL 中清除该参数，避免后续刷新重复触发
                     params.delete('device_hash');
+                    params.delete('oauth_user');
                     const qs = params.toString();
                     const newUrl = location.pathname + (qs ? '?' + qs : '') + location.hash;
                     if (window.history && window.history.replaceState) {

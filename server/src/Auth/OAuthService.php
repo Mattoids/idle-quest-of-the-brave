@@ -101,11 +101,11 @@ final class OAuthService
         }
 
         // 3. 以用户唯一标识作为 device_hash 登录游戏
-        $auth = new AuthService();
-        $loginResult = $auth->loginByHash('yaowan_' . $userId);
+//         $auth = new AuthService();
+//         $loginResult = $auth->loginByHash('yaowan_' . $userId);
 
         return [
-            'device_hash' => $loginResult['device_hash'],
+//             'device_hash' => $loginResult['device_hash'],
             'token'       => $loginResult['token'],
             'user'        => $user,
         ];

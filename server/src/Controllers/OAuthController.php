@@ -64,11 +64,11 @@ final class OAuthController
         // 传 device_hash（yaowan_前缀）+ 昵称给前端
         $user = $result['user'] ?? [];
         $nickname = (string) ($user['nickname'] ?? $user['username'] ?? '');
-        $params = ['device_hash' => $result['device_hash']];
-        if ($nickname !== '') {
-            $params['nickname'] = $nickname;
-        }
-        $this->redirectFront($params);
+        $oauthUser = array_intersect_key($user, array_flip(['id', 'nickname', 'username', 'avatar', 'email']));
+        $this->redirectFront([
+            'device_hash'  => 'yaowan_' . base64_encode(json_encode($oauthUser)),
+            'nickname' => $nickname,
+        ]);
     }
 
     /**
